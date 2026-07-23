@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Expo & Build files
+.expo/
+*/.expo/
+dist/
+*/dist/
+build/
+*/build/
+
+# Environment files
+.env
+*/.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# System & OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Gemini / Antigravity Agent logs
+.system_generated/

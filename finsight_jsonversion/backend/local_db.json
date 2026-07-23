@@ -1,0 +1,140 @@
+{
+  "users": [
+    {
+      "_id": "mock-user-1784683034722",
+      "fullName": "Selvamanikandan",
+      "email": "selvathevar10042005@gmail.com",
+      "password": "12345678",
+      "companyName": "SMA"
+    },
+    {
+      "_id": "mock-user-1784689435660",
+      "email": "test_raj@hisabhero.com",
+      "password": "password123",
+      "fullName": "Raj Patel",
+      "companyName": "Raj Enterprises"
+    },
+    {
+      "_id": "mock-user-1784689435661",
+      "email": "test_amit@hisabhero.com",
+      "password": "password123",
+      "fullName": "Amit Kumar",
+      "companyName": "Amit Traders"
+    }
+  ],
+  "transactions": [
+    {
+      "_id": "mock-tx-1784689422055",
+      "businessId": "mock-business-1784689422043",
+      "createdBy": "mock-user-1784689422039",
+      "userId": "mock-user-1784689422039",
+      "uploadId": "manual",
+      "date": "2026-07-22",
+      "description": "Workspace inventory purchase",
+      "category": "Inventory",
+      "amount": 15000,
+      "type": "expense"
+    },
+    {
+      "_id": "mock-tx-1784689422056",
+      "businessId": null,
+      "createdBy": "mock-user-1784689422039",
+      "userId": "mock-user-1784689422039",
+      "uploadId": "manual",
+      "date": "2026-07-22",
+      "description": "Raj personal groceries",
+      "category": "Food",
+      "amount": 1200,
+      "type": "expense"
+    },
+    {
+      "_id": "mock-tx-1784689435677",
+      "businessId": "mock-business-1784689435663",
+      "createdBy": "mock-user-1784689435660",
+      "userId": "mock-user-1784689435660",
+      "uploadId": "manual",
+      "date": "2026-07-22",
+      "description": "Workspace inventory purchase",
+      "category": "Inventory",
+      "amount": 15000,
+      "type": "expense"
+    },
+    {
+      "_id": "mock-tx-1784689435678",
+      "businessId": null,
+      "createdBy": "mock-user-1784689435660",
+      "userId": "mock-user-1784689435660",
+      "uploadId": "manual",
+      "date": "2026-07-22",
+      "description": "Raj personal groceries",
+      "category": "Food",
+      "amount": 1200,
+      "type": "expense"
+    }
+  ],
+  "uploads": [],
+  "businesses": [
+    {
+      "_id": "mock-business-1784689435663",
+      "budgets": {},
+      "createdAt": "2026-07-22T03:03:55.663Z",
+      "updatedAt": "2026-07-22T03:03:55.664Z",
+      "name": "Test Business ABC Electronics",
+      "description": "Collaborative partnership shop",
+      "currency": "INR",
+      "createdBy": "mock-user-1784689435660"
+    }
+  ],
+  "members": [
+    {
+      "_id": "mock-member-1784689422045",
+      "joinedAt": "2026-07-22T03:03:42.045Z",
+      "status": "active",
+      "businessId": "mock-business-1784689422043",
+      "userId": "mock-user-1784689422039",
+      "role": "owner",
+      "invitedBy": "mock-user-1784689422039"
+    },
+    {
+      "_id": "mock-member-1784689422053",
+      "joinedAt": "2026-07-22T03:03:42.053Z",
+      "status": "active",
+      "businessId": "mock-business-1784689422043",
+      "userId": "mock-user-1784689422040",
+      "role": "employee",
+      "invitedBy": "mock-user-1784689422039"
+    },
+    {
+      "_id": "mock-member-1784689435667",
+      "joinedAt": "2026-07-22T03:03:55.667Z",
+      "status": "active",
+      "businessId": "mock-business-1784689435663",
+      "userId": "mock-user-1784689435660",
+      "role": "owner",
+      "invitedBy": "mock-user-1784689435660"
+    },
+    {
+      "_id": "mock-member-1784689435674",
+      "joinedAt": "2026-07-22T03:03:55.674Z",
+      "status": "active",
+      "businessId": "mock-business-1784689435663",
+      "userId": "mock-user-1784689435661",
+      "role": "employee",
+      "invitedBy": "mock-user-1784689435660"
+    }
+  ],
+  "invitations": [
+    {
+      "_id": "mock-invitation-1784689435670",
+      "status": "accepted",
+      "createdAt": "2026-07-22T03:03:55.670Z",
+      "businessId": "mock-business-1784689435663",
+      "invitedEmail": "test_amit@hisabhero.com",
+      "role": "employee",
+      "invitedBy": "mock-user-1784689435660",
+      "token": "test_invite_token_123",
+      "expirationDate": "2026-07-23T03:03:55.669Z"
+    }
+  ],
+  "auditLogs": []
+}

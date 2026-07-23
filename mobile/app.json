@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "HisabHero",
+    "slug": "hisabhero-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "hisabhero",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "splash": {
+      "backgroundColor": "#06111f",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hisabhero.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "HisabHero needs access to your camera to capture receipts for instant AI financial expense extraction.",
+        "NSPhotoLibraryUsageDescription": "HisabHero needs access to your photo library to select receipt images for expense extraction."
+      }
+    },
+    "android": {
+      "package": "com.hisabhero.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#06111f"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "650b819c-53e8-4407-9851-2a6ed9aaeb0b"
+      }
+    }
+  }
+}

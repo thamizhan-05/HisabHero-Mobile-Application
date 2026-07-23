@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: hisabhero-backend
+    runtime: node
+    rootDir: finsight_jsonversion
+    buildCommand: npm install
+    startCommand: node backend/server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_WEB_CLIENT_ID
+        sync: false
+      - key: NODE_ENV
+        value: production
