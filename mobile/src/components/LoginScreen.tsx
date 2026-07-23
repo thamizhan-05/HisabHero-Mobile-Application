@@ -63,6 +63,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
@@ -77,6 +78,29 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   const [companyName, setCompanyName] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  // Fetch with timeout + slow-server hint
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 35000): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    // Show a hint after 5 seconds if still loading
+    const hintId = setTimeout(() => setStatusMsg('⏳ Server is waking up, please wait...'), 5000);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      clearTimeout(hintId);
+      setStatusMsg(null);
+      return res;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      clearTimeout(hintId);
+      setStatusMsg(null);
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out. The server may be starting up — please try again in a moment.');
+      }
+      throw err;
+    }
+  };
 
 
   const processGoogleLogin = async (idToken: string) => {
@@ -187,20 +211,22 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     }
     setLoading(true);
     setErrorMsg(null);
+    setStatusMsg(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/auth/signup`, {
+      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, fullName, companyName }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Registration failed');
-      Alert.alert('Verification Sent', 'Please check your email for the 6-digit OTP code.');
+      Alert.alert('Verification Sent! 📧', `A 6-digit OTP code has been sent to ${email}. Please check your inbox (and spam folder).`);
       setAuthMode('verifyEmail');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to connect to the server.');
+      setErrorMsg(err.message || 'Failed to connect to the server. Please try again.');
     } finally {
       setLoading(false);
+      setStatusMsg(null);
     }
   };
 
@@ -211,8 +237,9 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     }
     setLoading(true);
     setErrorMsg(null);
+    setStatusMsg(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/auth/login`, {
+      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -220,7 +247,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 403 && data.needsVerification) {
-          Alert.alert('Verification Required', 'A new verification code was sent to your email.');
+          Alert.alert('Verification Required', 'A new verification code was sent to your email. Please check your inbox.');
           setAuthMode('verifyEmail');
           return;
         }
@@ -233,6 +260,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       setErrorMsg(err.message || 'The email or password is incorrect.');
     } finally {
       setLoading(false);
+      setStatusMsg(null);
     }
   };
 
@@ -243,15 +271,16 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     }
     setLoading(true);
     setErrorMsg(null);
+    setStatusMsg(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/auth/verify-code`, {
+      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: verificationCode.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Verification code is invalid.');
-      Alert.alert('Account Verified', 'Your account is active! Logging in...');
+      if (!res.ok) throw new Error(data.error || 'Verification code is invalid or expired.');
+      Alert.alert('✅ Account Verified!', 'Your account is now active. Logging in...');
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
       onLoginSuccess(data.token, data.user);
@@ -259,19 +288,21 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       setErrorMsg(err.message || 'Verification failed.');
     } finally {
       setLoading(false);
+      setStatusMsg(null);
     }
   };
 
   const handleResendOtp = async () => {
     setLoading(true);
     setErrorMsg(null);
+    setStatusMsg(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/auth/resend-code`, {
+      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/resend-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      if (res.ok) Alert.alert('Sent', 'Verification code resent.');
+      if (res.ok) Alert.alert('Sent 📧', 'A new verification code has been sent to your email inbox.');
       else {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Resend failed');
@@ -280,6 +311,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       setErrorMsg(err.message || 'Resend failed.');
     } finally {
       setLoading(false);
+      setStatusMsg(null);
     }
   };
 
@@ -290,20 +322,22 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     }
     setLoading(true);
     setErrorMsg(null);
+    setStatusMsg(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/auth/forgot-password`, {
+      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Request failed.');
-      Alert.alert('Code Dispatched', 'If the account exists, a reset code was sent.');
+      Alert.alert('Code Dispatched 📧', 'If the account exists, a password reset code was sent to your email.');
       setAuthMode('resetPassword');
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to complete request.');
     } finally {
       setLoading(false);
+      setStatusMsg(null);
     }
   };
 
@@ -368,6 +402,13 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
               <View style={styles.errorBox}>
                 <AlertCircleIcon color="#ff8f8f" size={16} style={{ marginRight: 8 }} />
                 <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            )}
+
+            {statusMsg != null && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#0d2644', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <ActivityIndicator size="small" color="#4a90d9" style={{ marginRight: 10 }} />
+                <Text style={{ color: '#a6c8f0', fontSize: 13, flex: 1 }}>{statusMsg}</Text>
               </View>
             )}
 
