@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Production Cloud API URL (Render / Production fallback)
-export const PRODUCTION_API_URL = 'https://hisabhero-backend.onrender.com/api';
+// Production Cloud API URL (Live Render Production Web Service)
+export const PRODUCTION_API_URL = 'https://hisabhero-mobile-application.onrender.com/api';
 
 // Default API URL (uses environment variable if present, otherwise defaults to PRODUCTION_API_URL)
 export const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;
