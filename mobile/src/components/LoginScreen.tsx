@@ -101,7 +101,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     try {
       if (GOOGLE_CONFIGURED) {
         // Real Google OAuth via WebBrowser sheet (works in Expo Go & Standalone)
-        const redirectUrl = 'https://auth.expo.io/@hisabhero/hisabhero-mobile';
+        const redirectUrl = 'https://auth.expo.io/@thamizhan_0.5/hisabhero-mobile';
         const authUrl =
           `https://accounts.google.com/o/oauth2/v2/auth?` +
           `client_id=${encodeURIComponent(GOOGLE_WEB_CLIENT_ID)}` +
