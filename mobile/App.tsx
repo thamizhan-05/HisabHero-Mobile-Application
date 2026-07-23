@@ -61,13 +61,9 @@ export default function App() {
   // Load token, user profile, and configured API URL on startup
   const bootstrapApp = async () => {
     try {
-      const storedUrl = await AsyncStorage.getItem('apiBaseUrl');
-      if (storedUrl) {
-        setApiBaseUrl(storedUrl);
-        setGlobalApiUrl(storedUrl);
-      } else {
-        setGlobalApiUrl(DEFAULT_API_URL);
-      }
+      const activeUrl = await loadSavedApiBaseUrl();
+      setApiBaseUrl(activeUrl);
+      setGlobalApiUrl(activeUrl);
 
       const token = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');

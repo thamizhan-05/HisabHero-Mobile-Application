@@ -35,7 +35,19 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
   try {
     const saved = await AsyncStorage.getItem('apiBaseUrl');
     if (saved && saved.trim()) {
-      currentApiUrl = saved.trim().replace(/\/+$/, '');
+      const cleanUrl = saved.trim().replace(/\/+$/, '');
+      // Proactive protection: Discard local IP/localhost URLs in production mode
+      const isLocal = cleanUrl.includes('localhost') || 
+                      cleanUrl.includes('127.0.0.1') || 
+                      /192\.168\.\d+\.\d+/.test(cleanUrl) || 
+                      /10\.\d+\.\d+\.\d+/.test(cleanUrl);
+                      
+      if (isLocal) {
+        await AsyncStorage.removeItem('apiBaseUrl');
+        currentApiUrl = DEFAULT_API_URL;
+      } else {
+        currentApiUrl = cleanUrl;
+      }
     } else {
       currentApiUrl = DEFAULT_API_URL;
     }
