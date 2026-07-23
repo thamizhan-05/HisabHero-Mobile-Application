@@ -25,6 +25,8 @@
       "package": "com.hisabhero.app",
       "permissions": [
         "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
@@ -35,6 +37,12 @@
       "eas": {
         "projectId": "650b819c-53e8-4407-9851-2a6ed9aaeb0b"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/650b819c-53e8-4407-9851-2a6ed9aaeb0b"
     }
   }
 }

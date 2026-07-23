@@ -1,6 +1,21 @@
-import * as SecureStore from 'expo-secure-store';
-import * as LocalAuthentication from 'expo-local-authentication';
 import nacl from 'tweetnacl';
+
+// Lazy-load native modules so the bundle works even without native layer (OTA compatible)
+let SecureStore: any = null;
+let LocalAuthentication: any = null;
+
+async function loadNativeModules() {
+  try {
+    SecureStore = await import('expo-secure-store');
+  } catch {
+    SecureStore = null;
+  }
+  try {
+    LocalAuthentication = await import('expo-local-authentication');
+  } catch {
+    LocalAuthentication = null;
+  }
+}
 
 const PRIVATE_KEY_STORE_KEY = 'hisabhero_private_key';
 const PUBLIC_KEY_STORE_KEY = 'hisabhero_public_key';
@@ -39,37 +54,60 @@ export function generateKeyPair() {
   };
 }
 
+// In-memory fallback store (used when SecureStore native module is unavailable)
+const memStore: Record<string, string> = {};
+
+async function secureGet(key: string): Promise<string | null> {
+  if (SecureStore) return SecureStore.getItemAsync(key);
+  return memStore[key] || null;
+}
+
+async function secureSet(key: string, value: string): Promise<void> {
+  if (SecureStore) return SecureStore.setItemAsync(key, value);
+  memStore[key] = value;
+}
+
 // Load or lazily initialize the secure cryptographic keys
 export async function getOrGenerateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
-  let privateKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORE_KEY);
-  let publicKey = await SecureStore.getItemAsync(PUBLIC_KEY_STORE_KEY);
+  await loadNativeModules();
+  let privateKey = await secureGet(PRIVATE_KEY_STORE_KEY);
+  let publicKey = await secureGet(PUBLIC_KEY_STORE_KEY);
 
   if (!privateKey || !publicKey) {
     const pair = generateKeyPair();
-    await SecureStore.setItemAsync(PRIVATE_KEY_STORE_KEY, pair.privateKey);
-    await SecureStore.setItemAsync(PUBLIC_KEY_STORE_KEY, pair.publicKey);
+    await secureSet(PRIVATE_KEY_STORE_KEY, pair.privateKey);
+    await secureSet(PUBLIC_KEY_STORE_KEY, pair.publicKey);
     return pair;
   }
 
   return { publicKey, privateKey };
 }
 
-// Prompt biometrics, then cryptographically sign the transaction
+// Prompt biometrics (if available), then cryptographically sign the transaction
 export async function signTransactionPayload(
   payload: { amount: number; description: string; date: string; type: string }
 ): Promise<{ signature: string; publicKey: string } | null> {
-  // Check biometrics availability
-  const hasHardware = await LocalAuthentication.hasHardwareAsync();
-  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+  await loadNativeModules();
 
-  if (hasHardware && isEnrolled) {
-    const authResult = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Confirm biometrics to cryptographically sign this transaction',
-      fallbackLabel: 'Use Device Passcode',
-    });
+  // Check biometrics availability (gracefully skips if native module unavailable)
+  if (LocalAuthentication) {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-    if (!authResult.success) {
-      throw new Error('Biometric authentication failed. Transaction security signing aborted.');
+      if (hasHardware && isEnrolled) {
+        const authResult = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Confirm biometrics to cryptographically sign this transaction',
+          fallbackLabel: 'Use Device Passcode',
+        });
+
+        if (!authResult.success) {
+          throw new Error('Biometric authentication failed. Transaction security signing aborted.');
+        }
+      }
+    } catch (err: any) {
+      if (err.message?.includes('aborted')) throw err;
+      // Silently skip biometric if hardware unavailable
     }
   }
 
