@@ -22,7 +22,8 @@
     "lucide-react-native": "^1.25.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-svg": "15.12.1"
+    "react-native-svg": "15.12.1",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@babel/plugin-transform-class-properties": "^7.25.4",

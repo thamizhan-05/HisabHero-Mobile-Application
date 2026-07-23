@@ -24,6 +24,8 @@ const TransactionSchema = new mongoose.Schema({
   originalAmount: { type: Number },
   originalCurrency: { type: String },
   exchangeRate: { type: Number },
+  signature: { type: String },
+  vectorClock: { type: Map, of: Number, default: {} },
 }, { timestamps: true });
 
 export default mongoose.model('Transaction', TransactionSchema);

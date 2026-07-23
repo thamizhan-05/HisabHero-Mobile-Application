@@ -12,6 +12,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
+import nacl from 'tweetnacl';
 
 import connectDB, { isMongoConnected } from './config/db.js';
 import User from './models/User.js';
@@ -1867,6 +1868,223 @@ app.get('/api/dashboard/transactions', authMiddleware, workspaceMiddleware, chec
   res.json(db.transactions || []); 
 });
 
+app.get('/api/dashboard/transactions/verify', authMiddleware, workspaceMiddleware, checkPermission('view_financials'), async (req, res) => {
+  try {
+    const db = await getDbData(req.workspaceId, req.isPersonal);
+    const txs = db.transactions || [];
+    const verificationResults = [];
+
+    const stringToUint8Array = (str) => {
+      const arr = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; i++) {
+        arr[i] = str.charCodeAt(i) & 0xff;
+      }
+      return arr;
+    };
+    const fromHex = (hex) => {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substring(i * 2, (i + 1) * 2), 16);
+      }
+      return bytes;
+    };
+
+    for (const tx of txs) {
+      if (!tx.signature) {
+        verificationResults.push({
+          id: (tx._id || tx.id).toString(),
+          date: tx.date,
+          amount: tx.amount,
+          description: tx.description,
+          status: 'unsigned',
+          verified: false
+        });
+        continue;
+      }
+
+      const user = isMongoConnected
+        ? await User.findById(tx.userId)
+        : await LocalUser.findOne({ _id: tx.userId });
+
+      if (!user || !user.publicKey) {
+        verificationResults.push({
+          id: (tx._id || tx.id).toString(),
+          date: tx.date,
+          amount: tx.amount,
+          description: tx.description,
+          status: 'missing_public_key',
+          verified: false
+        });
+        continue;
+      }
+
+      const dataString = `${tx.amount}:${tx.description}:${tx.date}:${tx.type}`;
+      const dataBytes = stringToUint8Array(dataString);
+      const signatureBytes = fromHex(tx.signature);
+      const publicKeyBytes = fromHex(user.publicKey);
+
+      const isValid = nacl.sign.detached.verify(dataBytes, signatureBytes, publicKeyBytes);
+      verificationResults.push({
+        id: (tx._id || tx.id).toString(),
+        date: tx.date,
+        amount: tx.amount,
+        description: tx.description,
+        status: isValid ? 'verified' : 'tampered',
+        verified: isValid
+      });
+    }
+
+    res.json(verificationResults);
+  } catch (err) {
+    res.status(500).json({ error: 'Verification failed: ' + err.message });
+  }
+});
+
+app.post('/api/sync/peers', authMiddleware, workspaceMiddleware, checkPermission('manage_transactions'), async (req, res) => {
+  const { peerTransactions } = req.body;
+  if (!Array.isArray(peerTransactions)) {
+    return res.status(400).json({ error: 'peerTransactions must be an array.' });
+  }
+
+  try {
+    const db = await getDbData(req.workspaceId, req.isPersonal);
+    const localTxs = db.transactions || [];
+    const localMap = new Map(localTxs.map(t => [ (t._id || t.id).toString(), t ]));
+
+    const updatedTxs = [];
+    const conflictLogs = [];
+
+    // Helper to compare vector clocks
+    const compareClocks = (clockA, clockB) => {
+      const keys = new Set([...Object.keys(clockA), ...Object.keys(clockB)]);
+      let greater = false;
+      let lesser = false;
+
+      for (const k of keys) {
+        const valA = clockA[k] || 0;
+        const valB = clockB[k] || 0;
+        if (valA > valB) greater = true;
+        if (valA < valB) lesser = true;
+      }
+
+      if (greater && !lesser) return 'newer'; // clockA is newer
+      if (!greater && lesser) return 'older'; // clockB is newer (local is newer)
+      if (greater && lesser) return 'concurrent'; // conflict
+      return 'equal';
+    };
+
+    for (const peerTx of peerTransactions) {
+      const txId = (peerTx._id || peerTx.id).toString();
+      const localTx = localMap.get(txId);
+
+      if (!localTx) {
+        // New transaction entirely: save it locally
+        const newTxData = {
+          ...peerTx,
+          userId: peerTx.userId || req.userId,
+          businessId: req.isPersonal ? null : req.workspaceId,
+          vectorClock: peerTx.vectorClock || {}
+        };
+        const saved = isMongoConnected
+          ? await new Transaction(newTxData).save()
+          : await LocalTransaction.createAndSave(newTxData);
+
+        updatedTxs.push(saved);
+      } else {
+        // Both have the transaction: evaluate vector clocks
+        const clockLocal = localTx.vectorClock ? (localTx.vectorClock.toObject ? localTx.vectorClock.toObject() : localTx.vectorClock) : {};
+        const clockIncoming = peerTx.vectorClock || {};
+
+        const relation = compareClocks(clockIncoming, clockLocal);
+
+        if (relation === 'newer') {
+          // Incoming is strictly newer: overwrite local
+          const updateFields = {
+            date: peerTx.date,
+            description: peerTx.description,
+            category: peerTx.category,
+            amount: peerTx.amount,
+            type: peerTx.type,
+            merchant: peerTx.merchant,
+            paymentMethod: peerTx.paymentMethod,
+            signature: peerTx.signature,
+            vectorClock: clockIncoming,
+            status: peerTx.status || localTx.status
+          };
+
+          const updated = isMongoConnected
+            ? await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
+            : await LocalTransaction.findOneAndUpdate({ _id: txId }, updateFields);
+
+          updatedTxs.push(updated);
+        } else if (relation === 'concurrent') {
+          // Concurrent conflict: Resolve deterministically using Last-Write-Wins (updatedAt)
+          const timeLocal = new Date(localTx.updatedAt || localTx.createdAt || Date.now()).getTime();
+          const timeIncoming = new Date(peerTx.updatedAt || peerTx.createdAt || Date.now()).getTime();
+
+          conflictLogs.push({
+            transactionId: txId,
+            description: peerTx.description,
+            localClock: clockLocal,
+            incomingClock: clockIncoming
+          });
+
+          // Merge vector clocks (taking the max counter for each device node)
+          const mergedClock = {};
+          const keys = new Set([...Object.keys(clockLocal), ...Object.keys(clockIncoming)]);
+          for (const k of keys) {
+            mergedClock[k] = Math.max(clockLocal[k] || 0, clockIncoming[k] || 0);
+          }
+
+          if (timeIncoming > timeLocal) {
+            const updateFields = {
+              date: peerTx.date,
+              description: peerTx.description,
+              category: peerTx.category,
+              amount: peerTx.amount,
+              type: peerTx.type,
+              merchant: peerTx.merchant,
+              paymentMethod: peerTx.paymentMethod,
+              signature: peerTx.signature,
+              vectorClock: mergedClock,
+              status: 'approved',
+              isConflicted: true,
+              conflictReason: `Concurrent conflict resolved automatically via Last-Write-Wins (Incoming ${timeIncoming} > Local ${timeLocal}).`
+            };
+
+            const updated = isMongoConnected
+              ? await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
+              : await LocalTransaction.findOneAndUpdate({ _id: txId }, updateFields);
+
+            updatedTxs.push(updated);
+          } else {
+            const updateFields = {
+              vectorClock: mergedClock,
+              isConflicted: true,
+              conflictReason: `Concurrent conflict resolved automatically via Last-Write-Wins (Local ${timeLocal} >= Incoming ${timeIncoming}).`
+            };
+
+            const updated = isMongoConnected
+              ? await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
+              : await LocalTransaction.findOneAndUpdate({ _id: txId }, updateFields);
+
+            updatedTxs.push(updated);
+          }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      synchronizedCount: updatedTxs.length,
+      conflictsResolved: conflictLogs.length,
+      conflictDetails: conflictLogs
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Sync failed: ' + err.message });
+  }
+});
+
 app.get('/api/dashboard/cashflow', authMiddleware, workspaceMiddleware, checkPermission('view_financials'), async (req, res) => { 
   const db = getFilteredDb(await getDbData(req.workspaceId, req.isPersonal), req.query.filter); 
   res.json(db.cashflow || {}); 
@@ -1966,10 +2184,56 @@ app.get('/api/dashboard/health', authMiddleware, workspaceMiddleware, checkPermi
 
 // Manual transaction add (workspace isolated & audited)
 app.post('/api/dashboard/transactions', authMiddleware, workspaceMiddleware, checkPermission('submit_self_expense'), async (req, res) => {
-  const { date, description, category, amount, type, merchant, paymentMethod, receiptUrl, taxAmount, originalAmount, originalCurrency, exchangeRate } = req.body;
+  const { date, description, category, amount, type, merchant, paymentMethod, receiptUrl, taxAmount, originalAmount, originalCurrency, exchangeRate, signature, publicKey, vectorClock } = req.body;
   if (!amount || !date) return res.status(400).json({ error: 'date and amount are required' });
 
   try {
+    // Biometric Cryptographic Signature Verification
+    if (signature && publicKey) {
+      const user = isMongoConnected
+        ? await User.findById(req.userId)
+        : await LocalUser.findOne({ _id: req.userId });
+
+      if (user) {
+        let registeredPubKey = user.publicKey;
+        if (!registeredPubKey) {
+          registeredPubKey = publicKey;
+          if (isMongoConnected) {
+            await User.findByIdAndUpdate(req.userId, { publicKey });
+          } else {
+            await LocalUser.findOneAndUpdate({ _id: req.userId }, { publicKey });
+          }
+        } else if (registeredPubKey !== publicKey) {
+          return res.status(403).json({ error: 'Public key mismatch. Access denied to this secure keypair.' });
+        }
+
+        const dataString = `${parseFloat(amount)}:${description || category || 'Transaction'}:${date}:${type || 'expense'}`;
+        const stringToUint8Array = (str) => {
+          const arr = new Uint8Array(str.length);
+          for (let i = 0; i < str.length; i++) {
+            arr[i] = str.charCodeAt(i) & 0xff;
+          }
+          return arr;
+        };
+        const fromHex = (hex) => {
+          const bytes = new Uint8Array(hex.length / 2);
+          for (let i = 0; i < bytes.length; i++) {
+            bytes[i] = parseInt(hex.substring(i * 2, (i + 1) * 2), 16);
+          }
+          return bytes;
+        };
+
+        const dataBytes = stringToUint8Array(dataString);
+        const signatureBytes = fromHex(signature);
+        const publicKeyBytes = fromHex(registeredPubKey);
+
+        const isValid = nacl.sign.detached.verify(dataBytes, signatureBytes, publicKeyBytes);
+        if (!isValid) {
+          return res.status(400).json({ error: 'Cryptographic signature verification failed. The transaction payload may have been tampered with.' });
+        }
+      }
+    }
+
     const isEmployee = req.workspaceRole === 'employee';
     const status = isEmployee ? 'pending_approval' : 'approved';
 
@@ -1991,6 +2255,8 @@ app.post('/api/dashboard/transactions', authMiddleware, workspaceMiddleware, che
       originalAmount: originalAmount ? parseFloat(originalAmount) : undefined,
       originalCurrency: originalCurrency || undefined,
       exchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined,
+      signature: signature || undefined,
+      vectorClock: vectorClock || {},
     };
     
     const savedTx = isMongoConnected

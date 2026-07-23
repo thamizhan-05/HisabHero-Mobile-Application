@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { X, TrendingDown, TrendingUp, Calendar, Tag, FileText, ShoppingBag, CreditCard, Percent } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { signTransactionPayload } from '../lib/cryptoUtils';
 
 const XIcon = X as any;
 const TrendingDownIcon = TrendingDown as any;
@@ -112,6 +113,20 @@ export function AddTransactionModal({
     setErrorMsg(null);
 
     try {
+      let signatureData = null;
+      try {
+        signatureData = await signTransactionPayload({
+          amount: parsedAmount,
+          description: description || category || 'Transaction',
+          date,
+          type,
+        });
+      } catch (signErr: any) {
+        setErrorMsg(signErr.message || 'Verification failed. Transaction not submitted.');
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         date,
         description: description || category || 'Transaction',
@@ -121,6 +136,8 @@ export function AddTransactionModal({
         merchant: merchant.trim(),
         paymentMethod: paymentMethod.trim(),
         taxAmount: parseFloat(taxAmount || '0'),
+        signature: signatureData?.signature || null,
+        publicKey: signatureData?.publicKey || null,
       };
 
       let res;

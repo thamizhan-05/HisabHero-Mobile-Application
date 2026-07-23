@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   verificationCode: { type: String },
   verificationExpires: { type: Date },
   profileImage: { type: String },
+  publicKey: { type: String },
   authProviders: [
     {
       provider: { type: String },
