@@ -122,9 +122,15 @@ export function AddTransactionModal({
           type,
         });
       } catch (signErr: any) {
-        setErrorMsg(signErr.message || 'Verification failed. Transaction not submitted.');
-        setLoading(false);
-        return;
+        // If user explicitly cancelled biometric prompt, block the transaction
+        if (signErr.message?.toLowerCase().includes('aborted') || signErr.message?.toLowerCase().includes('biometric authentication failed')) {
+          setErrorMsg('Biometric authentication was cancelled. Please try again.');
+          setLoading(false);
+          return;
+        }
+        // Otherwise (no hardware, module unavailable etc.) silently proceed without signature
+        console.warn('Biometric signing skipped:', signErr.message);
+        signatureData = null;
       }
 
       const payload = {
