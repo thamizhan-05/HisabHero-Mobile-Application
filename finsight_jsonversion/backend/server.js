@@ -60,8 +60,8 @@ connectDB();
 
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Workspace-Id', 'x-workspace-id', 'Accept', 'Origin']
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -682,12 +682,16 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email address or password.' });
     }
 
-    // Auto-verify if unverified
-    if (userData.isVerified === false && process.env.STRICT_EMAIL_VERIFY !== 'true') {
+    // Auto-verify if unverified unless strict mode is enabled
+    if (process.env.STRICT_EMAIL_VERIFY !== 'true') {
       try {
-        await User.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+        if (user._id) {
+          await User.findByIdAndUpdate(user._id, { isVerified: true });
+        } else {
+          await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+        }
       } catch (e) {
-        await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+        console.warn('Auto-verify update warning:', e.message);
       }
       userData.isVerified = true;
     }

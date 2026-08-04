@@ -208,6 +208,12 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Registration failed');
+      if (data.token && data.user) {
+        await AsyncStorage.setItem('token', data.token);
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        onLoginSuccess(data.token, data.user);
+        return;
+      }
       Alert.alert('Verification Sent! 📧', `A 6-digit OTP code has been sent to ${email}. Please check your inbox (and spam folder).`);
       setAuthMode('verifyEmail');
     } catch (err: any) {
