@@ -86,8 +86,20 @@ export default function App() {
           if (verifyRes.ok) {
             const verifyData = await verifyRes.json();
             if (verifyData.valid) {
-              // Backend now returns accountType + businessWorkspace
-              const updatedUser = verifyData.user || (userData ? JSON.parse(userData) : null);
+              // Merge server response with cached user — server is authoritative for accountType/businessWorkspace,
+              // but we preserve cached businessWorkspace as fallback in case old server doesn't return it
+              const cachedUser = userData ? JSON.parse(userData) : null;
+              const serverUser = verifyData.user || null;
+              const merged: any = { ...(cachedUser || {}), ...(serverUser || {}) };
+              // If server didn't return businessWorkspace but cached has it, restore it
+              if (!merged.businessWorkspace && cachedUser?.businessWorkspace) {
+                merged.businessWorkspace = cachedUser.businessWorkspace;
+              }
+              // Same for accountType
+              if (!merged.accountType && cachedUser?.accountType) {
+                merged.accountType = cachedUser.accountType;
+              }
+              const updatedUser = Object.keys(merged).length > 0 ? merged : null;
               setAuthToken(token);
               setUser(updatedUser);
               if (updatedUser) {
