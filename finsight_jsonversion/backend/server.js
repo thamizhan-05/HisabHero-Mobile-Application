@@ -601,23 +601,30 @@ app.post('/api/auth/signup', async (req, res) => {
   const cleanEmail = email.toLowerCase().trim();
 
   try {
-    const existingUser = isMongoConnected
-      ? await User.findOne({ email: cleanEmail })
-      : await LocalUser.findOne({ email: cleanEmail });
+    // Check MongoDB first, then LocalUser
+    let existingUser = null;
+    try {
+      existingUser = await User.findOne({ email: cleanEmail });
+    } catch (e) {
+      existingUser = await LocalUser.findOne({ email: cleanEmail });
+    }
+
     if (existingUser) return res.status(400).json({ error: 'An account with this email address already exists.' });
     
     // Generate 6-digit OTP code and expiry (10 minutes)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Default isVerified to true for instant seamless mobile signup unless strict email verification is required
     const isVerified = process.env.STRICT_EMAIL_VERIFY === 'true' ? false : true;
 
-    const newUser = isMongoConnected
-      ? await new User({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry }).save()
-      : await LocalUser.createAndSave({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry });
+    let newUser = null;
+    try {
+      newUser = await new User({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry }).save();
+    } catch (e) {
+      console.warn('MongoDB save failed, saving to LocalUser fallback:', e.message);
+      newUser = await LocalUser.createAndSave({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry });
+    }
     
-    // Send email asynchronously in background so client response is instant
     sendVerificationEmail(cleanEmail, code).catch(e => console.error('Background email send error:', e.message));
 
     const userId = (newUser._id || newUser.id).toString();
@@ -643,9 +650,17 @@ app.post('/api/auth/login', async (req, res) => {
   const cleanEmail = email.toLowerCase().trim();
 
   try {
-    const user = isMongoConnected
-      ? await User.findOne({ email: cleanEmail })
-      : await LocalUser.findOne({ email: cleanEmail });
+    // Search Mongo Atlas User first, then LocalUser
+    let user = null;
+    try {
+      user = await User.findOne({ email: cleanEmail });
+    } catch (e) {
+      // Ignore Mongo query error and fallback
+    }
+
+    if (!user) {
+      user = await LocalUser.findOne({ email: cleanEmail });
+    }
       
     if (!user) return res.status(401).json({ error: 'Invalid email address or password.' });
     
@@ -656,11 +671,11 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email address or password.' });
     }
 
-    // Auto-verify if unverified to prevent blocking valid user login attempts
+    // Auto-verify if unverified
     if (userData.isVerified === false && process.env.STRICT_EMAIL_VERIFY !== 'true') {
-      if (isMongoConnected) {
+      try {
         await User.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
-      } else {
+      } catch (e) {
         await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
       }
       userData.isVerified = true;
@@ -670,9 +685,11 @@ app.post('/api/auth/login', async (req, res) => {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-      isMongoConnected
-        ? await User.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry })
-        : await LocalUser.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry });
+      try {
+        await User.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry });
+      } catch (e) {
+        await LocalUser.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry });
+      }
 
       sendVerificationEmail(cleanEmail, code).catch(e => console.error('Background email error:', e.message));
 
