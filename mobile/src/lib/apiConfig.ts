@@ -11,15 +11,21 @@ let currentApiUrl = DEFAULT_API_URL;
 /**
  * Get the active API Base URL.
  */
-export function getApiBaseUrl(): string {
-  return currentApiUrl;
+export function sanitizeApiUrl(rawUrl: string): string {
+  if (!rawUrl) return PRODUCTION_API_URL;
+  let clean = rawUrl.trim().replace(/\/+$/, '');
+  if (!clean.endsWith('/api') && !clean.includes('/api/')) {
+    clean = `${clean}/api`;
+  }
+  return clean;
 }
 
-/**
- * Set and save a new API Base URL.
- */
+export function getApiBaseUrl(): string {
+  return sanitizeApiUrl(currentApiUrl);
+}
+
 export async function setApiBaseUrl(newUrl: string): Promise<void> {
-  const cleanUrl = newUrl.trim().replace(/\/+$/, '');
+  const cleanUrl = sanitizeApiUrl(newUrl);
   currentApiUrl = cleanUrl;
   try {
     await AsyncStorage.setItem('apiBaseUrl', cleanUrl);
@@ -28,15 +34,11 @@ export async function setApiBaseUrl(newUrl: string): Promise<void> {
   }
 }
 
-/**
- * Load the saved API Base URL from storage on startup.
- */
 export async function loadSavedApiBaseUrl(): Promise<string> {
   try {
     const saved = await AsyncStorage.getItem('apiBaseUrl');
     if (saved && saved.trim()) {
-      const cleanUrl = saved.trim().replace(/\/+$/, '');
-      // Proactive protection: Discard local IP/localhost URLs in production mode
+      const cleanUrl = sanitizeApiUrl(saved);
       const isLocal = cleanUrl.includes('localhost') || 
                       cleanUrl.includes('127.0.0.1') || 
                       /192\.168\.\d+\.\d+/.test(cleanUrl) || 
@@ -44,16 +46,16 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
                       
       if (isLocal) {
         await AsyncStorage.removeItem('apiBaseUrl');
-        currentApiUrl = DEFAULT_API_URL;
+        currentApiUrl = PRODUCTION_API_URL;
       } else {
         currentApiUrl = cleanUrl;
       }
     } else {
-      currentApiUrl = DEFAULT_API_URL;
+      currentApiUrl = PRODUCTION_API_URL;
     }
   } catch (err) {
     console.error('Failed to load apiBaseUrl from AsyncStorage:', err);
-    currentApiUrl = DEFAULT_API_URL;
+    currentApiUrl = PRODUCTION_API_URL;
   }
   return currentApiUrl;
 }

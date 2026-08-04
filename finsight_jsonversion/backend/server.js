@@ -52,6 +52,14 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Universal Route Normalizer: Auto-prefix /auth/ requests with /api/
+app.use((req, res, next) => {
+  if (req.url.startsWith('/auth/') && !req.url.startsWith('/api/auth/')) {
+    req.url = '/api' + req.url;
+  }
+  next();
+});
+
 // Health Check Endpoint for Cloud Deployment Verification & Uptime Monitoring
 app.get(['/health', '/api/health'], (req, res) => {
   res.json({
