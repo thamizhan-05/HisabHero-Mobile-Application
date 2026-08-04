@@ -16,7 +16,7 @@ import nacl from 'tweetnacl';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-import connectDB, { isMongoConnected } from './config/db.js';
+import connectDB from './config/db.js';
 import User from './models/User.js';
 import Transaction from './models/Transaction.js';
 import Upload from './models/Upload.js';
@@ -32,23 +32,7 @@ import BankTransaction from './models/BankTransaction.js';
 import InventoryItem from './models/InventoryItem.js';
 import PurchaseOrder from './models/PurchaseOrder.js';
 import FixedAsset from './models/FixedAsset.js';
-import { 
-  LocalUser, 
-  LocalTransaction, 
-  LocalUpload,
-  LocalBusiness,
-  LocalBusinessMember,
-  LocalInvitation,
-  LocalAuditLog,
-  LocalContact,
-  LocalInvoice,
-  LocalQuote,
-  LocalBill,
-  LocalBankTransaction,
-  LocalInventoryItem,
-  LocalPurchaseOrder,
-  LocalFixedAsset
-} from './config/localDb.js';
+// JSON local database fallbacks have been removed. MongoDB is the single source of truth.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,7 +58,7 @@ app.get(['/health', '/api/health'], (req, res) => {
     status: 'ok',
     environment: process.env.NODE_ENV || 'production',
     service: 'HisabHero Backend API',
-    database: isMongoConnected ? 'connected' : 'local_storage',
+    database: 'connected',
     timestamp: new Date().toISOString()
   });
 });
@@ -136,15 +120,10 @@ async function workspaceMiddleware(req, res, next) {
   }
 
   try {
-    let member = null;
-    try {
-      member = await BusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' });
-    } catch (e) {
-      member = await LocalBusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' });
-    }
+    const member = await BusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' });
 
     if (!member) {
-      // Gracefully fall back to personal workspace instead of blocking user access
+      // Fall back to personal workspace if not a member of the requested business
       req.isPersonal = true;
       req.workspaceId = req.userId;
       req.workspaceRole = 'owner';
@@ -155,6 +134,7 @@ async function workspaceMiddleware(req, res, next) {
     req.workspaceRole = member.role;
     next();
   } catch (err) {
+    console.error('[workspaceMiddleware] Error:', err.message);
     req.isPersonal = true;
     req.workspaceId = req.userId;
     req.workspaceRole = 'owner';
@@ -195,11 +175,7 @@ async function logAudit(req, action, entityType, entityId, metadata = {}) {
       entityId,
       metadata: typeof metadata === 'object' ? metadata : { info: metadata }
     };
-    if (isMongoConnected) {
-      await new AuditLog(logData).save();
-    } else {
-      await LocalAuditLog.createAndSave(logData);
-    }
+    await new AuditLog(logData).save();
   } catch (err) {
     console.error('[AUDIT] Failed to save audit log:', err.message);
   }
@@ -210,33 +186,31 @@ async function getDbData(workspaceId, isPersonal = true) {
   try {
     if (!workspaceId) return { ...EMPTY_DB };
 
-    // Fetch workspace isolated data
-    const rawTransactions = isMongoConnected
-      ? await Transaction.find(isPersonal ? { userId: workspaceId, businessId: { $in: [null, 'personal'] } } : { businessId: workspaceId }).lean()
-      : (await LocalTransaction.find(isPersonal ? { userId: workspaceId, businessId: 'personal' } : { businessId: workspaceId })).lean();
-      
-    const rawUploads = isMongoConnected
-      ? await Upload.find(isPersonal ? { userId: workspaceId, businessId: { $in: [null, 'personal'] } } : { businessId: workspaceId }).lean()
-      : (await LocalUpload.find(isPersonal ? { userId: workspaceId, businessId: 'personal' } : { businessId: workspaceId })).lean();
-    
+    // Fetch workspace isolated data from MongoDB
+    const rawTransactions = await Transaction.find(
+      isPersonal ? { userId: workspaceId, businessId: { $in: [null, 'personal'] } } : { businessId: workspaceId }
+    ).lean();
+
+    const rawUploads = await Upload.find(
+      isPersonal ? { userId: workspaceId, businessId: { $in: [null, 'personal'] } } : { businessId: workspaceId }
+    ).lean();
+
     // Map _id to id to avoid breaking frontend/calculations iterating with `id`
     const transactions = rawTransactions.map(t => ({
       ...t,
       id: t._id.toString()
     }));
-    
+
     const uploads = rawUploads.map(u => ({
       ...u,
       id: u._id.toString(),
-      uploadId: u.uploadId || u._id.toString() // Ensure uploadId fallback is safe
+      uploadId: u.uploadId || u._id.toString()
     }));
 
     let budgets = {};
     let businessName = 'Personal Finance';
     if (!isPersonal) {
-      const bus = isMongoConnected
-        ? await Business.findById(workspaceId).lean()
-        : await LocalBusiness.findOne({ _id: workspaceId });
+      const bus = await Business.findById(workspaceId).lean();
       if (bus) {
         budgets = bus.budgets || {};
         businessName = bus.name;
@@ -619,15 +593,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
   try {
     // Check if user already exists in MongoDB
-    let existingUser = null;
-    try {
-      existingUser = await User.findOne({ email: cleanEmail });
-    } catch (mongoErr) {
-      console.error('[Signup] MongoDB lookup error:', mongoErr.message);
-    }
-    if (!existingUser) {
-      existingUser = await LocalUser.findOne({ email: cleanEmail });
-    }
+    const existingUser = await User.findOne({ email: cleanEmail });
 
     if (existingUser) {
       console.log(`[Signup] User already exists: ${cleanEmail}`);
@@ -642,27 +608,16 @@ app.post('/api/auth/signup', async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    let newUser = null;
-    try {
-      newUser = await new User({
-        fullName,
-        email: cleanEmail,
-        password: hashedPassword,
-        companyName: companyName || '',
-        isVerified,
-        verificationCode: code,
-        verificationExpires: expiry
-      }).save();
-      console.log(`[Signup] ✅ User saved to MongoDB: ${cleanEmail} | ID: ${newUser._id}`);
-    } catch (mongoSaveErr) {
-      console.error('[Signup] MongoDB save failed:', mongoSaveErr.message);
-      // Try LocalUser fallback
-      newUser = await LocalUser.createAndSave({
-        fullName, email: cleanEmail, password: hashedPassword, companyName, isVerified,
-        verificationCode: code, verificationExpires: expiry
-      });
-      console.log(`[Signup] ✅ User saved to LocalUser fallback: ${cleanEmail}`);
-    }
+    const newUser = await new User({
+      fullName,
+      email: cleanEmail,
+      password: hashedPassword,
+      companyName: companyName || '',
+      isVerified,
+      verificationCode: code,
+      verificationExpires: expiry
+    }).save();
+    console.log(`[Signup] ✅ User saved to MongoDB: ${cleanEmail} | ID: ${newUser._id}`);
     
     // Fire-and-forget email - never blocks response
     sendVerificationEmail(cleanEmail, code);
@@ -700,27 +655,16 @@ app.post('/api/auth/login', async (req, res) => {
   console.log(`[Login] Attempt for: ${cleanEmail}`);
 
   try {
-    // Search MongoDB first
-    let user = null;
-    try {
-      user = await User.findOne({ email: cleanEmail });
-      if (user) console.log(`[Login] User found in MongoDB: ${cleanEmail}`);
-    } catch (mongoErr) {
-      console.error('[Login] MongoDB lookup error:', mongoErr.message);
-    }
+    // Search MongoDB
+    const user = await User.findOne({ email: cleanEmail });
+    if (user) console.log(`[Login] User found in MongoDB: ${cleanEmail}`);
 
-    // Fallback to LocalUser
-    if (!user) {
-      user = await LocalUser.findOne({ email: cleanEmail });
-      if (user) console.log(`[Login] User found in LocalUser: ${cleanEmail}`);
-    }
-      
     if (!user) {
       console.log(`[Login] ❌ No user found: ${cleanEmail}`);
       return res.status(404).json({ error: 'No account found with this email address.' });
     }
     
-    const userData = user.toObject ? user.toObject() : user;
+    const userData = user.toObject();
 
     // Verify password - supports both bcrypt hashes and legacy plain-text passwords
     let passwordMatch = false;
@@ -737,8 +681,7 @@ app.post('/api/auth/login', async (req, res) => {
           // Upgrade to bcrypt hash silently
           const upgraded = await bcrypt.hash(password, 10);
           try {
-            if (user._id) await User.findByIdAndUpdate(user._id, { password: upgraded });
-            else await LocalUser.findOneAndUpdate({ email: cleanEmail }, { password: upgraded });
+            await User.findByIdAndUpdate(user._id, { password: upgraded });
             console.log(`[Login] ✅ Password upgraded to bcrypt for: ${cleanEmail}`);
           } catch (e) { /* non-critical */ }
         }
@@ -755,8 +698,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Auto-verify to prevent blocking
     try {
-      if (user._id) await User.findByIdAndUpdate(user._id, { isVerified: true });
-      else await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+      await User.findByIdAndUpdate(user._id, { isVerified: true });
     } catch (e) { console.warn('[Login] Auto-verify warning:', e.message); }
 
     const userId = (user._id || user.id).toString();
@@ -785,33 +727,29 @@ app.post('/api/auth/verify-code', async (req, res) => {
   if (!email || !code) return res.status(400).json({ error: 'Email and code are required' });
 
   try {
-    const user = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const userData = user.toObject ? user.toObject() : user;
-
+    const userData = user.toObject();
     if (userData.verificationCode !== code) {
-      return res.status(400).json({ error: 'Invalid verification code' });
+      return res.status(400).json({ error: 'Invalid verification code.' });
     }
-
     if (new Date() > new Date(userData.verificationExpires)) {
-      return res.status(400).json({ error: 'Verification code has expired' });
+      return res.status(400).json({ error: 'Verification code has expired.' });
     }
 
-    // Mark as verified
-    const updated = isMongoConnected
-      ? await User.findOneAndUpdate({ email }, { isVerified: true, verificationCode: null, verificationExpires: null }, { new: true })
-      : await LocalUser.findOneAndUpdate({ email }, { isVerified: true, verificationCode: null, verificationExpires: null });
+    const updated = await User.findOneAndUpdate(
+      { email },
+      { isVerified: true, verificationCode: null, verificationExpires: null },
+      { new: true }
+    );
+    const userId = updated._id.toString();
+    const token = generateToken(userId);
 
-    const userId = (updated._id || updated.id).toString();
-
-    res.json({ 
-      success: true, 
-      token: `mock-jwt-${userId}`, 
-      user: { email: userData.email, fullName: userData.fullName, companyName: userData.companyName } 
+    res.json({
+      success: true,
+      token,
+      user: { id: userId, email: updated.email, fullName: updated.fullName, companyName: updated.companyName || 'My Business' }
     });
   } catch (err) {
     res.status(500).json({ error: 'Verification failed: ' + err.message });
@@ -824,20 +762,13 @@ app.post('/api/auth/resend-code', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   try {
-    const user = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
-
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
-
-    isMongoConnected
-      ? await User.findOneAndUpdate({ email }, { verificationCode: code, verificationExpires: expiry })
-      : await LocalUser.findOneAndUpdate({ email }, { verificationCode: code, verificationExpires: expiry });
-
-    await sendVerificationEmail(email, code);
+    await User.findOneAndUpdate({ email }, { verificationCode: code, verificationExpires: expiry });
+    sendVerificationEmail(email, code);
 
     res.json({ success: true, message: 'Verification code resent.' });
   } catch (err) {
@@ -948,55 +879,46 @@ app.post('/api/auth/google', async (req, res) => {
       }
     }
 
-    // Find existing user by email
-    let user = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
-
+    // Find existing user by email (MongoDB only)
+    let user = await User.findOne({ email });
     let isNewUser = false;
 
     if (user) {
-      const userData = user.toObject ? user.toObject() : user;
+      const userData = user.toObject();
       // Link Google provider if not already linked
       const hasGoogle = (userData.authProviders || []).some(p => p.provider === 'google');
       if (!hasGoogle) {
         const providers = userData.authProviders || [];
         providers.push({ provider: 'google', providerId: googleId });
-        
-        user = isMongoConnected
-          ? await User.findOneAndUpdate({ email }, { authProviders: providers, profileImage, isVerified: true }, { new: true })
-          : await LocalUser.findOneAndUpdate({ email }, { authProviders: providers, profileImage, isVerified: true });
+        user = await User.findOneAndUpdate(
+          { email },
+          { authProviders: providers, profileImage, isVerified: true },
+          { new: true }
+        );
       }
     } else {
-      // Create new user with linked Google provider
+      // Create new user from Google Sign-In
       isNewUser = true;
-      const authProviders = [{ provider: 'google', providerId: googleId }];
-      user = isMongoConnected
-        ? await new User({
-            fullName,
-            email,
-            isVerified: true,
-            authProviders,
-            profileImage,
-            companyName: 'My Business'
-          }).save()
-        : await LocalUser.createAndSave({
-            fullName,
-            email,
-            isVerified: true,
-            authProviders,
-            profileImage,
-            companyName: 'My Business'
-          });
+      user = await new User({
+        fullName,
+        email,
+        isVerified: true,
+        authProviders: [{ provider: 'google', providerId: googleId }],
+        profileImage,
+        companyName: 'My Business'
+      }).save();
     }
 
-    const finalUser = user.toObject ? user.toObject() : user;
-    const userId = (finalUser._id || finalUser.id).toString();
+    const finalUser = user.toObject();
+    const userId = finalUser._id.toString();
+    const token = generateToken(userId);
 
     res.json({
-      token: `mock-jwt-${userId}`,
+      success: true,
+      token,
       isNewUser,
       user: {
+        id: userId,
         email: finalUser.email,
         fullName: finalUser.fullName,
         companyName: finalUser.companyName || 'My Business',
@@ -1004,6 +926,7 @@ app.post('/api/auth/google', async (req, res) => {
       }
     });
   } catch (err) {
+    console.error('[Google Auth] Error:', err.message);
     res.status(500).json({ error: 'Google authentication failed: ' + err.message });
   }
 });
@@ -1014,24 +937,16 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email is required.' });
 
   try {
-    const user = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
-
-    // Safeguard: always return success to prevent account enumeration
+    const user = await User.findOne({ email });
+    // Always return success to prevent account enumeration
     if (!user) {
-      console.log(`🔍 [Forgot Password] Enumeration shield: email "${email}" requested reset but does not exist.`);
       return res.json({ success: true, message: 'If the account exists, a reset code was sent.' });
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
-
-    isMongoConnected
-      ? await User.findOneAndUpdate({ email }, { verificationCode: resetCode, verificationExpires: expiry })
-      : await LocalUser.findOneAndUpdate({ email }, { verificationCode: resetCode, verificationExpires: expiry });
-
-    await sendResetPasswordEmail(email, resetCode);
+    await User.findOneAndUpdate({ email }, { verificationCode: resetCode, verificationExpires: expiry });
+    setTimeout(() => sendResetPasswordEmail(email, resetCode), 100);
 
     res.json({ success: true, message: 'If the account exists, a reset code was sent.' });
   } catch (err) {
@@ -1047,28 +962,23 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 
   try {
-    const user = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ error: 'Invalid reset code or email.' });
 
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid reset code or email.' });
-    }
-
-    const userData = user.toObject ? user.toObject() : user;
-
+    const userData = user.toObject();
     if (userData.verificationCode !== code) {
       return res.status(400).json({ error: 'Invalid reset code or email.' });
     }
-
     if (new Date() > new Date(userData.verificationExpires)) {
       return res.status(400).json({ error: 'Reset code has expired.' });
     }
 
-    // Save new password and clear reset code
-    isMongoConnected
-      ? await User.findOneAndUpdate({ email }, { password: newPassword, verificationCode: null, verificationExpires: null })
-      : await LocalUser.findOneAndUpdate({ email }, { password: newPassword, verificationCode: null, verificationExpires: null });
+    // Hash new password before saving
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await User.findOneAndUpdate(
+      { email },
+      { password: hashedPassword, verificationCode: null, verificationExpires: null }
+    );
 
     res.json({ success: true, message: 'Password has been reset successfully.' });
   } catch (err) {
@@ -1082,12 +992,9 @@ app.get('/api/auth/test-otp-code', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   try {
-    const user = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
+    const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    const userData = user.toObject ? user.toObject() : user;
-    res.json({ code: userData.verificationCode });
+    res.json({ code: user.verificationCode });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1096,28 +1003,21 @@ app.get('/api/auth/test-otp-code', async (req, res) => {
 // Verify session token endpoint for mobile app bootstrap & auto-login check
 app.get('/api/auth/verify', authMiddleware, async (req, res) => {
   try {
-    const userId = req.userId;
-    const user = isMongoConnected
-      ? await User.findById(userId)
-      : await LocalUser.findById(userId);
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(401).json({ valid: false, error: 'User account not found.' });
 
-    if (!user) {
-      return res.status(401).json({ valid: false, error: 'User account not found' });
-    }
-
-    const userData = user.toObject ? user.toObject() : user;
     res.json({
       valid: true,
       user: {
-        id: userId,
-        email: userData.email,
-        fullName: userData.fullName,
-        companyName: userData.companyName || 'My Business',
-        profileImage: userData.profileImage || null
+        id: req.userId,
+        email: user.email,
+        fullName: user.fullName,
+        companyName: user.companyName || 'My Business',
+        profileImage: user.profileImage || null
       }
     });
   } catch (err) {
-    res.status(401).json({ valid: false, error: 'Invalid or expired session token' });
+    res.status(401).json({ valid: false, error: 'Invalid or expired session token.' });
   }
 });
 
@@ -1130,35 +1030,26 @@ app.post('/api/businesses', authMiddleware, async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Business name is required.' });
 
   try {
-    const busData = {
+    const business = await new Business({
       name,
       description,
       currency: currency || 'INR',
       createdBy: req.userId,
       budgets: {}
-    };
+    }).save();
 
-    const business = isMongoConnected
-      ? await new Business(busData).save()
-      : await LocalBusiness.createAndSave(busData);
+    const businessId = business._id;
 
-    const businessId = business._id || business.id;
-
-    // Creator automatically becomes an owner
-    const memberData = {
+    // Creator automatically becomes owner
+    await new BusinessMember({
       businessId,
       userId: req.userId,
       role: 'owner',
       status: 'active',
       invitedBy: req.userId
-    };
-
-    isMongoConnected
-      ? await new BusinessMember(memberData).save()
-      : await LocalBusinessMember.createAndSave(memberData);
+    }).save();
 
     await logAudit(req, 'create_business', 'Business', businessId, { name });
-
     res.status(201).json({ business, role: 'owner' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create business: ' + err.message });
@@ -1168,25 +1059,14 @@ app.post('/api/businesses', authMiddleware, async (req, res) => {
 // List Businesses current user is a member of
 app.get('/api/businesses', authMiddleware, async (req, res) => {
   try {
-    const membershipsRaw = isMongoConnected
-      ? await BusinessMember.find({ userId: req.userId, status: 'active' }).lean()
-      : (await LocalBusinessMember.find({ userId: req.userId, status: 'active' })).lean();
+    const memberships = await BusinessMember.find({ userId: req.userId, status: 'active' }).lean();
+    const businessIds = memberships.map(m => m.businessId);
+    const businesses = await Business.find({ _id: { $in: businessIds } }).lean();
 
-    const businessIds = membershipsRaw.map(m => m.businessId);
-
-    const businessesRaw = isMongoConnected
-      ? await Business.find({ _id: { $in: businessIds } }).lean()
-      : (await LocalBusiness.find({ _id: { $in: businessIds } })).lean();
-
-    // Map role to each business
-    const list = businessesRaw.map(b => {
-      const bId = (b._id || b.id).toString();
-      const m = membershipsRaw.find(member => member.businessId.toString() === bId);
-      return {
-        ...b,
-        id: bId,
-        role: m ? m.role : 'viewer'
-      };
+    const list = businesses.map(b => {
+      const bId = b._id.toString();
+      const m = memberships.find(mem => mem.businessId.toString() === bId);
+      return { ...b, id: bId, role: m ? m.role : 'viewer' };
     });
 
     res.json(list);
@@ -1200,51 +1080,27 @@ app.get('/api/businesses/:businessId', authMiddleware, async (req, res) => {
   const { businessId } = req.params;
 
   try {
-    // Verify membership
-    const member = isMongoConnected
-      ? await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    const member = await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    if (!member) return res.status(403).json({ error: 'Access Denied. You are not a member of this business.' });
 
-    if (!member) {
-      return res.status(403).json({ error: 'Access Denied. You are not a member of this business.' });
-    }
+    const business = await Business.findById(businessId).lean();
+    if (!business) return res.status(404).json({ error: 'Business not found.' });
 
-    const business = isMongoConnected
-      ? await Business.findById(businessId).lean()
-      : await LocalBusiness.findOne({ _id: businessId });
-
-    if (!business) {
-      return res.status(404).json({ error: 'Business not found.' });
-    }
-
-    // Get members
-    const membersRaw = isMongoConnected
-      ? await BusinessMember.find({ businessId }).lean()
-      : (await LocalBusinessMember.find({ businessId })).lean();
-
-    // Attach user details to members
-    const memberUsers = [];
-    for (const m of membersRaw) {
-      const u = isMongoConnected
-        ? await User.findById(m.userId).lean()
-        : await LocalUser.findOne({ _id: m.userId });
-      memberUsers.push({
-        id: m._id || m.id,
+    const membersRaw = await BusinessMember.find({ businessId }).lean();
+    const memberUsers = await Promise.all(membersRaw.map(async m => {
+      const u = await User.findById(m.userId).lean();
+      return {
+        id: m._id,
         userId: m.userId,
         fullName: u ? u.fullName : 'Unknown User',
         email: u ? u.email : 'Unknown Email',
         role: m.role,
         status: m.status,
         joinedAt: m.joinedAt
-      });
-    }
+      };
+    }));
 
-    res.json({
-      ...business,
-      id: businessId,
-      myRole: member.role,
-      members: memberUsers
-    });
+    res.json({ ...business, id: businessId, myRole: member.role, members: memberUsers });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch business details: ' + err.message });
   }
@@ -1256,19 +1112,11 @@ app.patch('/api/businesses/:businessId', authMiddleware, async (req, res) => {
   const { name, description, budgets } = req.body;
 
   try {
-    // Verify membership
-    const member = isMongoConnected
-      ? await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    const member = await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    if (!member) return res.status(403).json({ error: 'Access Denied.' });
 
-    if (!member) {
-      return res.status(403).json({ error: 'Access Denied.' });
-    }
-
-    // Check permissions
     const requiredPermission = budgets ? 'manage_budgets' : 'manage_members';
-    const allowedRoles = PERMISSIONS[requiredPermission];
-    if (!allowedRoles.includes(member.role)) {
+    if (!PERMISSIONS[requiredPermission].includes(member.role)) {
       return res.status(403).json({ error: 'Forbidden. Insufficient permissions.' });
     }
 
@@ -1277,12 +1125,8 @@ app.patch('/api/businesses/:businessId', authMiddleware, async (req, res) => {
     if (description) updateFields.description = description;
     if (budgets) updateFields.budgets = budgets;
 
-    const updated = isMongoConnected
-      ? await Business.findByIdAndUpdate(businessId, { $set: updateFields }, { new: true }).lean()
-      : await LocalBusiness.findByIdAndUpdate(businessId, updateFields);
-
+    const updated = await Business.findByIdAndUpdate(businessId, { $set: updateFields }, { new: true }).lean();
     await logAudit(req, 'update_business', 'Business', businessId, updateFields);
-
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update business: ' + err.message });
@@ -1294,29 +1138,21 @@ app.delete('/api/businesses/:businessId', authMiddleware, async (req, res) => {
   const { businessId } = req.params;
 
   try {
-    const member = isMongoConnected
-      ? await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
-
+    const member = await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
     if (!member || member.role !== 'owner') {
       return res.status(403).json({ error: 'Only owners can delete a business.' });
     }
 
-    // Delete Business
-    if (isMongoConnected) {
-      await Business.deleteOne({ _id: businessId });
-      await BusinessMember.deleteMany({ businessId });
-      await Transaction.deleteMany({ businessId });
-      await Upload.deleteMany({ businessId });
-    } else {
-      await LocalBusiness.deleteOne({ _id: businessId });
-      await LocalBusinessMember.deleteMany({ businessId });
-      await LocalTransaction.deleteMany({ businessId });
-      await LocalUpload.deleteMany({ businessId });
-    }
+    await Business.deleteOne({ _id: businessId });
+    await BusinessMember.deleteMany({ businessId });
+    await Transaction.deleteMany({ businessId });
+    await Upload.deleteMany({ businessId });
+    await Contact.deleteMany({ businessId });
+    await Invoice.deleteMany({ businessId });
+    await Bill.deleteMany({ businessId });
+    await Invitation.deleteMany({ businessId });
 
     await logAudit(req, 'delete_business', 'Business', businessId, { name: businessId });
-
     res.json({ success: true, message: 'Business workspace deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete business: ' + err.message });
@@ -1333,24 +1169,18 @@ app.post('/api/businesses/:businessId/invitations', authMiddleware, async (req, 
   }
 
   try {
-    const member = isMongoConnected
-      ? await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    const member = await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
 
     if (!member || member.role !== 'owner') {
       return res.status(403).json({ error: 'Only owners can invite new members.' });
     }
 
     // Check if user is already a member
-    const targetUser = isMongoConnected
-      ? await User.findOne({ email: invitedEmail.toLowerCase() })
-      : await LocalUser.findOne({ email: invitedEmail.toLowerCase() });
+    const targetUser = await User.findOne({ email: invitedEmail.toLowerCase() })
 
     if (targetUser) {
       const targetUserId = targetUser._id || targetUser.id;
-      const isMember = isMongoConnected
-        ? await BusinessMember.findOne({ businessId, userId: targetUserId, status: 'active' })
-        : await LocalBusinessMember.findOne({ businessId, userId: targetUserId, status: 'active' });
+      const isMember = await BusinessMember.findOne({ businessId, userId: targetUserId, status: 'active' })
 
       if (isMember) {
         return res.status(400).json({ error: 'User is already a member of this business.' });
@@ -1371,9 +1201,7 @@ app.post('/api/businesses/:businessId/invitations', authMiddleware, async (req, 
       status: 'pending'
     };
 
-    const invitation = isMongoConnected
-      ? await new Invitation(invData).save()
-      : await LocalInvitation.createAndSave(invData);
+    const invitation = await new Invitation(invData).save()
 
     const invId = invitation._id || invitation.id;
     await logAudit(req, 'invite_user', 'Invitation', invId.toString(), { invitedEmail, role });
@@ -1387,26 +1215,18 @@ app.post('/api/businesses/:businessId/invitations', authMiddleware, async (req, 
 // GET /api/invitations (List pending invitations for current user)
 app.get('/api/invitations', authMiddleware, async (req, res) => {
   try {
-    const user = isMongoConnected
-      ? await User.findById(req.userId)
-      : await LocalUser.findOne({ _id: req.userId });
+    const user = await User.findById(req.userId)
 
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    const invitationsRaw = isMongoConnected
-      ? await Invitation.find({ invitedEmail: user.email.toLowerCase(), status: 'pending' }).lean()
-      : (await LocalInvitation.find({ invitedEmail: user.email.toLowerCase(), status: 'pending' })).lean();
+    const invitationsRaw = await Invitation.find({ invitedEmail: user.email.toLowerCase(), status: 'pending' }).lean();
 
     // Map details
     const list = [];
     for (const inv of invitationsRaw) {
-      const bus = isMongoConnected
-        ? await Business.findById(inv.businessId).lean()
-        : await LocalBusiness.findOne({ _id: inv.businessId });
+      const bus = await Business.findById(inv.businessId).lean()
 
-      const sender = isMongoConnected
-        ? await User.findById(inv.invitedBy).lean()
-        : await LocalUser.findOne({ _id: inv.invitedBy });
+      const sender = await User.findById(inv.invitedBy).lean()
 
       list.push({
         id: inv._id || inv.id,
@@ -1429,15 +1249,11 @@ app.post('/api/invitations/:invitationId/accept', authMiddleware, async (req, re
   const { invitationId } = req.params;
 
   try {
-    const user = isMongoConnected
-      ? await User.findById(req.userId)
-      : await LocalUser.findOne({ _id: req.userId });
+    const user = await User.findById(req.userId)
 
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    const invitation = isMongoConnected
-      ? await Invitation.findById(invitationId)
-      : await LocalInvitation.findOne({ _id: invitationId });
+    const invitation = await Invitation.findById(invitationId)
 
     if (!invitation || invitation.invitedEmail.toLowerCase() !== user.email.toLowerCase()) {
       return res.status(404).json({ error: 'Invitation not found.' });
@@ -1449,7 +1265,7 @@ app.post('/api/invitations/:invitationId/accept', authMiddleware, async (req, re
 
     if (new Date() > new Date(invitation.expirationDate)) {
       invitation.status = 'expired';
-      isMongoConnected ? await invitation.save() : await LocalInvitation.findOneAndUpdate({ _id: invitationId }, { status: 'expired' });
+      await invitation.save();
       return res.status(400).json({ error: 'Invitation has expired.' });
     }
 
@@ -1462,13 +1278,11 @@ app.post('/api/invitations/:invitationId/accept', authMiddleware, async (req, re
       invitedBy: invitation.invitedBy
     };
 
-    isMongoConnected
-      ? await new BusinessMember(memberData).save()
-      : await LocalBusinessMember.createAndSave(memberData);
+    await new BusinessMember(memberData).save()
 
     // Update invitation
     invitation.status = 'accepted';
-    isMongoConnected ? await invitation.save() : await LocalInvitation.findOneAndUpdate({ _id: invitationId }, { status: 'accepted' });
+    await invitation.save();
 
     await logAudit(req, 'accept_invitation', 'Invitation', invitationId, { businessId: invitation.businessId });
 
@@ -1483,20 +1297,16 @@ app.post('/api/invitations/:invitationId/decline', authMiddleware, async (req, r
   const { invitationId } = req.params;
 
   try {
-    const user = isMongoConnected
-      ? await User.findById(req.userId)
-      : await LocalUser.findOne({ _id: req.userId });
+    const user = await User.findById(req.userId)
 
-    const invitation = isMongoConnected
-      ? await Invitation.findById(invitationId)
-      : await LocalInvitation.findOne({ _id: invitationId });
+    const invitation = await Invitation.findById(invitationId)
 
     if (!invitation || invitation.invitedEmail.toLowerCase() !== user.email.toLowerCase()) {
       return res.status(404).json({ error: 'Invitation not found.' });
     }
 
     invitation.status = 'declined';
-    isMongoConnected ? await invitation.save() : await LocalInvitation.findOneAndUpdate({ _id: invitationId }, { status: 'declined' });
+    await invitation.save();
 
     await logAudit(req, 'decline_invitation', 'Invitation', invitationId, { businessId: invitation.businessId });
 
@@ -1514,17 +1324,13 @@ app.patch('/api/businesses/:businessId/members/:memberId/role', authMiddleware, 
   if (!role) return res.status(400).json({ error: 'Role is required.' });
 
   try {
-    const callerMember = isMongoConnected
-      ? await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    const callerMember = await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
 
     if (!callerMember || callerMember.role !== 'owner') {
       return res.status(403).json({ error: 'Only owners can manage member roles.' });
     }
 
-    const targetMember = isMongoConnected
-      ? await BusinessMember.findById(memberId)
-      : await LocalBusinessMember.findOne({ _id: memberId });
+    const targetMember = await BusinessMember.findById(memberId)
 
     if (!targetMember || targetMember.businessId !== businessId) {
       return res.status(404).json({ error: 'Member not found.' });
@@ -1532,9 +1338,7 @@ app.patch('/api/businesses/:businessId/members/:memberId/role', authMiddleware, 
 
     // Protect against removing last owner
     if (targetMember.role === 'owner' && role !== 'owner') {
-      const ownerCount = isMongoConnected
-        ? await BusinessMember.countDocuments({ businessId, role: 'owner', status: 'active' })
-        : (await LocalBusinessMember.find({ businessId, role: 'owner', status: 'active' })).lean().length;
+      const ownerCount = await BusinessMember.countDocuments({ businessId, role: 'owner', status: 'active' }).length;
 
       if (ownerCount <= 1) {
         return res.status(400).json({ error: 'Cannot demote the last owner. Please promote another owner first.' });
@@ -1542,9 +1346,7 @@ app.patch('/api/businesses/:businessId/members/:memberId/role', authMiddleware, 
     }
 
     targetMember.role = role;
-    isMongoConnected
-      ? await targetMember.save()
-      : await LocalBusinessMember.findOneAndUpdate({ _id: memberId }, { role });
+    await targetMember.save()
 
     await logAudit(req, 'change_role', 'Member', memberId, { role });
 
@@ -1559,17 +1361,13 @@ app.delete('/api/businesses/:businessId/members/:memberId', authMiddleware, asyn
   const { businessId, memberId } = req.params;
 
   try {
-    const callerMember = isMongoConnected
-      ? await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId, userId: req.userId, status: 'active' });
+    const callerMember = await BusinessMember.findOne({ businessId, userId: req.userId, status: 'active' })
 
     if (!callerMember) {
       return res.status(403).json({ error: 'Access Denied.' });
     }
 
-    const targetMember = isMongoConnected
-      ? await BusinessMember.findById(memberId)
-      : await LocalBusinessMember.findOne({ _id: memberId });
+    const targetMember = await BusinessMember.findById(memberId)
 
     if (!targetMember || targetMember.businessId !== businessId) {
       return res.status(404).json({ error: 'Member not found.' });
@@ -1583,18 +1381,14 @@ app.delete('/api/businesses/:businessId/members/:memberId', authMiddleware, asyn
 
     // Protect against removing the last owner
     if (targetMember.role === 'owner') {
-      const ownerCount = isMongoConnected
-        ? await BusinessMember.countDocuments({ businessId, role: 'owner', status: 'active' })
-        : (await LocalBusinessMember.find({ businessId, role: 'owner', status: 'active' })).lean().length;
+      const ownerCount = await BusinessMember.countDocuments({ businessId, role: 'owner', status: 'active' }).length;
 
       if (ownerCount <= 1) {
         return res.status(400).json({ error: 'Cannot remove the last owner. Please promote another owner first.' });
       }
     }
 
-    isMongoConnected
-      ? await BusinessMember.deleteOne({ _id: memberId })
-      : await LocalBusinessMember.deleteOne({ _id: memberId });
+    await BusinessMember.deleteOne({ _id: memberId })
 
     await logAudit(req, 'remove_member', 'Member', memberId, { userId: targetMember.userId });
 
@@ -1682,29 +1476,15 @@ Do not include any markdown wrap like \`\`\`json, just output the raw JSON array
         rowCount: validRows.length
       };
 
-      if (isMongoConnected) {
-        const uploadEntry = new Upload(uploadData);
-        await uploadEntry.save();
-        const transactionsToInsert = validRows.map(r => ({ 
-          userId: req.userId, 
-          businessId: req.isPersonal ? null : req.workspaceId,
-          createdBy: req.userId,
-          uploadId, 
-          ...r 
-        }));
-        await Transaction.insertMany(transactionsToInsert);
-      } else {
-        await LocalUpload.createAndSave(uploadData);
-        for (const r of validRows) {
-          await LocalTransaction.createAndSave({
-            userId: req.userId,
-            businessId: req.isPersonal ? null : req.workspaceId,
-            createdBy: req.userId,
-            uploadId,
-            ...r
-          });
-        }
-      }
+      await new Upload(uploadData).save();
+      const transactionsToInsert = validRows.map(r => ({ 
+        userId: req.userId, 
+        businessId: req.isPersonal ? null : req.workspaceId,
+        createdBy: req.userId,
+        uploadId, 
+        ...r 
+      }));
+      await Transaction.insertMany(transactionsToInsert);
 
       await logAudit(req, 'upload_statement', 'Upload', uploadId, { filename: req.file.originalname, rowCount: validRows.length });
 
@@ -1766,37 +1546,19 @@ Do not include any markdown wrap like \`\`\`json, just output the raw JSON array
         rowCount: validRows.length
       };
 
-      if (isMongoConnected) {
-        const uploadEntry = new Upload(uploadData);
-        await uploadEntry.save();
-        const transactionsToInsert = validRows.map(r => ({
-          userId: req.userId,
-          businessId: req.isPersonal ? null : req.workspaceId,
-          createdBy: req.userId,
-          uploadId,
-          date: r.date,
-          description: r.description,
-          category: r.category || 'Other',
-          amount: r.amount,
-          type: r.type || 'expense'
-        }));
-        await Transaction.insertMany(transactionsToInsert);
-      } else {
-        await LocalUpload.createAndSave(uploadData);
-        for (const r of validRows) {
-          await LocalTransaction.createAndSave({
-            userId: req.userId,
-            businessId: req.isPersonal ? null : req.workspaceId,
-            createdBy: req.userId,
-            uploadId,
-            date: r.date,
-            description: r.description,
-            category: r.category || 'Other',
-            amount: r.amount,
-            type: r.type || 'expense'
-          });
-        }
-      }
+      await new Upload(uploadData).save();
+      const transactionsToInsert = validRows.map(r => ({
+        userId: req.userId,
+        businessId: req.isPersonal ? null : req.workspaceId,
+        createdBy: req.userId,
+        uploadId,
+        date: r.date,
+        description: r.description,
+        category: r.category || 'Other',
+        amount: r.amount,
+        type: r.type || 'expense'
+      }));
+      await Transaction.insertMany(transactionsToInsert);
 
       await logAudit(req, 'upload_statement', 'Upload', uploadId, { filename: req.file.originalname, rowCount: validRows.length });
 
@@ -1879,13 +1641,9 @@ app.delete('/api/upload', authMiddleware, workspaceMiddleware, checkPermission('
       ? { userId: req.userId, businessId: { $in: [null, 'personal'] } }
       : { businessId: req.workspaceId };
 
-    const uploadResult = isMongoConnected
-      ? await Upload.deleteMany(query)
-      : await LocalUpload.deleteMany(query);
+    const uploadResult = await Upload.deleteMany(query)
 
-    const txResult = isMongoConnected
-      ? await Transaction.deleteMany(query)
-      : await LocalTransaction.deleteMany(query);
+    const txResult = await Transaction.deleteMany(query)
 
     await logAudit(req, 'clear_all_data', 'Workspace', req.workspaceId);
 
@@ -1906,22 +1664,15 @@ app.delete('/api/upload/:id', authMiddleware, workspaceMiddleware, checkPermissi
       ? { userId: req.userId, uploadId: id }
       : { businessId: req.workspaceId, uploadId: id };
 
-    const upload = isMongoConnected
-      ? await Upload.findOne(query)
-      : await LocalUpload.findOne(query);
+    const upload = await Upload.findOne(query)
 
     if (!upload) {
       return res.status(404).json({ error: 'Upload not found.' });
     }
 
     const uploadIdStr = upload.uploadId;
-    if (isMongoConnected) {
-      await Upload.deleteOne({ _id: upload._id });
-      await Transaction.deleteMany({ uploadId: uploadIdStr });
-    } else {
-      await LocalUpload.deleteOne({ _id: upload._id });
-      await LocalTransaction.deleteMany({ businessId: req.workspaceId, uploadId: uploadIdStr });
-    }
+    await Upload.deleteOne({ _id: upload._id });
+    await Transaction.deleteMany({ uploadId: uploadIdStr });
 
     await logAudit(req, 'delete_upload', 'Upload', uploadIdStr, { filename: upload.filename });
 
@@ -1940,9 +1691,7 @@ app.delete('/api/dashboard/transactions/:id', authMiddleware, workspaceMiddlewar
       ? { _id: id, userId: req.userId }
       : { _id: id, businessId: req.workspaceId };
 
-    const result = isMongoConnected
-      ? await Transaction.deleteOne(query)
-      : await LocalTransaction.deleteOne(query);
+    const result = await Transaction.deleteOne(query)
 
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Transaction not found or unauthorized.' });
@@ -2051,9 +1800,7 @@ app.get('/api/dashboard/transactions/verify', authMiddleware, workspaceMiddlewar
         continue;
       }
 
-      const user = isMongoConnected
-        ? await User.findById(tx.userId)
-        : await LocalUser.findOne({ _id: tx.userId });
+      const user = await User.findById(tx.userId)
 
       if (!user || !user.publicKey) {
         verificationResults.push({
@@ -2134,9 +1881,7 @@ app.post('/api/sync/peers', authMiddleware, workspaceMiddleware, checkPermission
           businessId: req.isPersonal ? null : req.workspaceId,
           vectorClock: peerTx.vectorClock || {}
         };
-        const saved = isMongoConnected
-          ? await new Transaction(newTxData).save()
-          : await LocalTransaction.createAndSave(newTxData);
+        const saved = await new Transaction(newTxData).save()
 
         updatedTxs.push(saved);
       } else {
@@ -2161,9 +1906,7 @@ app.post('/api/sync/peers', authMiddleware, workspaceMiddleware, checkPermission
             status: peerTx.status || localTx.status
           };
 
-          const updated = isMongoConnected
-            ? await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
-            : await LocalTransaction.findOneAndUpdate({ _id: txId }, updateFields);
+          const updated = await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
 
           updatedTxs.push(updated);
         } else if (relation === 'concurrent') {
@@ -2201,9 +1944,7 @@ app.post('/api/sync/peers', authMiddleware, workspaceMiddleware, checkPermission
               conflictReason: `Concurrent conflict resolved automatically via Last-Write-Wins (Incoming ${timeIncoming} > Local ${timeLocal}).`
             };
 
-            const updated = isMongoConnected
-              ? await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
-              : await LocalTransaction.findOneAndUpdate({ _id: txId }, updateFields);
+            const updated = await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
 
             updatedTxs.push(updated);
           } else {
@@ -2213,9 +1954,7 @@ app.post('/api/sync/peers', authMiddleware, workspaceMiddleware, checkPermission
               conflictReason: `Concurrent conflict resolved automatically via Last-Write-Wins (Local ${timeLocal} >= Incoming ${timeIncoming}).`
             };
 
-            const updated = isMongoConnected
-              ? await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
-              : await LocalTransaction.findOneAndUpdate({ _id: txId }, updateFields);
+            const updated = await Transaction.findByIdAndUpdate(txId, updateFields, { new: true })
 
             updatedTxs.push(updated);
           }
@@ -2339,19 +2078,13 @@ app.post('/api/dashboard/transactions', authMiddleware, workspaceMiddleware, che
   try {
     // Biometric Cryptographic Signature Verification
     if (signature && publicKey) {
-      const user = isMongoConnected
-        ? await User.findById(req.userId)
-        : await LocalUser.findOne({ _id: req.userId });
+      const user = await User.findById(req.userId)
 
       if (user) {
         let registeredPubKey = user.publicKey;
         if (!registeredPubKey) {
           registeredPubKey = publicKey;
-          if (isMongoConnected) {
-            await User.findByIdAndUpdate(req.userId, { publicKey });
-          } else {
-            await LocalUser.findOneAndUpdate({ _id: req.userId }, { publicKey });
-          }
+          await User.findByIdAndUpdate(req.userId, { publicKey });
         } else if (registeredPubKey !== publicKey) {
           return res.status(403).json({ error: 'Public key mismatch. Access denied to this secure keypair.' });
         }
@@ -2408,13 +2141,10 @@ app.post('/api/dashboard/transactions', authMiddleware, workspaceMiddleware, che
       vectorClock: vectorClock || {},
     };
     
-    const savedTx = isMongoConnected
-      ? await new Transaction(txData).save()
-      : await LocalTransaction.createAndSave(txData);
-
+    const savedTx = await new Transaction(txData).save();
     await logAudit(req, 'add_transaction', 'Transaction', (savedTx._id || savedTx.id).toString(), { amount: txData.amount, description: txData.description, status });
       
-    const returnTx = isMongoConnected ? savedTx.toObject() : savedTx;
+    const returnTx = savedTx.toObject();
     res.status(201).json({ ...returnTx, id: (returnTx._id || returnTx.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Save error: ' + err.message });
@@ -2442,12 +2172,7 @@ app.patch('/api/dashboard/transactions/:id', authMiddleware, workspaceMiddleware
       ? { _id: id, userId: req.userId }
       : { _id: id, businessId: req.workspaceId };
 
-    let updatedTx;
-    if (isMongoConnected) {
-      updatedTx = await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true });
-    } else {
-      updatedTx = await LocalTransaction.findOneAndUpdate({ _id: id }, updateFields);
-    }
+    const updatedTx = await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true });
 
     if (!updatedTx) {
       return res.status(404).json({ error: 'Transaction not found or unauthorized.' });
@@ -2455,7 +2180,7 @@ app.patch('/api/dashboard/transactions/:id', authMiddleware, workspaceMiddleware
 
     await logAudit(req, 'update_transaction', 'Transaction', id, updateFields);
 
-    const result = isMongoConnected ? updatedTx.toObject() : updatedTx;
+    const result = updatedTx.toObject();
     res.json({ ...result, id: (result._id || result.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Update error: ' + err.message });
@@ -2470,9 +2195,7 @@ app.get('/api/contacts', authMiddleware, workspaceMiddleware, checkPermission('v
       ? { userId: req.userId, businessId: null }
       : { businessId: req.workspaceId };
       
-    const contacts = isMongoConnected
-      ? await Contact.find(query).lean()
-      : (await LocalContact.find(query)).lean();
+    const contacts = await Contact.find(query).lean();
       
     res.json(contacts.map(c => ({ ...c, id: (c._id || c.id).toString() })));
   } catch (err) {
@@ -2497,11 +2220,8 @@ app.post('/api/contacts', authMiddleware, workspaceMiddleware, checkPermission('
       createdBy: req.userId
     };
 
-    const saved = isMongoConnected
-      ? await new Contact(contactData).save()
-      : await LocalContact.createAndSave(contactData);
-
-    const returnObj = isMongoConnected ? saved.toObject() : saved;
+    const saved = await new Contact(contactData).save();
+    const returnObj = saved.toObject();
     res.status(201).json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create contact: ' + err.message });
@@ -2524,12 +2244,9 @@ app.patch('/api/contacts/:id', authMiddleware, workspaceMiddleware, checkPermiss
     if (address !== undefined) updateFields.address = address;
     if (type) updateFields.type = type;
 
-    const updated = isMongoConnected
-      ? await Contact.findOneAndUpdate(query, { $set: updateFields }, { new: true })
-      : await LocalContact.findOneAndUpdate(query, updateFields);
-
+    const updated = await Contact.findOneAndUpdate(query, { $set: updateFields }, { new: true });
     if (!updated) return res.status(404).json({ error: 'Contact not found' });
-    const returnObj = isMongoConnected ? updated.toObject() : updated;
+    const returnObj = updated.toObject();
     res.json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update contact: ' + err.message });
@@ -2544,9 +2261,7 @@ app.delete('/api/contacts/:id', authMiddleware, workspaceMiddleware, checkPermis
       ? { _id: id, userId: req.userId }
       : { _id: id, businessId: req.workspaceId };
 
-    const deleted = isMongoConnected
-      ? await Contact.deleteOne(query)
-      : await LocalContact.deleteOne(query);
+    const deleted = await Contact.deleteOne(query)
 
     if (deleted.deletedCount === 0) return res.status(404).json({ error: 'Contact not found' });
     res.json({ success: true });
@@ -2563,9 +2278,7 @@ app.get('/api/invoices', authMiddleware, workspaceMiddleware, checkPermission('v
       ? { createdBy: req.userId, businessId: null }
       : { businessId: req.workspaceId };
 
-    const invoices = isMongoConnected
-      ? await Invoice.find(query).lean()
-      : (await LocalInvoice.find(query)).lean();
+    const invoices = await Invoice.find(query).lean();
 
     res.json(invoices.map(i => ({ ...i, id: (i._id || i.id).toString() })));
   } catch (err) {
@@ -2596,13 +2309,10 @@ app.post('/api/invoices', authMiddleware, workspaceMiddleware, checkPermission('
       createdBy: req.userId
     };
 
-    const saved = isMongoConnected
-      ? await new Invoice(invoiceData).save()
-      : await LocalInvoice.createAndSave(invoiceData);
-
+    const saved = await new Invoice(invoiceData).save();
     await logAudit(req, 'create_invoice', 'Invoice', (saved._id || saved.id).toString(), { invoiceNumber, total });
 
-    const returnObj = isMongoConnected ? saved.toObject() : saved;
+    const returnObj = saved.toObject();
     res.status(201).json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create invoice: ' + err.message });
@@ -2623,15 +2333,12 @@ app.patch('/api/invoices/:id', authMiddleware, workspaceMiddleware, checkPermiss
     if (status) updateFields.status = status;
     if (notes !== undefined) updateFields.notes = notes;
 
-    const updated = isMongoConnected
-      ? await Invoice.findOneAndUpdate(query, { $set: updateFields }, { new: true })
-      : await LocalInvoice.findOneAndUpdate(query, updateFields);
-
+    const updated = await Invoice.findOneAndUpdate(query, { $set: updateFields }, { new: true });
     if (!updated) return res.status(404).json({ error: 'Invoice not found' });
     
     await logAudit(req, 'update_invoice_status', 'Invoice', id, { status });
 
-    const returnObj = isMongoConnected ? updated.toObject() : updated;
+    const returnObj = updated.toObject();
     res.json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update invoice: ' + err.message });
@@ -2649,13 +2356,10 @@ app.post('/api/invoices/:id/payments', authMiddleware, workspaceMiddleware, chec
       ? { _id: id, createdBy: req.userId }
       : { _id: id, businessId: req.workspaceId };
 
-    const invoiceObj = isMongoConnected
-      ? await Invoice.findOne(query)
-      : await LocalInvoice.findOne(query);
-
+    const invoiceObj = await Invoice.findOne(query);
     if (!invoiceObj) return res.status(404).json({ error: 'Invoice not found' });
 
-    const invoice = isMongoConnected ? invoiceObj.toObject() : invoiceObj;
+    const invoice = invoiceObj.toObject();
 
     const newPayment = {
       date,
@@ -2674,15 +2378,10 @@ app.post('/api/invoices/:id/payments', authMiddleware, workspaceMiddleware, chec
       newStatus = 'partially_paid';
     }
 
-    const updated = isMongoConnected
-      ? await Invoice.findOneAndUpdate(query, { 
-          $push: { payments: newPayment },
-          $set: { status: newStatus }
-        }, { new: true })
-      : await LocalInvoice.findOneAndUpdate(query, {
-          payments: updatedPayments,
-          status: newStatus
-        });
+    const updated = await Invoice.findOneAndUpdate(query, { 
+      $push: { payments: newPayment },
+      $set: { status: newStatus }
+    }, { new: true });
 
     // Create a corresponding transaction entry automatically!
     const txData = {
@@ -2697,15 +2396,11 @@ app.post('/api/invoices/:id/payments', authMiddleware, workspaceMiddleware, chec
       type: 'income',
       paymentMethod
     };
-    if (isMongoConnected) {
-      await new Transaction(txData).save();
-    } else {
-      await LocalTransaction.createAndSave(txData);
-    }
+    await new Transaction(txData).save();
 
     await logAudit(req, 'add_invoice_payment', 'Invoice', id, { amount, newStatus });
 
-    const returnObj = isMongoConnected ? updated.toObject() : updated;
+    const returnObj = updated.toObject();
     res.json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to record payment: ' + err.message });
@@ -2720,10 +2415,7 @@ app.get('/api/quotes', authMiddleware, workspaceMiddleware, checkPermission('vie
       ? { createdBy: req.userId, businessId: null }
       : { businessId: req.workspaceId };
 
-    const quotes = isMongoConnected
-      ? await Quote.find(query).lean()
-      : (await LocalQuote.find(query)).lean();
-
+    const quotes = await Quote.find(query).lean();
     res.json(quotes.map(q => ({ ...q, id: (q._id || q.id).toString() })));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch quotes: ' + err.message });
@@ -2751,13 +2443,10 @@ app.post('/api/quotes', authMiddleware, workspaceMiddleware, checkPermission('ma
       createdBy: req.userId
     };
 
-    const saved = isMongoConnected
-      ? await new Quote(quoteData).save()
-      : await LocalQuote.createAndSave(quoteData);
-
+    const saved = await new Quote(quoteData).save();
     await logAudit(req, 'create_quote', 'Quote', (saved._id || saved.id).toString(), { quoteNumber, total });
 
-    const returnObj = isMongoConnected ? saved.toObject() : saved;
+    const returnObj = saved.toObject();
     res.status(201).json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create quote: ' + err.message });
@@ -2772,12 +2461,9 @@ app.post('/api/quotes/:id/convert', authMiddleware, workspaceMiddleware, checkPe
       ? { _id: id, createdBy: req.userId }
       : { _id: id, businessId: req.workspaceId };
 
-    const quoteObj = isMongoConnected
-      ? await Quote.findOne(query)
-      : await LocalQuote.findOne(query);
-
+    const quoteObj = await Quote.findOne(query);
     if (!quoteObj) return res.status(404).json({ error: 'Quote not found' });
-    const quote = isMongoConnected ? quoteObj.toObject() : quoteObj;
+    const quote = quoteObj.toObject();
 
     if (quote.status === 'converted') {
       return res.status(400).json({ error: 'Quote has already been converted' });
@@ -2790,7 +2476,7 @@ app.post('/api/quotes/:id/convert', authMiddleware, workspaceMiddleware, checkPe
       businessId: quote.businessId,
       customerId: quote.customerId,
       invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days due
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       lineItems: quote.lineItems,
       subtotal: quote.subtotal,
       total: quote.total,
@@ -2799,20 +2485,13 @@ app.post('/api/quotes/:id/convert', authMiddleware, workspaceMiddleware, checkPe
       createdBy: req.userId
     };
 
-    const savedInvoice = isMongoConnected
-      ? await new Invoice(invoiceData).save()
-      : await LocalInvoice.createAndSave(invoiceData);
-
-    // Update Quote status to accepted / converted
-    if (isMongoConnected) {
-      await Quote.findOneAndUpdate(query, { $set: { status: 'accepted' } });
-    } else {
-      await LocalQuote.findOneAndUpdate(query, { status: 'accepted' });
-    }
+    const savedInvoice = await new Invoice(invoiceData).save();
+    await Quote.findOneAndUpdate(query, { $set: { status: 'accepted' } });
 
     await logAudit(req, 'convert_quote', 'Quote', id, { invoiceId: (savedInvoice._id || savedInvoice.id).toString() });
 
-    const returnObj = isMongoConnected ? savedInvoice.toObject() : savedInvoice;
+    const returnObj = savedInvoice.toObject();
+    res.json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
     res.json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to convert quote: ' + err.message });
@@ -2827,9 +2506,7 @@ app.get('/api/bills', authMiddleware, workspaceMiddleware, checkPermission('view
       ? { createdBy: req.userId, businessId: null }
       : { businessId: req.workspaceId };
 
-    const bills = isMongoConnected
-      ? await Bill.find(query).lean()
-      : (await LocalBill.find(query)).lean();
+    const bills = await Bill.find(query).lean();
 
     res.json(bills.map(b => ({ ...b, id: (b._id || b.id).toString() })));
   } catch (err) {
@@ -2859,13 +2536,10 @@ app.post('/api/bills', authMiddleware, workspaceMiddleware, checkPermission('man
       createdBy: req.userId
     };
 
-    const saved = isMongoConnected
-      ? await new Bill(billData).save()
-      : await LocalBill.createAndSave(billData);
-
+    const saved = await new Bill(billData).save();
     await logAudit(req, 'create_bill', 'Bill', (saved._id || saved.id).toString(), { billNumber, amount });
 
-    const returnObj = isMongoConnected ? saved.toObject() : saved;
+    const returnObj = saved.toObject();
     res.status(201).json({ ...returnObj, id: (returnObj._id || returnObj.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create bill: ' + err.message });
@@ -2942,13 +2616,9 @@ app.get('/api/dashboard/ar-ap', authMiddleware, workspaceMiddleware, checkPermis
       ? { createdBy: req.userId, businessId: null }
       : { businessId: req.workspaceId };
 
-    const invoices = isMongoConnected
-      ? await Invoice.find(query).lean()
-      : (await LocalInvoice.find(query)).lean();
+    const invoices = await Invoice.find(query).lean();
 
-    const bills = isMongoConnected
-      ? await Bill.find(query).lean()
-      : (await LocalBill.find(query)).lean();
+    const bills = await Bill.find(query).lean();
 
     // Accounts Receivable
     let totalReceivable = 0;
@@ -3004,9 +2674,7 @@ app.get('/api/dashboard/transactions/approvals', authMiddleware, workspaceMiddle
       ? { userId: req.userId, status: 'pending_approval' }
       : { businessId: req.workspaceId, status: 'pending_approval' };
 
-    const txs = isMongoConnected
-      ? await Transaction.find(query).lean()
-      : (await LocalTransaction.find(query)).lean();
+    const txs = await Transaction.find(query).lean();
 
     res.json(txs.map(t => ({ ...t, id: (t._id || t.id).toString() })));
   } catch (err) {
@@ -3027,15 +2695,12 @@ app.patch('/api/dashboard/transactions/:id/approve', authMiddleware, workspaceMi
       approvedBy: req.userId
     };
 
-    const updated = isMongoConnected
-      ? await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true })
-      : await LocalTransaction.findOneAndUpdate(query, updateFields);
-
+    const updated = await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true });
     if (!updated) return res.status(404).json({ error: 'Claim not found or already processed.' });
 
     await logAudit(req, 'approve_transaction', 'Transaction', id);
 
-    const returnTx = isMongoConnected ? updated.toObject() : updated;
+    const returnTx = updated.toObject();
     res.json({ ...returnTx, id: (returnTx._id || returnTx.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Approval failed: ' + err.message });
@@ -3056,15 +2721,12 @@ app.patch('/api/dashboard/transactions/:id/reject', authMiddleware, workspaceMid
       approvalNotes: notes || ''
     };
 
-    const updated = isMongoConnected
-      ? await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true })
-      : await LocalTransaction.findOneAndUpdate(query, updateFields);
-
+    const updated = await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true });
     if (!updated) return res.status(404).json({ error: 'Claim not found or already processed.' });
 
     await logAudit(req, 'reject_transaction', 'Transaction', id, { notes });
 
-    const returnTx = isMongoConnected ? updated.toObject() : updated;
+    const returnTx = updated.toObject();
     res.json({ ...returnTx, id: (returnTx._id || returnTx.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Rejection failed: ' + err.message });
@@ -3083,15 +2745,13 @@ app.patch('/api/dashboard/transactions/:id/reimburse', authMiddleware, workspace
       status: 'reimbursed'
     };
 
-    const updated = isMongoConnected
-      ? await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true })
-      : await LocalTransaction.findOneAndUpdate(query, updateFields);
-
+    const updated = await Transaction.findOneAndUpdate(query, { $set: updateFields }, { new: true });
     if (!updated) return res.status(404).json({ error: 'Claim not found or not in approved state.' });
 
     await logAudit(req, 'reimburse_transaction', 'Transaction', id);
 
-    const returnTx = isMongoConnected ? updated.toObject() : updated;
+    const returnTx = updated.toObject();
+    res.json({ ...returnTx, id: (returnTx._id || returnTx.id).toString() });
     res.json({ ...returnTx, id: (returnTx._id || returnTx.id).toString() });
   } catch (err) {
     res.status(500).json({ error: 'Reimbursement failed: ' + err.message });
@@ -3166,9 +2826,7 @@ app.post('/api/bank-transactions/import', authMiddleware, workspaceMiddleware, c
             aiSuggestedCategory: classifyCategory(resolved.description)
           };
           
-          const saved = isMongoConnected
-            ? await new BankTransaction(bankTxData).save()
-            : await LocalBankTransaction.createAndSave(bankTxData);
+          const saved = await new BankTransaction(bankTxData).save()
           
           importedTxs.push({ ...saved.toObject ? saved.toObject() : saved, id: (saved._id || saved.id).toString() });
         }
@@ -3192,9 +2850,7 @@ app.get('/api/bank-transactions', authMiddleware, workspaceMiddleware, checkPerm
       query.status = req.query.status;
     }
 
-    const txs = isMongoConnected
-      ? await BankTransaction.find(query).lean()
-      : (await LocalBankTransaction.find(query)).lean();
+    const txs = await BankTransaction.find(query).lean();
 
     res.json(txs.map(t => ({ ...t, id: (t._id || t.id).toString() })));
   } catch (err) {
@@ -3206,9 +2862,7 @@ app.get('/api/bank-transactions', authMiddleware, workspaceMiddleware, checkPerm
 app.get('/api/bank-transactions/:id/matches', authMiddleware, workspaceMiddleware, checkPermission('view_financials'), async (req, res) => {
   const { id } = req.params;
   try {
-    const bankTx = isMongoConnected
-      ? await BankTransaction.findById(id).lean()
-      : await LocalBankTransaction.findById(id);
+    const bankTx = await BankTransaction.findById(id).lean()
 
     if (!bankTx) return res.status(404).json({ error: 'Bank transaction not found' });
 
@@ -3217,9 +2871,7 @@ app.get('/api/bank-transactions/:id/matches', authMiddleware, workspaceMiddlewar
       ? { userId: req.userId, businessId: { $in: [null, 'personal'] } }
       : { businessId: req.workspaceId };
 
-    const ledgerTxs = isMongoConnected
-      ? await Transaction.find(query).lean()
-      : (await LocalTransaction.find(query)).lean();
+    const ledgerTxs = await Transaction.find(query).lean();
 
     const matches = [];
     const bankDate = new Date(bankTx.date);
@@ -3262,9 +2914,7 @@ app.post('/api/bank-transactions/:id/reconcile', authMiddleware, workspaceMiddle
   if (!ledgerTransactionId) return res.status(400).json({ error: 'ledgerTransactionId is required' });
 
   try {
-    const updated = isMongoConnected
-      ? await BankTransaction.findByIdAndUpdate(id, { status: 'matched', matchedTransactionId: ledgerTransactionId }, { new: true })
-      : await LocalBankTransaction.findOneAndUpdate({ _id: id }, { status: 'matched', matchedTransactionId: ledgerTransactionId });
+    const updated = await BankTransaction.findByIdAndUpdate(id, { status: 'matched', matchedTransactionId: ledgerTransactionId }, { new: true })
 
     if (!updated) return res.status(404).json({ error: 'Bank transaction not found' });
 
@@ -3282,9 +2932,7 @@ app.post('/api/bank-transactions/:id/create-and-reconcile', authMiddleware, work
   const { category } = req.body;
 
   try {
-    const bankTx = isMongoConnected
-      ? await BankTransaction.findById(id).lean()
-      : await LocalBankTransaction.findById(id);
+    const bankTx = await BankTransaction.findById(id).lean()
 
     if (!bankTx) return res.status(404).json({ error: 'Bank transaction not found' });
 
@@ -3302,16 +2950,12 @@ app.post('/api/bank-transactions/:id/create-and-reconcile', authMiddleware, work
       status: 'approved'
     };
 
-    const savedTx = isMongoConnected
-      ? await new Transaction(txData).save()
-      : await LocalTransaction.createAndSave(txData);
+    const savedTx = await new Transaction(txData).save()
 
     const ledgerId = (savedTx._id || savedTx.id).toString();
 
     // Mark matched
-    const updated = isMongoConnected
-      ? await BankTransaction.findByIdAndUpdate(id, { status: 'matched', matchedTransactionId: ledgerId }, { new: true })
-      : await LocalBankTransaction.findOneAndUpdate({ _id: id }, { status: 'matched', matchedTransactionId: ledgerId });
+    const updated = await BankTransaction.findByIdAndUpdate(id, { status: 'matched', matchedTransactionId: ledgerId }, { new: true })
 
     await logAudit(req, 'create_and_reconcile_bank_transaction', 'BankTransaction', id, { ledgerTransactionId: ledgerId });
 
@@ -3325,9 +2969,7 @@ app.post('/api/bank-transactions/:id/create-and-reconcile', authMiddleware, work
 app.post('/api/bank-transactions/:id/ignore', authMiddleware, workspaceMiddleware, checkPermission('manage_transactions'), async (req, res) => {
   const { id } = req.params;
   try {
-    const updated = isMongoConnected
-      ? await BankTransaction.findByIdAndUpdate(id, { status: 'ignored' }, { new: true })
-      : await LocalBankTransaction.findOneAndUpdate({ _id: id }, { status: 'ignored' });
+    const updated = await BankTransaction.findByIdAndUpdate(id, { status: 'ignored' }, { new: true })
 
     if (!updated) return res.status(404).json({ error: 'Bank transaction not found' });
 
@@ -3429,9 +3071,7 @@ Do not include any markdown formatting like \`\`\`json, just output the raw JSON
 app.get('/api/inventory', authMiddleware, workspaceMiddleware, checkPermission('view_financials'), async (req, res) => {
   try {
     const query = { businessId: req.workspaceId };
-    const items = isMongoConnected
-      ? await InventoryItem.find(query).lean()
-      : (await LocalInventoryItem.find(query)).lean();
+    const items = await InventoryItem.find(query).lean();
 
     const lowStockAlerts = [];
     items.forEach(item => {
@@ -3466,9 +3106,7 @@ app.post('/api/inventory', authMiddleware, workspaceMiddleware, checkPermission(
       reorderLevel: Number(reorderLevel) || 5
     };
 
-    const saved = isMongoConnected
-      ? await new InventoryItem(itemData).save()
-      : await LocalInventoryItem.createAndSave(itemData);
+    const saved = await new InventoryItem(itemData).save()
 
     await logAudit(req, 'create_inventory_item', 'InventoryItem', (saved._id || saved.id).toString(), { name, sku });
 
@@ -3485,17 +3123,13 @@ app.patch('/api/inventory/:id/adjust', authMiddleware, workspaceMiddleware, chec
     const { adjustmentQuantity, reason } = req.body; // positive to add, negative to subtract
     if (adjustmentQuantity === undefined) return res.status(400).json({ error: 'adjustmentQuantity is required' });
 
-    const item = isMongoConnected
-      ? await InventoryItem.findById(id)
-      : await LocalInventoryItem.findById(id);
+    const item = await InventoryItem.findById(id)
 
     if (!item) return res.status(404).json({ error: 'Inventory item not found' });
 
     const newStock = (item.stockQuantity || 0) + Number(adjustmentQuantity);
 
-    const updated = isMongoConnected
-      ? await InventoryItem.findByIdAndUpdate(id, { stockQuantity: newStock }, { new: true })
-      : await LocalInventoryItem.findOneAndUpdate({ _id: id }, { stockQuantity: newStock });
+    const updated = await InventoryItem.findByIdAndUpdate(id, { stockQuantity: newStock }, { new: true })
 
     await logAudit(req, 'adjust_inventory_stock', 'InventoryItem', id, { adjustmentQuantity, reason, oldStock: item.stockQuantity, newStock });
 
@@ -3510,9 +3144,7 @@ app.patch('/api/inventory/:id/adjust', authMiddleware, workspaceMiddleware, chec
 app.get('/api/purchase-orders', authMiddleware, workspaceMiddleware, checkPermission('view_financials'), async (req, res) => {
   try {
     const query = { businessId: req.workspaceId };
-    const pos = isMongoConnected
-      ? await PurchaseOrder.find(query).lean()
-      : (await LocalPurchaseOrder.find(query)).lean();
+    const pos = await PurchaseOrder.find(query).lean();
 
     res.json(pos.map(po => ({ ...po, id: (po._id || po.id).toString() })));
   } catch (err) {
@@ -3551,9 +3183,7 @@ app.post('/api/purchase-orders', authMiddleware, workspaceMiddleware, checkPermi
       notes: notes || ''
     };
 
-    const saved = isMongoConnected
-      ? await new PurchaseOrder(poData).save()
-      : await LocalPurchaseOrder.createAndSave(poData);
+    const saved = await new PurchaseOrder(poData).save()
 
     await logAudit(req, 'create_purchase_order', 'PurchaseOrder', (saved._id || saved.id).toString(), { poNumber });
 
@@ -3570,9 +3200,7 @@ app.patch('/api/purchase-orders/:id/receive', authMiddleware, workspaceMiddlewar
     const { itemsReceived } = req.body; // Key-value object mapping inventoryItemId -> receivedIncrementQuantity
     if (!itemsReceived) return res.status(400).json({ error: 'itemsReceived map is required' });
 
-    const po = isMongoConnected
-      ? await PurchaseOrder.findById(id)
-      : await LocalPurchaseOrder.findById(id);
+    const po = await PurchaseOrder.findById(id)
 
     if (!po) return res.status(404).json({ error: 'Purchase Order not found' });
 
@@ -3599,23 +3227,17 @@ app.patch('/api/purchase-orders/:id/receive', authMiddleware, workspaceMiddlewar
     else if (anyReceived || po.status === 'partially_received') newStatus = 'partially_received';
 
     // Save purchase order changes
-    const savedPO = isMongoConnected
-      ? await PurchaseOrder.findByIdAndUpdate(id, { items: updatedItems, status: newStatus }, { new: true })
-      : await LocalPurchaseOrder.findOneAndUpdate({ _id: id }, { items: updatedItems, status: newStatus });
+    const savedPO = await PurchaseOrder.findByIdAndUpdate(id, { items: updatedItems, status: newStatus }, { new: true })
 
     // RAMP UP the corresponding stock balance in Inventory Items!
     for (const item of po.items) {
       const increment = Number(itemsReceived[item.inventoryItemId]) || 0;
       if (increment > 0) {
-        const invItem = isMongoConnected
-          ? await InventoryItem.findById(item.inventoryItemId)
-          : await LocalInventoryItem.findById(item.inventoryItemId);
+        const invItem = await InventoryItem.findById(item.inventoryItemId)
         
         if (invItem) {
           const newStock = (invItem.stockQuantity || 0) + increment;
-          isMongoConnected
-            ? await InventoryItem.findByIdAndUpdate(item.inventoryItemId, { stockQuantity: newStock })
-            : await LocalInventoryItem.findOneAndUpdate({ _id: item.inventoryItemId }, { stockQuantity: newStock });
+          await InventoryItem.findByIdAndUpdate(item.inventoryItemId, { stockQuantity: newStock })
         }
       }
     }
@@ -3635,9 +3257,7 @@ app.patch('/api/purchase-orders/:id/status', authMiddleware, workspaceMiddleware
     const { status } = req.body;
     if (!status) return res.status(400).json({ error: 'Status is required' });
 
-    const updated = isMongoConnected
-      ? await PurchaseOrder.findByIdAndUpdate(id, { status }, { new: true })
-      : await LocalPurchaseOrder.findOneAndUpdate({ _id: id }, { status });
+    const updated = await PurchaseOrder.findByIdAndUpdate(id, { status }, { new: true })
 
     await logAudit(req, 'update_purchase_order_status', 'PurchaseOrder', id, { status });
 
@@ -3652,9 +3272,7 @@ app.patch('/api/purchase-orders/:id/status', authMiddleware, workspaceMiddleware
 app.get('/api/fixed-assets', authMiddleware, workspaceMiddleware, checkPermission('view_financials'), async (req, res) => {
   try {
     const query = { businessId: req.workspaceId };
-    const assets = isMongoConnected
-      ? await FixedAsset.find(query).lean()
-      : (await LocalFixedAsset.find(query)).lean();
+    const assets = await FixedAsset.find(query).lean();
 
     res.json(assets.map(a => ({ ...a, id: (a._id || a.id).toString() })));
   } catch (err) {
@@ -3682,9 +3300,7 @@ app.post('/api/fixed-assets', authMiddleware, workspaceMiddleware, checkPermissi
       accumulatedDepreciation: 0
     };
 
-    const saved = isMongoConnected
-      ? await new FixedAsset(assetData).save()
-      : await LocalFixedAsset.createAndSave(assetData);
+    const saved = await new FixedAsset(assetData).save()
 
     await logAudit(req, 'create_fixed_asset', 'FixedAsset', (saved._id || saved.id).toString(), { name, purchaseCost });
 
@@ -3698,9 +3314,7 @@ app.post('/api/fixed-assets', authMiddleware, workspaceMiddleware, checkPermissi
 app.post('/api/fixed-assets/depreciate', authMiddleware, workspaceMiddleware, checkPermission('manage_transactions'), async (req, res) => {
   try {
     const query = { businessId: req.workspaceId };
-    const assets = isMongoConnected
-      ? await FixedAsset.find(query)
-      : await LocalFixedAsset.find(query);
+    const assets = await FixedAsset.find(query)
 
     const updatedAssets = [];
     for (const asset of assets.lean ? assets.lean() : assets) {
@@ -3711,9 +3325,7 @@ app.post('/api/fixed-assets/depreciate', authMiddleware, workspaceMiddleware, ch
       const newAccumulated = (asset.accumulatedDepreciation || 0) + annualDepreciation;
       const newCurrentValue = Math.max(0, asset.purchaseCost - newAccumulated);
 
-      const updated = isMongoConnected
-        ? await FixedAsset.findByIdAndUpdate(id, { accumulatedDepreciation: newAccumulated, currentValue: newCurrentValue }, { new: true })
-        : await LocalFixedAsset.findOneAndUpdate({ _id: id }, { accumulatedDepreciation: newAccumulated, currentValue: newCurrentValue });
+      const updated = await FixedAsset.findByIdAndUpdate(id, { accumulatedDepreciation: newAccumulated, currentValue: newCurrentValue }, { new: true })
 
       updatedAssets.push(updated);
     }
