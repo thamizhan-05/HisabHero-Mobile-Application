@@ -39,12 +39,8 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
     const saved = await AsyncStorage.getItem('apiBaseUrl');
     if (saved && saved.trim()) {
       const cleanUrl = sanitizeApiUrl(saved);
-      const isLocal = cleanUrl.includes('localhost') || 
-                      cleanUrl.includes('127.0.0.1') || 
-                      /192\.168\.\d+\.\d+/.test(cleanUrl) || 
-                      /10\.\d+\.\d+\.\d+/.test(cleanUrl);
-                      
-      if (isLocal) {
+      // Automatically purge stale or custom saved URLs and force production Render endpoint
+      if (!cleanUrl.includes('hisabhero-mobile-application.onrender.com')) {
         await AsyncStorage.removeItem('apiBaseUrl');
         currentApiUrl = PRODUCTION_API_URL;
       } else {
