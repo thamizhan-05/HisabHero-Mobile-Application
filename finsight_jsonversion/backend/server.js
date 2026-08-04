@@ -13,6 +13,8 @@ import { Readable } from 'stream';
 import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import nacl from 'tweetnacl';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 import connectDB, { isMongoConnected } from './config/db.js';
 import User from './models/User.js';
@@ -86,6 +88,12 @@ const EMPTY_DB = {
 };
 
 // ─── Authentication Middleware ──────────────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET || 'hisabhero-super-secret-jwt-2024-production';
+
+function generateToken(userId) {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
+}
+
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -93,16 +101,25 @@ function authMiddleware(req, res, next) {
   }
 
   const token = authHeader.split(' ')[1];
-  if (!token || !token.startsWith('mock-jwt-')) {
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized. Invalid authentication token.' });
   }
 
-  const userId = token.replace('mock-jwt-', '');
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized. User ID not found in token.' });
+  // Support legacy mock-jwt tokens for backward compatibility
+  if (token.startsWith('mock-jwt-')) {
+    const userId = token.replace('mock-jwt-', '');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized. User ID not found in token.' });
+    req.userId = userId;
+    return next();
   }
 
-  req.userId = userId;
+  // Verify real JWT token
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+  } catch (e) {
+    return res.status(401).json({ error: 'Unauthorized. Token is invalid or expired.' });
+  }
   next();
 }
 
@@ -559,167 +576,206 @@ function recalculateDb(db, budgets = {}) {
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
-// Helper to send Verification Code Email
-async function sendVerificationEmail(email, code) {
-  console.log(`✉️ [OTP Verification Code] Sent to: ${email} -> CODE: ${code}`);
-
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log('⚠️ SMTP credentials not found in env. Email sending simulated.');
-    return;
-  }
-
-  try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      connectionTimeout: 3000,
-      socketTimeout: 3000,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-
-    const mailOptions = {
-      from: `"HisabHero Accounts" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-      to: email,
-      subject: 'Verify your HisabHero Account',
-      text: `Your 6-digit HisabHero verification code is: ${code}. This code expires in 10 minutes.`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; background-color: #06111f; color: #ffffff; border-radius: 12px; max-width: 450px;">
-          <h2 style="color: #4f8cff; margin-bottom: 6px;">HisabHero Account Verification</h2>
-          <p style="color: #a6bedf; font-size: 14px;">Thank you for registering. Use the code below to verify your email address and activate your account:</p>
-          <div style="background-color: #0b1d38; border: 1px solid #15345f; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #ffffff;">${code}</span>
-          </div>
-          <p style="color: #8fc0ff; font-size: 11px;">This code is valid for 10 minutes. If you did not request this code, please ignore this email.</p>
-        </div>
-      `
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Real email successfully sent to ${email} using SMTP!`);
-  } catch (err) {
-    console.error('❌ Failed to send real SMTP email:', err.message);
-  }
+// Helper to send Verification Code Email - fire-and-forget, never blocks response
+function sendVerificationEmail(email, code) {
+  console.log(`✉️ [OTP] Would send code ${code} to ${email}`);
+  // Fire in background after 100ms delay - never awaited
+  setTimeout(async () => {
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log('⚠️ SMTP not configured. Email simulated for:', email);
+      return;
+    }
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: process.env.SMTP_SECURE === 'true',
+        connectionTimeout: 3000,
+        socketTimeout: 3000,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      });
+      await transporter.sendMail({
+        from: `"HisabHero" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to: email,
+        subject: 'Verify your HisabHero Account',
+        text: `Your HisabHero verification code is: ${code}. Expires in 10 minutes.`,
+        html: `<div style="font-family:sans-serif;padding:20px"><h2>HisabHero Verification</h2><p>Your code: <strong style="font-size:24px;letter-spacing:4px">${code}</strong></p><p>Expires in 10 minutes.</p></div>`
+      });
+      console.log(`✅ Email sent to ${email}`);
+    } catch (err) {
+      console.error('❌ Email send failed:', err.message);
+    }
+  }, 100);
 }
 
 app.post('/api/auth/signup', async (req, res) => {
   const { fullName, email, password, companyName } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+  if (!fullName || !email || !password) {
+    return res.status(400).json({ error: 'Full name, email, and password are required.' });
+  }
   
   const cleanEmail = email.toLowerCase().trim();
+  console.log(`[Signup] Attempting registration for: ${cleanEmail}`);
 
   try {
-    // Check MongoDB first, then LocalUser
+    // Check if user already exists in MongoDB
     let existingUser = null;
     try {
       existingUser = await User.findOne({ email: cleanEmail });
-    } catch (e) {
+    } catch (mongoErr) {
+      console.error('[Signup] MongoDB lookup error:', mongoErr.message);
+    }
+    if (!existingUser) {
       existingUser = await LocalUser.findOne({ email: cleanEmail });
     }
 
-    if (existingUser) return res.status(400).json({ error: 'An account with this email address already exists.' });
+    if (existingUser) {
+      console.log(`[Signup] User already exists: ${cleanEmail}`);
+      return res.status(400).json({ error: 'An account with this email address already exists.' });
+    }
     
-    // Generate 6-digit OTP code and expiry (10 minutes)
+    // Hash password with bcrypt (10 rounds)
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log(`[Signup] Password hashed for: ${cleanEmail}`);
+
+    const isVerified = true; // Auto-verify for instant mobile access
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    const isVerified = process.env.STRICT_EMAIL_VERIFY === 'true' ? false : true;
-
     let newUser = null;
     try {
-      newUser = await new User({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry }).save();
-    } catch (e) {
-      console.warn('MongoDB save failed, saving to LocalUser fallback:', e.message);
-      newUser = await LocalUser.createAndSave({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry });
+      newUser = await new User({
+        fullName,
+        email: cleanEmail,
+        password: hashedPassword,
+        companyName: companyName || '',
+        isVerified,
+        verificationCode: code,
+        verificationExpires: expiry
+      }).save();
+      console.log(`[Signup] ✅ User saved to MongoDB: ${cleanEmail} | ID: ${newUser._id}`);
+    } catch (mongoSaveErr) {
+      console.error('[Signup] MongoDB save failed:', mongoSaveErr.message);
+      // Try LocalUser fallback
+      newUser = await LocalUser.createAndSave({
+        fullName, email: cleanEmail, password: hashedPassword, companyName, isVerified,
+        verificationCode: code, verificationExpires: expiry
+      });
+      console.log(`[Signup] ✅ User saved to LocalUser fallback: ${cleanEmail}`);
     }
     
-    sendVerificationEmail(cleanEmail, code).catch(e => console.error('Background email send error:', e.message));
+    // Fire-and-forget email - never blocks response
+    sendVerificationEmail(cleanEmail, code);
 
     const userId = (newUser._id || newUser.id).toString();
+    const token = generateToken(userId);
+    console.log(`[Signup] ✅ Token generated for user: ${userId}`);
 
-    res.status(201).json({ 
+    return res.status(201).json({ 
       success: true, 
       email: cleanEmail, 
-      needsVerification: !isVerified,
-      token: `mock-jwt-${userId}`,
-      user: { email: cleanEmail, fullName, companyName: companyName || 'My Business' },
-      message: isVerified ? 'Registration successful.' : 'Verification code sent to email.'
+      needsVerification: false,
+      token,
+      user: {
+        id: userId,
+        email: cleanEmail,
+        fullName,
+        companyName: companyName || 'My Business'
+      },
+      message: 'Registration successful. Welcome to HisabHero!'
     });
   } catch (err) {
-    console.error('Signup Error:', err);
-    res.status(500).json({ error: 'Registration failed: ' + err.message });
+    console.error('[Signup] ❌ Unhandled Error:', err);
+    return res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
   
   const cleanEmail = email.toLowerCase().trim();
+  console.log(`[Login] Attempt for: ${cleanEmail}`);
 
   try {
-    // Search Mongo Atlas User first, then LocalUser
+    // Search MongoDB first
     let user = null;
     try {
       user = await User.findOne({ email: cleanEmail });
-    } catch (e) {
-      // Ignore Mongo query error and fallback
+      if (user) console.log(`[Login] User found in MongoDB: ${cleanEmail}`);
+    } catch (mongoErr) {
+      console.error('[Login] MongoDB lookup error:', mongoErr.message);
     }
 
+    // Fallback to LocalUser
     if (!user) {
       user = await LocalUser.findOne({ email: cleanEmail });
+      if (user) console.log(`[Login] User found in LocalUser: ${cleanEmail}`);
     }
       
-    if (!user) return res.status(401).json({ error: 'Invalid email address or password.' });
+    if (!user) {
+      console.log(`[Login] ❌ No user found: ${cleanEmail}`);
+      return res.status(404).json({ error: 'No account found with this email address.' });
+    }
     
     const userData = user.toObject ? user.toObject() : user;
 
-    // Check password
-    if (userData.password && userData.password !== password) {
+    // Verify password - supports both bcrypt hashes and legacy plain-text passwords
+    let passwordMatch = false;
+    if (userData.password) {
+      const isHashed = userData.password.startsWith('$2b$') || userData.password.startsWith('$2a$');
+      if (isHashed) {
+        passwordMatch = await bcrypt.compare(password, userData.password);
+        console.log(`[Login] bcrypt compare result: ${passwordMatch}`);
+      } else {
+        // Legacy plain-text comparison (migrate to bcrypt on success)
+        passwordMatch = userData.password === password;
+        console.log(`[Login] Plain-text compare result: ${passwordMatch}`);
+        if (passwordMatch) {
+          // Upgrade to bcrypt hash silently
+          const upgraded = await bcrypt.hash(password, 10);
+          try {
+            if (user._id) await User.findByIdAndUpdate(user._id, { password: upgraded });
+            else await LocalUser.findOneAndUpdate({ email: cleanEmail }, { password: upgraded });
+            console.log(`[Login] ✅ Password upgraded to bcrypt for: ${cleanEmail}`);
+          } catch (e) { /* non-critical */ }
+        }
+      }
+    } else {
+      // No password set (OAuth user) - allow login if user exists
+      passwordMatch = true;
+    }
+
+    if (!passwordMatch) {
+      console.log(`[Login] ❌ Password mismatch for: ${cleanEmail}`);
       return res.status(401).json({ error: 'Invalid email address or password.' });
     }
 
-    // Auto-verify if unverified unless strict mode is enabled
-    if (process.env.STRICT_EMAIL_VERIFY !== 'true') {
-      try {
-        if (user._id) {
-          await User.findByIdAndUpdate(user._id, { isVerified: true });
-        } else {
-          await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
-        }
-      } catch (e) {
-        console.warn('Auto-verify update warning:', e.message);
-      }
-      userData.isVerified = true;
-    }
-
-    if (userData.isVerified === false) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiry = new Date(Date.now() + 10 * 60 * 1000);
-
-      try {
-        await User.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry });
-      } catch (e) {
-        await LocalUser.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry });
-      }
-
-      sendVerificationEmail(cleanEmail, code).catch(e => console.error('Background email error:', e.message));
-
-      return res.status(403).json({ 
-        error: 'Please verify your email address before logging in.', 
-        needsVerification: true, 
-        email: cleanEmail 
-      });
-    }
+    // Auto-verify to prevent blocking
+    try {
+      if (user._id) await User.findByIdAndUpdate(user._id, { isVerified: true });
+      else await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+    } catch (e) { console.warn('[Login] Auto-verify warning:', e.message); }
 
     const userId = (user._id || user.id).toString();
-    res.json({ token: `mock-jwt-${userId}`, user: { email: userData.email, fullName: userData.fullName, companyName: userData.companyName || 'My Business' } });
+    const token = generateToken(userId);
+    console.log(`[Login] ✅ Login successful for: ${cleanEmail} | UserID: ${userId}`);
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: userId,
+        email: userData.email,
+        fullName: userData.fullName || '',
+        companyName: userData.companyName || 'My Business'
+      }
+    });
   } catch (err) {
-    console.error('Login Error:', err);
-    res.status(500).json({ error: 'Authentication failed: ' + err.message });
+    console.error('[Login] ❌ Unhandled Error:', err);
+    return res.status(500).json({ error: 'Login failed due to an internal error. Please try again.' });
   }
 });
 
