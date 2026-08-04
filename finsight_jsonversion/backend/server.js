@@ -776,6 +776,28 @@ app.post('/api/auth/resend-code', async (req, res) => {
   }
 });
 
+// Verify JWT session token and return user metadata
+app.get('/api/auth/verify', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) {
+      return res.status(404).json({ valid: false, error: 'User account not found.' });
+    }
+    return res.json({
+      valid: true,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        fullName: user.fullName || '',
+        companyName: user.companyName || 'My Business'
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ valid: false, error: 'Session verification failed: ' + err.message });
+  }
+});
+
+
 // Helper to send Password Reset Code Email
 async function sendResetPasswordEmail(email, code) {
   console.log(`✉️ [Password Reset Code] Sent to: ${email} -> CODE: ${code}`);
