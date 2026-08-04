@@ -32,6 +32,10 @@ import BankTransaction from './models/BankTransaction.js';
 import InventoryItem from './models/InventoryItem.js';
 import PurchaseOrder from './models/PurchaseOrder.js';
 import FixedAsset from './models/FixedAsset.js';
+import OwnerRequest from './models/OwnerRequest.js';
+import TransactionApproval from './models/TransactionApproval.js';
+import Notification from './models/Notification.js';
+import ChatMessage from './models/ChatMessage.js';
 // JSON local database fallbacks have been removed. MongoDB is the single source of truth.
 
 const __filename = fileURLToPath(import.meta.url);
@@ -590,14 +594,30 @@ function sendVerificationEmail(email, code) {
   }, 100);
 }
 
-app.post('/api/auth/signup', async (req, res) => {
-  const { fullName, email, password, companyName } = req.body;
-  if (!fullName || !email || !password) {
-    return res.status(400).json({ error: 'Full name, email, and password are required.' });
+function generateJoinCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = 'HH-';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
+  return result;
+}
+
+app.post('/api/auth/signup', async (req, res) => {
+  const { 
+    fullName, email, password, accountType, companyName, 
+    businessOwnerName, phone, gstNumber, businessCategory, companyAddress 
+  } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  const isBusiness = accountType === 'business';
+  const effectiveName = isBusiness ? (businessOwnerName || fullName || companyName || 'Business Owner') : (fullName || 'User');
+
   const cleanEmail = email.toLowerCase().trim();
-  console.log(`[Signup] Attempting registration for: ${cleanEmail}`);
+  console.log(`[Signup] Attempting ${accountType || 'personal'} registration for: ${cleanEmail}`);
 
   try {
     // Check if user already exists in MongoDB
@@ -610,29 +630,59 @@ app.post('/api/auth/signup', async (req, res) => {
     
     // Hash password with bcrypt (10 rounds)
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log(`[Signup] Password hashed for: ${cleanEmail}`);
-
     const isVerified = true; // Auto-verify for instant mobile access
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
     const newUser = await new User({
-      fullName,
+      fullName: effectiveName,
       email: cleanEmail,
       password: hashedPassword,
+      accountType: isBusiness ? 'business' : 'personal',
       companyName: companyName || '',
+      businessOwnerName: isBusiness ? (businessOwnerName || effectiveName) : '',
+      phone: phone || '',
+      gstNumber: gstNumber || '',
+      businessCategory: businessCategory || '',
+      companyAddress: companyAddress || '',
       isVerified,
       verificationCode: code,
       verificationExpires: expiry
     }).save();
-    console.log(`[Signup] ✅ User saved to MongoDB: ${cleanEmail} | ID: ${newUser._id}`);
-    
-    // Fire-and-forget email - never blocks response
-    sendVerificationEmail(cleanEmail, code);
 
     const userId = (newUser._id || newUser.id).toString();
+
+    let createdBusiness = null;
+    if (isBusiness) {
+      const joinCode = generateJoinCode();
+      const newBus = await new Business({
+        name: companyName || `${effectiveName}'s Business`,
+        description: businessCategory || 'Business Ledger',
+        joinCode,
+        primaryOwnerId: userId,
+        owners: [userId],
+        employees: [],
+        createdBy: userId
+      }).save();
+
+      const busId = (newBus._id || newBus.id).toString();
+      await new BusinessMember({
+        businessId: busId,
+        userId: userId,
+        role: 'owner',
+        status: 'active'
+      }).save();
+
+      createdBusiness = {
+        id: busId,
+        name: newBus.name,
+        joinCode: newBus.joinCode
+      };
+    }
+
+    sendVerificationEmail(cleanEmail, code);
+
     const token = generateToken(userId);
-    console.log(`[Signup] ✅ Token generated for user: ${userId}`);
 
     return res.status(201).json({ 
       success: true, 
@@ -642,8 +692,10 @@ app.post('/api/auth/signup', async (req, res) => {
       user: {
         id: userId,
         email: cleanEmail,
-        fullName,
-        companyName: companyName || 'My Business'
+        fullName: effectiveName,
+        accountType: isBusiness ? 'business' : 'personal',
+        companyName: companyName || '',
+        business: createdBusiness
       },
       message: 'Registration successful. Welcome to HisabHero!'
     });
@@ -802,6 +854,474 @@ app.get('/api/auth/verify', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ valid: false, error: 'Session verification failed: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO V2] USER PROFILE ENDPOINTS ────────────────────────────────────
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      id: user._id.toString(),
+      fullName: user.fullName || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      accountType: user.accountType || 'personal',
+      companyName: user.companyName || '',
+      businessOwnerName: user.businessOwnerName || user.fullName || '',
+      gstNumber: user.gstNumber || '',
+      businessCategory: user.businessCategory || '',
+      companyAddress: user.companyAddress || '',
+      profileImage: user.profileImage || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch profile: ' + err.message });
+  }
+});
+
+app.put('/api/auth/profile', authMiddleware, async (req, res) => {
+  try {
+    const { fullName, phone, companyName, businessOwnerName, gstNumber, businessCategory, companyAddress, profileImage } = req.body;
+    const updateObj = {};
+    if (fullName !== undefined) updateObj.fullName = fullName;
+    if (phone !== undefined) updateObj.phone = phone;
+    if (companyName !== undefined) updateObj.companyName = companyName;
+    if (businessOwnerName !== undefined) updateObj.businessOwnerName = businessOwnerName;
+    if (gstNumber !== undefined) updateObj.gstNumber = gstNumber;
+    if (businessCategory !== undefined) updateObj.businessCategory = businessCategory;
+    if (companyAddress !== undefined) updateObj.companyAddress = companyAddress;
+    if (profileImage !== undefined) updateObj.profileImage = profileImage;
+
+    const updated = await User.findByIdAndUpdate(req.userId, { $set: updateObj }, { new: true }).lean();
+    res.json({
+      id: updated._id.toString(),
+      fullName: updated.fullName,
+      email: updated.email,
+      phone: updated.phone,
+      accountType: updated.accountType,
+      companyName: updated.companyName,
+      businessOwnerName: updated.businessOwnerName,
+      gstNumber: updated.gstNumber,
+      businessCategory: updated.businessCategory,
+      companyAddress: updated.companyAddress,
+      profileImage: updated.profileImage
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update profile: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO V2] WORKSPACE SYSTEM & JOIN CODE ENDPOINTS ────────────────────
+app.get('/api/workspaces/my-workspaces', authMiddleware, async (req, res) => {
+  try {
+    const memberships = await BusinessMember.find({ userId: req.userId, status: 'active' }).lean();
+    const busIds = memberships.map(m => m.businessId);
+    const businesses = await Business.find({ _id: { $in: busIds } }).lean();
+
+    const result = businesses.map(b => {
+      const mem = memberships.find(m => m.businessId === b._id.toString());
+      return {
+        id: b._id.toString(),
+        name: b.name,
+        joinCode: b.joinCode || '',
+        primaryOwnerId: b.primaryOwnerId,
+        isPrimaryOwner: b.primaryOwnerId === req.userId,
+        role: mem ? mem.role : 'employee',
+        ownersCount: (b.owners || []).length,
+        employeesCount: (b.employees || []).length
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch workspaces: ' + err.message });
+  }
+});
+
+app.post('/api/workspaces/join', authMiddleware, async (req, res) => {
+  const { joinCode } = req.body;
+  if (!joinCode) return res.status(400).json({ error: 'Join code is required' });
+
+  const cleanCode = joinCode.trim().toUpperCase();
+
+  try {
+    const bus = await Business.findOne({ joinCode: cleanCode });
+    if (!bus) return res.status(404).json({ error: 'Invalid workspace join code.' });
+
+    const busId = bus._id.toString();
+
+    const existingMem = await BusinessMember.findOne({ businessId: busId, userId: req.userId });
+    if (existingMem) {
+      if (existingMem.status === 'active') {
+        return res.status(400).json({ error: 'You are already a member of this workspace.' });
+      } else {
+        await BusinessMember.findByIdAndUpdate(existingMem._id, { status: 'active', role: 'employee' });
+      }
+    } else {
+      await new BusinessMember({
+        businessId: busId,
+        userId: req.userId,
+        role: 'employee',
+        status: 'active'
+      }).save();
+    }
+
+    if (!bus.employees.includes(req.userId)) {
+      await Business.findByIdAndUpdate(busId, { $addToSet: { employees: req.userId } });
+    }
+
+    const joiningUser = await User.findById(req.userId).lean();
+
+    // Create notifications for all owners of the workspace
+    const ownerIds = bus.owners || [bus.primaryOwnerId];
+    for (const ownerId of ownerIds) {
+      await new Notification({
+        userId: ownerId,
+        businessId: busId,
+        title: 'New Member Joined',
+        message: `${joiningUser?.fullName || 'A new user'} joined workspace "${bus.name}" as an Employee via Join Code.`,
+        type: 'join'
+      }).save();
+    }
+
+    await logAudit({ userId: req.userId, isPersonal: false, workspaceId: busId }, 'join_workspace_via_code', 'Business', busId, { joinCode: cleanCode });
+
+    res.json({
+      success: true,
+      message: `Successfully joined ${bus.name}`,
+      workspace: {
+        id: busId,
+        name: bus.name,
+        joinCode: bus.joinCode,
+        role: 'employee'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to join workspace: ' + err.message });
+  }
+});
+
+app.post('/api/workspaces/request-owner', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { reason } = req.body;
+  if (!reason) return res.status(400).json({ error: 'Reason for owner access request is required.' });
+
+  if (req.isPersonal) return res.status(400).json({ error: 'Owner access requests are only applicable to Business Workspaces.' });
+  if (req.workspaceRole === 'owner') return res.status(400).json({ error: 'You are already an Owner in this workspace.' });
+
+  try {
+    const bus = await Business.findById(req.workspaceId).lean();
+    if (!bus) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const user = await User.findById(req.userId).lean();
+
+    const existingReq = await OwnerRequest.findOne({ businessId: req.workspaceId, userId: req.userId, status: 'pending' });
+    if (existingReq) return res.status(400).json({ error: 'You already have a pending Owner Access Request for this workspace.' });
+
+    const newReq = await new OwnerRequest({
+      businessId: req.workspaceId,
+      userId: req.userId,
+      userName: user.fullName || user.email,
+      userEmail: user.email,
+      reason
+    }).save();
+
+    await new Notification({
+      userId: bus.primaryOwnerId,
+      businessId: req.workspaceId,
+      title: 'Owner Access Request',
+      message: `${user.fullName || user.email} requested Owner privileges in "${bus.name}". Reason: ${reason}`,
+      type: 'owner_request',
+      data: { requestId: newReq._id.toString() }
+    }).save();
+
+    await logAudit(req, 'request_owner_access', 'OwnerRequest', newReq._id.toString(), { reason });
+
+    res.status(201).json({ success: true, message: 'Owner access request submitted to Primary Owner.', request: newReq });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to request owner access: ' + err.message });
+  }
+});
+
+app.get('/api/workspaces/owner-requests', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    if (req.isPersonal) return res.json([]);
+    const requests = await OwnerRequest.find({ businessId: req.workspaceId }).lean();
+    res.json(requests.map(r => ({ ...r, id: r._id.toString() })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch owner requests: ' + err.message });
+  }
+});
+
+app.post('/api/workspaces/owner-requests/:id/respond', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be approved or rejected' });
+  }
+
+  try {
+    const ownerReq = await OwnerRequest.findById(id);
+    if (!ownerReq) return res.status(404).json({ error: 'Owner request not found' });
+
+    const bus = await Business.findById(ownerReq.businessId);
+    if (!bus) return res.status(404).json({ error: 'Workspace not found' });
+
+    if (bus.primaryOwnerId !== req.userId && req.workspaceRole !== 'owner') {
+      return res.status(403).json({ error: 'Only the Primary Owner or an Owner can respond to Owner Access Requests.' });
+    }
+
+    ownerReq.status = status;
+    ownerReq.respondedAt = new Date();
+    ownerReq.respondedBy = req.userId;
+    await ownerReq.save();
+
+    if (status === 'approved') {
+      await Business.findByIdAndUpdate(bus._id, {
+        $addToSet: { owners: ownerReq.userId },
+        $pull: { employees: ownerReq.userId }
+      });
+      await BusinessMember.findOneAndUpdate(
+        { businessId: bus._id.toString(), userId: ownerReq.userId },
+        { role: 'owner' }
+      );
+
+      await new Notification({
+        userId: ownerReq.userId,
+        businessId: bus._id.toString(),
+        title: 'Owner Access Approved!',
+        message: `Your request for Owner privileges in "${bus.name}" was APPROVED.`,
+        type: 'approval'
+      }).save();
+    } else {
+      await new Notification({
+        userId: ownerReq.userId,
+        businessId: bus._id.toString(),
+        title: 'Owner Access Request Rejected',
+        message: `Your request for Owner privileges in "${bus.name}" was rejected.`,
+        type: 'approval'
+      }).save();
+    }
+
+    await logAudit(req, `respond_owner_request_${status}`, 'OwnerRequest', id, { targetUserId: ownerReq.userId });
+
+    res.json({ success: true, message: `Owner request ${status}.`, request: ownerReq });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to process owner request: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO V2] MULTI-OWNER TRANSACTION APPROVAL ENDPOINTS ─────────────────
+app.get('/api/approvals/pending', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    if (req.isPersonal || req.workspaceRole === 'employee') {
+      return res.json([]);
+    }
+
+    const pending = await TransactionApproval.find({
+      businessId: req.workspaceId,
+      status: 'pending',
+      requiredApprovers: req.userId,
+      approvedBy: { $ne: req.userId }
+    }).lean();
+
+    res.json(pending.map(p => ({ ...p, id: p._id.toString() })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch pending approvals: ' + err.message });
+  }
+});
+
+app.post('/api/approvals/:id/respond', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { action, reason } = req.body;
+
+  if (req.workspaceRole === 'employee') {
+    return res.status(403).json({ error: 'Employees cannot approve or reject transactions.' });
+  }
+
+  try {
+    const approvalReq = await TransactionApproval.findById(id);
+    if (!approvalReq) return res.status(404).json({ error: 'Approval request not found.' });
+
+    if (approvalReq.status !== 'pending') {
+      return res.status(400).json({ error: `Request has already been ${approvalReq.status}.` });
+    }
+
+    if (action === 'reject') {
+      approvalReq.status = 'rejected';
+      approvalReq.rejectedBy = req.userId;
+      approvalReq.rejectionReason = reason || 'Rejected by Owner';
+      await approvalReq.save();
+
+      await new Notification({
+        userId: approvalReq.submittedBy,
+        businessId: approvalReq.businessId,
+        title: 'Transaction Request Rejected',
+        message: `Your transaction request (${approvalReq.requestType}) was REJECTED. Reason: ${reason || 'Rejected by Owner'}.`,
+        type: 'approval'
+      }).save();
+
+      await logAudit(req, 'reject_transaction_approval', 'TransactionApproval', id, { reason });
+      return res.json({ success: true, status: 'rejected', message: 'Transaction request rejected.' });
+    }
+
+    if (action === 'approve') {
+      if (!approvalReq.approvedBy.includes(req.userId)) {
+        approvalReq.approvedBy.push(req.userId);
+      }
+
+      const allApproved = approvalReq.requiredApprovers.every(approverId => 
+        approvalReq.approvedBy.includes(approverId)
+      );
+
+      if (allApproved) {
+        approvalReq.status = 'approved';
+        await approvalReq.save();
+
+        const payload = approvalReq.payload;
+        if (approvalReq.requestType === 'add_income' || approvalReq.requestType === 'add_expense') {
+          const newTx = await new Transaction({
+            userId: approvalReq.submittedBy,
+            businessId: approvalReq.businessId,
+            createdBy: approvalReq.submittedBy,
+            uploadId: 'manual_entry',
+            date: payload.date || new Date().toISOString().split('T')[0],
+            description: payload.description,
+            category: payload.category || 'Other',
+            amount: Number(payload.amount),
+            type: payload.type || (approvalReq.requestType === 'add_income' ? 'income' : 'expense'),
+            paymentMethod: payload.paymentMethod || 'Cash',
+            status: 'approved'
+          }).save();
+
+          approvalReq.transactionId = newTx._id.toString();
+          await approvalReq.save();
+        } else if (approvalReq.requestType === 'delete_transaction' && approvalReq.transactionId) {
+          await Transaction.findByIdAndDelete(approvalReq.transactionId);
+        } else if (approvalReq.requestType === 'update_transaction' && approvalReq.transactionId) {
+          await Transaction.findByIdAndUpdate(approvalReq.transactionId, payload);
+        }
+
+        await new Notification({
+          userId: approvalReq.submittedBy,
+          businessId: approvalReq.businessId,
+          title: 'Transaction Approved!',
+          message: `Your transaction request (${approvalReq.requestType}) was APPROVED by all Owners and added to the ledger.`,
+          type: 'approval'
+        }).save();
+
+        await logAudit(req, 'complete_transaction_approval', 'TransactionApproval', id, { allApproved: true });
+        return res.json({ success: true, status: 'approved', message: 'Transaction approved by all owners and committed to ledger.' });
+      } else {
+        await approvalReq.save();
+        return res.json({ 
+          success: true, 
+          status: 'pending', 
+          message: `Approval recorded. Waiting for ${approvalReq.requiredApprovers.length - approvalReq.approvedBy.length} remaining owner(s).` 
+        });
+      }
+    }
+
+    return res.status(400).json({ error: 'Action must be approve or reject.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to process approval: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO V2] NOTIFICATIONS ENDPOINTS ───────────────────────────────────
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+  try {
+    const list = await Notification.find({ userId: req.userId }).sort({ createdAt: -1 }).limit(50).lean();
+    res.json(list.map(n => ({ ...n, id: n._id.toString() })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notifications: ' + err.message });
+  }
+});
+
+app.put('/api/notifications/read-all', authMiddleware, async (req, res) => {
+  try {
+    await Notification.updateMany({ userId: req.userId, read: false }, { read: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update notifications: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO V2] CHAT ENDPOINTS (WITH EMPLOYEE ↔ EMPLOYEE RESTRICTION) ──────
+app.get('/api/chat/messages', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { receiverId } = req.query;
+
+  try {
+    if (req.isPersonal) return res.json([]);
+
+    let query = { businessId: req.workspaceId };
+    if (!receiverId || receiverId === 'null') {
+      query.receiverId = null;
+    } else {
+      query.$or = [
+        { senderId: req.userId, receiverId: receiverId },
+        { senderId: receiverId, receiverId: req.userId }
+      ];
+    }
+
+    const messages = await ChatMessage.find(query).sort({ createdAt: 1 }).limit(200).lean();
+    res.json(messages.map(m => ({ ...m, id: m._id.toString() })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch chat messages: ' + err.message });
+  }
+});
+
+app.post('/api/chat/messages', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { receiverId, message, attachments } = req.body;
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Message cannot be empty.' });
+
+  if (req.isPersonal) return res.status(400).json({ error: 'Chat is available within Business Workspaces.' });
+
+  try {
+    const sender = await User.findById(req.userId).lean();
+    const senderRole = req.workspaceRole;
+
+    // Check Employee ↔ Employee 1-on-1 Chat Restrictions!
+    if (receiverId && receiverId !== 'null') {
+      const receiverMember = await BusinessMember.findOne({ businessId: req.workspaceId, userId: receiverId, status: 'active' });
+      if (!receiverMember) return res.status(404).json({ error: 'Recipient is not an active member of this workspace.' });
+
+      const receiverRole = receiverMember.role;
+
+      if (senderRole === 'employee' && receiverRole === 'employee') {
+        return res.status(403).json({ 
+          error: "You don't have permission to start this conversation.",
+          code: 'EMPLOYEE_CHAT_RESTRICTED'
+        });
+      }
+    }
+
+    const newMsg = await new ChatMessage({
+      businessId: req.workspaceId,
+      senderId: req.userId,
+      senderName: sender.fullName || sender.email,
+      senderRole,
+      receiverId: (receiverId && receiverId !== 'null') ? receiverId : null,
+      message: message.trim(),
+      attachments: attachments || [],
+      readBy: [req.userId]
+    }).save();
+
+    res.status(201).json({ ...newMsg.toObject(), id: newMsg._id.toString() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send chat message: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO V2] AUDIT LOG ENDPOINTS ───────────────────────────────────────
+app.get('/api/audit-logs', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const query = req.isPersonal ? { userId: req.userId } : { businessId: req.workspaceId };
+    const logs = await AuditLog.find(query).sort({ timestamp: -1 }).limit(100).lean();
+    res.json(logs.map(l => ({ ...l, id: l._id.toString() })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch audit logs: ' + err.message });
   }
 });
 

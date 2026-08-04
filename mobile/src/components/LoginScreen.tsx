@@ -50,7 +50,8 @@ const GOOGLE_CONFIGURED =
   GOOGLE_WEB_CLIENT_ID !== '' &&
   GOOGLE_WEB_CLIENT_ID !== 'REPLACE_WITH_WEB_CLIENT_ID';
 
-type AuthMode = 'login' | 'signup' | 'forgotPassword' | 'resetPassword' | 'verifyEmail';
+type AuthMode = 'login' | 'signup' | 'signupTypeSelect' | 'forgotPassword' | 'resetPassword' | 'verifyEmail';
+type AccountType = 'personal' | 'business';
 
 type LoginScreenProps = {
   apiBaseUrl: string;
@@ -78,6 +79,14 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   const [companyName, setCompanyName] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  // V2 Onboarding: Account type and business fields
+  const [accountType, setAccountType] = useState<AccountType>('personal');
+  const [businessOwnerName, setBusinessOwnerName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [businessCategory, setBusinessCategory] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
 
   // Pre-warm backend connection as soon as LoginScreen mounts
   useEffect(() => {
@@ -184,11 +193,15 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
 
   const handleRegister = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    const cleanName = fullName.trim();
-    const cleanCompany = companyName.trim();
+    const isBusiness = accountType === 'business';
+    const cleanName = isBusiness ? businessOwnerName.trim() : fullName.trim();
 
-    if (!cleanEmail || !password || !cleanName || !cleanCompany) {
-      setErrorMsg('Please fill in all registration fields.');
+    if (!cleanEmail || !password || !cleanName) {
+      setErrorMsg('Please fill in all required registration fields.');
+      return;
+    }
+    if (isBusiness && !companyName.trim()) {
+      setErrorMsg('Company name is required for business accounts.');
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -205,10 +218,24 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     setErrorMsg(null);
     setStatusMsg(null);
     try {
+      const body: any = {
+        email: cleanEmail,
+        password,
+        accountType,
+        fullName: cleanName,
+        phone: phone.trim(),
+      };
+      if (isBusiness) {
+        body.companyName = companyName.trim();
+        body.businessOwnerName = cleanName;
+        body.gstNumber = gstNumber.trim();
+        body.businessCategory = businessCategory.trim();
+        body.companyAddress = companyAddress.trim();
+      }
       const res = await fetchWithTimeout(`${apiBaseUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password, fullName: cleanName, companyName: cleanCompany }),
+        body: JSON.stringify(body),
       });
       const text = await res.text();
       let data: any = {};

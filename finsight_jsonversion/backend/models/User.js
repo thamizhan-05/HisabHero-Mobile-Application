@@ -4,7 +4,13 @@ const UserSchema = new mongoose.Schema({
   fullName: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String }, // Optional for OAuth signups
+  accountType: { type: String, enum: ['personal', 'business'], default: 'personal' },
   companyName: { type: String },
+  businessOwnerName: { type: String },
+  phone: { type: String },
+  gstNumber: { type: String },
+  businessCategory: { type: String },
+  companyAddress: { type: String },
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },
   verificationExpires: { type: Date },
