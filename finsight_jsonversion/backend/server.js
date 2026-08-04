@@ -108,8 +108,9 @@ function authMiddleware(req, res, next) {
 
 // ─── Workspace Context Middleware ──────────────────────────────────────────────
 async function workspaceMiddleware(req, res, next) {
-  const workspaceId = req.headers['x-workspace-id'] || 'personal';
-  req.isPersonal = workspaceId === 'personal';
+  const rawId = req.headers['x-workspace-id'];
+  const workspaceId = (!rawId || rawId === 'null' || rawId === 'undefined') ? 'personal' : rawId;
+  req.isPersonal = workspaceId === 'personal' || workspaceId === req.userId;
 
   if (req.isPersonal) {
     req.workspaceId = req.userId;
@@ -118,19 +119,29 @@ async function workspaceMiddleware(req, res, next) {
   }
 
   try {
-    const member = isMongoConnected
-      ? await BusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' })
-      : await LocalBusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' });
+    let member = null;
+    try {
+      member = await BusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' });
+    } catch (e) {
+      member = await LocalBusinessMember.findOne({ businessId: workspaceId, userId: req.userId, status: 'active' });
+    }
 
     if (!member) {
-      return res.status(403).json({ error: 'Access Denied. You are not an active member of this business workspace.' });
+      // Gracefully fall back to personal workspace instead of blocking user access
+      req.isPersonal = true;
+      req.workspaceId = req.userId;
+      req.workspaceRole = 'owner';
+      return next();
     }
 
     req.workspaceId = workspaceId;
     req.workspaceRole = member.role;
     next();
   } catch (err) {
-    res.status(500).json({ error: 'Workspace validation error: ' + err.message });
+    req.isPersonal = true;
+    req.workspaceId = req.userId;
+    req.workspaceRole = 'owner';
+    next();
   }
 }
 

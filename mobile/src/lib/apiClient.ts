@@ -22,7 +22,8 @@ export async function getGlobalApiUrl() {
 async function request(endpoint: string, options: any = {}) {
   const baseUrl = await getGlobalApiUrl();
   const token = await AsyncStorage.getItem('token');
-  const activeWorkspaceId = await AsyncStorage.getItem('activeWorkspaceId') || 'personal';
+  const rawWorkspace = await AsyncStorage.getItem('activeWorkspaceId');
+  const activeWorkspaceId = (!rawWorkspace || rawWorkspace === 'null' || rawWorkspace === 'undefined') ? 'personal' : rawWorkspace;
 
   // Format headers
   const headers = {
@@ -53,9 +54,9 @@ async function request(endpoint: string, options: any = {}) {
     const response = await fetch(fullUrl, config);
     clearTimeout(timeoutId);
 
-    // Handle 401 / 403 Session Expired
-    if (response.status === 401 || response.status === 403) {
-      console.warn('[API Client] Unauthorized status received. Logging out.');
+    // Only trigger global logout on explicit 401 Unauthorized status
+    if (response.status === 401) {
+      console.warn('[API Client] 401 Unauthorized received. Logging out.');
       if (globalLogoutCallback) {
         globalLogoutCallback();
         Alert.alert('Session Expired', 'Your session has expired. Please log in again to continue.');
