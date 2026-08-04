@@ -458,51 +458,46 @@ export function UploadScreen({
               {loadingHistory ? (
                 <ActivityIndicator color="#4f8cff" size="small" style={{ marginTop: 20 }} />
               ) : uploads.length > 0 ? (
-                <View style={{ height: 300 }}>
-                  <FlatList
-                    data={uploads}
-                    keyExtractor={(item) => item._id || item.id}
-                    showsVerticalScrollIndicator={false}
-                    renderItem={({ item }) => {
-                      const uploadId = item.uploadId;
-                      const dateStr = item.uploadedAt 
-                        ? new Date(item.uploadedAt).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })
-                        : 'Unknown';
+                <View style={{ marginBottom: 12 }}>
+                  {uploads.map((item) => {
+                    const uploadId = item.uploadId || item._id || item.id;
+                    const dateStr = item.uploadedAt 
+                      ? new Date(item.uploadedAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'Unknown';
 
-                      return (
-                        <View style={styles.historyRow}>
-                          <View style={styles.fileIconBox}>
-                            <FileTextIcon color="#4f8cff" size={18} />
-                          </View>
-
-                          <View style={styles.fileDetails}>
-                            <Text style={styles.fileName} numberOfLines={1}>
-                              {item.filename || 'bank_statement.csv'}
-                            </Text>
-                            <Text style={styles.fileMeta}>
-                              {item.rowCount} rows · {dateStr}
-                            </Text>
-                          </View>
-
-                          <TouchableOpacity
-                            style={styles.deleteBtn}
-                            onPress={() => handleDeleteUpload(uploadId)}
-                            disabled={deletingId === uploadId}
-                          >
-                            {deletingId === uploadId ? (
-                              <ActivityIndicator size="small" color="#ff6b6b" />
-                            ) : (
-                              <Trash2Icon color="#ff8f8f" size={16} />
-                            )}
-                          </TouchableOpacity>
+                    return (
+                      <View key={uploadId} style={styles.historyRow}>
+                        <View style={styles.fileIconBox}>
+                          <FileTextIcon color="#4f8cff" size={18} />
                         </View>
-                      );
-                    }}
-                  />
+
+                        <View style={styles.fileDetails}>
+                          <Text style={styles.fileName} numberOfLines={1}>
+                            {item.filename || 'bank_statement.csv'}
+                          </Text>
+                          <Text style={styles.fileMeta}>
+                            {item.rowCount} rows · {dateStr}
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={styles.deleteBtn}
+                          onPress={() => handleDeleteUpload(uploadId)}
+                          disabled={deletingId === uploadId}
+                        >
+                          {deletingId === uploadId ? (
+                            <ActivityIndicator size="small" color="#ff6b6b" />
+                          ) : (
+                            <Trash2Icon color="#ff8f8f" size={16} />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
                 <View style={styles.emptyHistory}>
