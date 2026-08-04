@@ -3669,6 +3669,17 @@ app.get('/api/exchange-rates', authMiddleware, workspaceMiddleware, checkPermiss
   });
 });
 
+// 404 Catch-all handler for undefined API routes
+app.use((req, res) => {
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Global Error Handler Middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled Server Error:', err);
+  res.status(500).json({ error: err.message || 'An unexpected internal server error occurred.' });
+});
+
 const server = app.listen(PORT, () => {
   console.log(`🚀 Express Backend running on http://localhost:${PORT}`);
   console.log(`✅ Smart CSV detection, auto-alerts, auto-runway, user database isolation enabled.`);
