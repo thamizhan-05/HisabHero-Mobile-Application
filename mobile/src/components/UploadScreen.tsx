@@ -560,6 +560,7 @@ export function UploadScreen({
                   )}
                 </View>
               )}
+            </View>
 
             {/* OCR Extracted Result Review */}
             {ocrResult && (
