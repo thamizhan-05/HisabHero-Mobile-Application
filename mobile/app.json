@@ -34,6 +34,24 @@
         "backgroundColor": "#06111f"
       }
     },
+    "newArchEnabled": false,
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "enableMinifyInReleaseBuilds": false,
+            "shrinkResourcesInReleaseBuilds": false
+          }
+        }
+      ],
+      "expo-secure-store",
+      "expo-image-picker",
+      "expo-document-picker"
+    ],
     "extra": {
       "eas": {
         "projectId": "650b819c-53e8-4407-9851-2a6ed9aaeb0b"
