@@ -674,6 +674,7 @@ export function UploadScreen({
           </View>
         )}
       </ScrollView>
+      )}
 
       {/* CSV Mapping Modal */}
       {mappingState && (
