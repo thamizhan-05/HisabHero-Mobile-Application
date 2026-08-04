@@ -432,10 +432,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-          {/* Settings */}
-          <TouchableOpacity style={styles.settingsBtn} onPress={onOpenSettings}>
-            <SettingsIcon color="#8fc0ff" size={22} />
-          </TouchableOpacity>
+          {/* Settings icon removed from auth screen — appears only after login */}
 
           {/* Header */}
           <View style={styles.header}>
@@ -493,14 +490,72 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
             {/* SIGN UP */}
             {authMode === 'signup' && (
               <>
+                {/* ── Account Type Selector ── */}
+                <Text style={styles.accountTypeLabel}>I am creating a</Text>
+                <View style={styles.accountTypeRow}>
+                  <TouchableOpacity
+                    style={[styles.accountTypeBtn, accountType === 'personal' && styles.accountTypeBtnActive]}
+                    onPress={() => setAccountType('personal')}
+                    activeOpacity={0.8}
+                  >
+                    <UserIcon color={accountType === 'personal' ? '#fff' : '#5f88b8'} size={18} />
+                    <Text style={[styles.accountTypeBtnText, accountType === 'personal' && styles.accountTypeBtnTextActive]}>
+                      Personal
+                    </Text>
+                    <Text style={[styles.accountTypeSubText, accountType === 'personal' && { color: 'rgba(255,255,255,0.7)' }]}>
+                      For individuals
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.accountTypeBtn, accountType === 'business' && styles.accountTypeBtnActiveBusiness]}
+                    onPress={() => setAccountType('business')}
+                    activeOpacity={0.8}
+                  >
+                    <BriefcaseIcon color={accountType === 'business' ? '#fff' : '#5f88b8'} size={18} />
+                    <Text style={[styles.accountTypeBtnText, accountType === 'business' && styles.accountTypeBtnTextActive]}>
+                      Business
+                    </Text>
+                    <Text style={[styles.accountTypeSubText, accountType === 'business' && { color: 'rgba(255,255,255,0.7)' }]}>
+                      Creates a workspace
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* ── Name Field ── */}
                 <View style={styles.inputContainer}>
                   <UserIcon color="#5f88b8" size={18} style={styles.inputIcon} />
-                  <TextInput placeholder="Full Name" placeholderTextColor="#5f88b8" style={styles.input} value={fullName} onChangeText={setFullName} autoCapitalize="words" />
+                  <TextInput
+                    placeholder={accountType === 'business' ? 'Owner Full Name' : 'Full Name'}
+                    placeholderTextColor="#5f88b8"
+                    style={styles.input}
+                    value={accountType === 'business' ? businessOwnerName : fullName}
+                    onChangeText={accountType === 'business' ? setBusinessOwnerName : setFullName}
+                    autoCapitalize="words"
+                  />
                 </View>
+
+                {/* ── Business-only: Company Name ── */}
+                {accountType === 'business' && (
+                  <View style={styles.inputContainer}>
+                    <BriefcaseIcon color="#5f88b8" size={18} style={styles.inputIcon} />
+                    <TextInput
+                      placeholder="Company / Business Name"
+                      placeholderTextColor="#5f88b8"
+                      style={styles.input}
+                      value={companyName}
+                      onChangeText={setCompanyName}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                )}
+
+                {/* ── Email ── */}
                 <View style={styles.inputContainer}>
                   <MailIcon color="#5f88b8" size={18} style={styles.inputIcon} />
                   <TextInput placeholder="Email Address" placeholderTextColor="#5f88b8" style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
                 </View>
+
+                {/* ── Password ── */}
                 <View style={styles.inputContainer}>
                   <LockIcon color="#5f88b8" size={18} style={styles.inputIcon} />
                   <TextInput placeholder="Password" placeholderTextColor="#5f88b8" secureTextEntry={!showPassword} style={styles.input} value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} />
@@ -508,6 +563,8 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
                     {showPassword ? <EyeOffIcon color="#5f88b8" size={18} /> : <EyeIcon color="#5f88b8" size={18} />}
                   </TouchableOpacity>
                 </View>
+
+                {/* ── Password strength ── */}
                 {password.length > 0 && (
                   <View style={styles.strengthContainer}>
                     {[
@@ -523,10 +580,17 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
                     ))}
                   </View>
                 )}
-                <View style={styles.inputContainer}>
-                  <BriefcaseIcon color="#5f88b8" size={18} style={styles.inputIcon} />
-                  <TextInput placeholder="Company Name" placeholderTextColor="#5f88b8" style={styles.input} value={companyName} onChangeText={setCompanyName} autoCapitalize="words" />
-                </View>
+
+                {/* ── Business info badge ── */}
+                {accountType === 'business' && (
+                  <View style={styles.workspaceBadge}>
+                    <BriefcaseIcon color="#a78bfa" size={14} />
+                    <Text style={styles.workspaceBadgeText}>
+                      A private workspace will be created for your business. Invite team members after signup.
+                    </Text>
+                  </View>
+                )}
+
                 <TouchableOpacity style={[styles.submitBtn, loading && styles.submitBtnDisabled]} onPress={handleRegister} disabled={loading}>
                   {loading ? <ActivityIndicator color="#ffffff" size="small" /> : <Text style={styles.submitBtnText}>Create Account</Text>}
                 </TouchableOpacity>
@@ -648,7 +712,6 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06111f' },
   scrollContainer: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
-  settingsBtn: { position: 'absolute', top: 20, right: 20, padding: 10, borderRadius: 50, backgroundColor: '#0b1d38', borderWidth: 1, borderColor: '#15345f', zIndex: 10 },
   header: { alignItems: 'center', marginBottom: 28 },
   logoImage: { width: 80, height: 80, marginBottom: 10 },
   title: { fontSize: 24, fontWeight: '800', color: '#ffffff', marginBottom: 12, letterSpacing: 0.5 },
@@ -681,4 +744,41 @@ const styles = StyleSheet.create({
   strengthText: { color: '#5f88b8', fontSize: 11 },
   strengthActive: { color: '#2ecc71', fontWeight: '600' },
   googleConfigNote: { color: '#f39c12', fontSize: 10, textAlign: 'center', marginTop: 8, fontWeight: '600' },
+  // ── Account type selector ──
+  accountTypeLabel: { color: '#8fc0ff', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
+  accountTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  accountTypeBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#15345f',
+    backgroundColor: '#06111f',
+    gap: 6,
+  },
+  accountTypeBtnActive: {
+    backgroundColor: '#1d4ed8',
+    borderColor: '#3b82f6',
+  },
+  accountTypeBtnActiveBusiness: {
+    backgroundColor: '#6d28d9',
+    borderColor: '#8b5cf6',
+  },
+  accountTypeBtnText: { color: '#5f88b8', fontSize: 14, fontWeight: '700' },
+  accountTypeBtnTextActive: { color: '#ffffff' },
+  accountTypeSubText: { color: '#2a4a6a', fontSize: 10, fontWeight: '500', textAlign: 'center' },
+  workspaceBadge: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(124,58,237,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.3)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  workspaceBadgeText: { color: '#c4b5fd', fontSize: 12, lineHeight: 18, flex: 1 },
 });

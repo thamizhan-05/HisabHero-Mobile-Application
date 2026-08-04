@@ -23,7 +23,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WelcomeScreen } from './src/components/WelcomeScreen';
 import { LoginScreen } from './src/components/LoginScreen';
 import { AppNavigator } from './src/components/AppNavigator';
-import { SettingsModal } from './src/components/SettingsModal';
 import { setGlobalLogoutCallback, setGlobalApiUrl } from './src/lib/apiClient';
 import { DEFAULT_API_URL, loadSavedApiBaseUrl } from './src/lib/apiConfig';
 
@@ -37,9 +36,6 @@ export default function App() {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_URL);
-  
-  // Settings modal visibility for the login screen
-  const [loginSettingsVisible, setLoginSettingsVisible] = useState(false);
 
   // Setup the global API client logout interceptor redirection
   const triggerLogoutRedirect = async () => {
@@ -90,6 +86,7 @@ export default function App() {
           if (verifyRes.ok) {
             const verifyData = await verifyRes.json();
             if (verifyData.valid) {
+              // Backend now returns accountType + businessWorkspace
               const updatedUser = verifyData.user || (userData ? JSON.parse(userData) : null);
               setAuthToken(token);
               setUser(updatedUser);
@@ -146,9 +143,20 @@ export default function App() {
     bootstrapApp();
   }, []);
 
-  const handleLoginSuccess = (token: string, userData: any) => {
+  const handleLoginSuccess = async (token: string, userData: any) => {
     setAuthToken(token);
     setUser(userData);
+    try {
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      if (userData?.businessWorkspace?.id) {
+        await AsyncStorage.setItem('activeWorkspaceId', userData.businessWorkspace.id);
+      } else {
+        await AsyncStorage.setItem('activeWorkspaceId', 'personal');
+      }
+    } catch (e) {
+      console.error('Error storing login session:', e);
+    }
     setActiveScreen('main');
   };
 
@@ -195,19 +203,11 @@ export default function App() {
       );
     case 'login':
       return (
-        <View style={{ flex: 1 }}>
-          <LoginScreen
-            apiBaseUrl={apiBaseUrl}
-            onLoginSuccess={handleLoginSuccess}
-            onOpenSettings={() => setLoginSettingsVisible(true)}
-          />
-          <SettingsModal
-            visible={loginSettingsVisible}
-            onClose={() => setLoginSettingsVisible(false)}
-            apiBaseUrl={apiBaseUrl}
-            onSave={handleUpdateApiUrl}
-          />
-        </View>
+        <LoginScreen
+          apiBaseUrl={apiBaseUrl}
+          onLoginSuccess={handleLoginSuccess}
+          onOpenSettings={() => {}}
+        />
       );
     case 'main':
       return (

@@ -27,7 +27,11 @@
       "package": "com.hisabhero.app",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -47,6 +51,9 @@
     },
     "updates": {
       "url": "https://u.expo.dev/650b819c-53e8-4407-9851-2a6ed9aaeb0b"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

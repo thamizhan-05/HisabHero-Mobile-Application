@@ -36,6 +36,10 @@ import OwnerRequest from './models/OwnerRequest.js';
 import TransactionApproval from './models/TransactionApproval.js';
 import Notification from './models/Notification.js';
 import ChatMessage from './models/ChatMessage.js';
+import Account from './models/Account.js';
+import JournalEntry from './models/JournalEntry.js';
+import Project from './models/Project.js';
+import Payroll from './models/Payroll.js';
 // JSON local database fallbacks have been removed. MongoDB is the single source of truth.
 
 const __filename = fileURLToPath(import.meta.url);
@@ -676,7 +680,18 @@ app.post('/api/auth/signup', async (req, res) => {
       createdBusiness = {
         id: busId,
         name: newBus.name,
-        joinCode: newBus.joinCode
+        joinCode: newBus.joinCode,
+        logo: null,
+        phone: phone || '',
+        gstNumber: gstNumber || '',
+        businessCategory: businessCategory || '',
+        companyAddress: companyAddress || '',
+        approvalPolicy: 'single',
+        primaryOwnerId: userId,
+        isPrimaryOwner: true,
+        role: 'owner',
+        ownersCount: 1,
+        employeesCount: 0,
       };
     }
 
@@ -695,6 +710,7 @@ app.post('/api/auth/signup', async (req, res) => {
         fullName: effectiveName,
         accountType: isBusiness ? 'business' : 'personal',
         companyName: companyName || '',
+        businessWorkspace: createdBusiness,
         business: createdBusiness
       },
       message: 'Registration successful. Welcome to HisabHero!'
@@ -765,6 +781,37 @@ app.post('/api/auth/login', async (req, res) => {
     const token = generateToken(userId);
     console.log(`[Login] ✅ Login successful for: ${cleanEmail} | UserID: ${userId}`);
 
+    // Fetch business workspace context if business account
+    let businessWorkspace = null;
+    if (userData.accountType === 'business') {
+      try {
+        const membership = await BusinessMember.findOne({ userId, status: 'active' }).lean();
+        if (membership) {
+          const bus = await Business.findById(membership.businessId).lean();
+          if (bus) {
+            businessWorkspace = {
+              id: bus._id.toString(),
+              name: bus.name,
+              joinCode: bus.joinCode || '',
+              logo: bus.logo || null,
+              phone: bus.phone || '',
+              gstNumber: bus.gstNumber || '',
+              businessCategory: bus.businessCategory || '',
+              companyAddress: bus.companyAddress || '',
+              approvalPolicy: bus.approvalPolicy || 'single',
+              primaryOwnerId: bus.primaryOwnerId,
+              isPrimaryOwner: bus.primaryOwnerId === userId,
+              role: membership.role,
+              ownersCount: (bus.owners || []).length,
+              employeesCount: (bus.employees || []).length,
+            };
+          }
+        }
+      } catch (wsErr) {
+        console.warn('[Login] Could not fetch workspace:', wsErr.message);
+      }
+    }
+
     return res.json({
       success: true,
       token,
@@ -772,7 +819,10 @@ app.post('/api/auth/login', async (req, res) => {
         id: userId,
         email: userData.email,
         fullName: userData.fullName || '',
-        companyName: userData.companyName || 'My Business'
+        accountType: userData.accountType || 'personal',
+        companyName: userData.companyName || '',
+        businessOwnerName: userData.businessOwnerName || '',
+        businessWorkspace,
       }
     });
   } catch (err) {
@@ -780,6 +830,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(500).json({ error: 'Login failed due to an internal error. Please try again.' });
   }
 });
+
 
 // Verify verification code
 app.post('/api/auth/verify-code', async (req, res) => {
@@ -806,10 +857,47 @@ app.post('/api/auth/verify-code', async (req, res) => {
     const userId = updated._id.toString();
     const token = generateToken(userId);
 
+    let businessWorkspace = null;
+    if (updated.accountType === 'business') {
+      try {
+        const membership = await BusinessMember.findOne({ userId, status: 'active' }).lean();
+        if (membership) {
+          const bus = await Business.findById(membership.businessId).lean();
+          if (bus) {
+            businessWorkspace = {
+              id: bus._id.toString(),
+              name: bus.name,
+              joinCode: bus.joinCode || '',
+              logo: bus.logo || null,
+              phone: bus.phone || '',
+              gstNumber: bus.gstNumber || '',
+              businessCategory: bus.businessCategory || '',
+              companyAddress: bus.companyAddress || '',
+              approvalPolicy: bus.approvalPolicy || 'single',
+              primaryOwnerId: bus.primaryOwnerId,
+              isPrimaryOwner: bus.primaryOwnerId === userId,
+              role: membership.role,
+              ownersCount: (bus.owners || []).length,
+              employeesCount: (bus.employees || []).length,
+            };
+          }
+        }
+      } catch (wsErr) {
+        console.warn('[VerifyCode] Could not fetch workspace:', wsErr.message);
+      }
+    }
+
     res.json({
       success: true,
       token,
-      user: { id: userId, email: updated.email, fullName: updated.fullName, companyName: updated.companyName || 'My Business' }
+      user: { 
+        id: userId, 
+        email: updated.email, 
+        fullName: updated.fullName, 
+        accountType: updated.accountType || 'personal',
+        companyName: updated.companyName || 'My Business',
+        businessWorkspace
+      }
     });
   } catch (err) {
     res.status(500).json({ error: 'Verification failed: ' + err.message });
@@ -843,19 +931,57 @@ app.get('/api/auth/verify', authMiddleware, async (req, res) => {
     if (!user) {
       return res.status(404).json({ valid: false, error: 'User account not found.' });
     }
+
+    const userId = user._id.toString();
+
+    // Fetch business workspace context if applicable
+    let businessWorkspace = null;
+    if (user.accountType === 'business') {
+      try {
+        const membership = await BusinessMember.findOne({ userId, status: 'active' }).lean();
+        if (membership) {
+          const bus = await Business.findById(membership.businessId).lean();
+          if (bus) {
+            businessWorkspace = {
+              id: bus._id.toString(),
+              name: bus.name,
+              joinCode: bus.joinCode || '',
+              logo: bus.logo || null,
+              phone: bus.phone || '',
+              gstNumber: bus.gstNumber || '',
+              businessCategory: bus.businessCategory || '',
+              companyAddress: bus.companyAddress || '',
+              approvalPolicy: bus.approvalPolicy || 'single',
+              primaryOwnerId: bus.primaryOwnerId,
+              isPrimaryOwner: bus.primaryOwnerId === userId,
+              role: membership.role,
+              ownersCount: (bus.owners || []).length,
+              employeesCount: (bus.employees || []).length,
+            };
+          }
+        }
+      } catch (wsErr) {
+        console.warn('[Verify] Could not fetch workspace:', wsErr.message);
+      }
+    }
+
     return res.json({
       valid: true,
       user: {
-        id: user._id.toString(),
+        id: userId,
         email: user.email,
         fullName: user.fullName || '',
-        companyName: user.companyName || 'My Business'
+        accountType: user.accountType || 'personal',
+        companyName: user.companyName || '',
+        businessOwnerName: user.businessOwnerName || '',
+        businessWorkspace,
       }
     });
   } catch (err) {
     return res.status(500).json({ valid: false, error: 'Session verification failed: ' + err.message });
   }
 });
+
 
 // ─── [HISABHERO V2] USER PROFILE ENDPOINTS ────────────────────────────────────
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
@@ -936,6 +1062,175 @@ app.get('/api/workspaces/my-workspaces', authMiddleware, async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch workspaces: ' + err.message });
+  }
+});
+
+// GET /api/workspaces/my-workspace — Returns the current user's primary business workspace
+app.get('/api/workspaces/my-workspace', authMiddleware, async (req, res) => {
+  try {
+    const membership = await BusinessMember.findOne({ userId: req.userId, status: 'active' }).lean();
+    if (!membership) return res.json(null);
+
+    const bus = await Business.findById(membership.businessId).lean();
+    if (!bus) return res.json(null);
+
+    const members = await BusinessMember.find({ businessId: bus._id.toString(), status: 'active' }).lean();
+    const memberDetails = await Promise.all(members.map(async m => {
+      const u = await User.findById(m.userId).lean();
+      return {
+        id: m.userId,
+        fullName: u?.fullName || 'Unknown',
+        email: u?.email || '',
+        role: m.role,
+        isPrimaryOwner: bus.primaryOwnerId === m.userId,
+        joinedAt: m.createdAt,
+      };
+    }));
+
+    res.json({
+      id: bus._id.toString(),
+      name: bus.name,
+      logo: bus.logo || null,
+      phone: bus.phone || '',
+      gstNumber: bus.gstNumber || '',
+      businessCategory: bus.businessCategory || '',
+      companyAddress: bus.companyAddress || '',
+      joinCode: bus.joinCode || '',
+      currency: bus.currency || 'INR',
+      approvalPolicy: bus.approvalPolicy || 'single',
+      primaryOwnerId: bus.primaryOwnerId,
+      isPrimaryOwner: bus.primaryOwnerId === req.userId,
+      role: membership.role,
+      members: memberDetails,
+      ownersCount: (bus.owners || []).length,
+      employeesCount: (bus.employees || []).length,
+      createdAt: bus.createdAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch workspace: ' + err.message });
+  }
+});
+
+// PUT /api/workspaces/:id/approval-policy — Primary Owner sets approval policy
+app.put('/api/workspaces/:id/approval-policy', authMiddleware, async (req, res) => {
+  const { policy } = req.body;
+  if (!['single', 'majority', 'all'].includes(policy)) {
+    return res.status(400).json({ error: 'Policy must be single, majority, or all.' });
+  }
+
+  try {
+    const bus = await Business.findById(req.params.id);
+    if (!bus) return res.status(404).json({ error: 'Workspace not found.' });
+
+    if (bus.primaryOwnerId !== req.userId) {
+      return res.status(403).json({ error: 'Only the Primary Owner can change the approval policy.' });
+    }
+
+    bus.approvalPolicy = policy;
+    await bus.save();
+
+    await logAudit({ userId: req.userId, isPersonal: false, workspaceId: req.params.id }, 'change_approval_policy', 'Business', req.params.id, { policy });
+
+    res.json({ success: true, approvalPolicy: policy, message: `Approval policy updated to "${policy}".` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update approval policy: ' + err.message });
+  }
+});
+
+// PUT /api/workspaces/:id/profile — Primary Owner or Owner updates company profile
+app.put('/api/workspaces/:id/profile', authMiddleware, async (req, res) => {
+  const { name, phone, gstNumber, businessCategory, companyAddress, logo, currency } = req.body;
+  try {
+    const membership = await BusinessMember.findOne({ businessId: req.params.id, userId: req.userId, status: 'active' });
+    if (!membership || membership.role === 'employee') {
+      return res.status(403).json({ error: 'Only Owners can update the company profile.' });
+    }
+
+    const updateObj = {};
+    if (name !== undefined) updateObj.name = name;
+    if (phone !== undefined) updateObj.phone = phone;
+    if (gstNumber !== undefined) updateObj.gstNumber = gstNumber;
+    if (businessCategory !== undefined) updateObj.businessCategory = businessCategory;
+    if (companyAddress !== undefined) updateObj.companyAddress = companyAddress;
+    if (logo !== undefined) updateObj.logo = logo;
+    if (currency !== undefined) updateObj.currency = currency;
+
+    const updated = await Business.findByIdAndUpdate(req.params.id, { $set: updateObj }, { new: true }).lean();
+    if (!updated) return res.status(404).json({ error: 'Workspace not found.' });
+
+    await logAudit({ userId: req.userId, isPersonal: false, workspaceId: req.params.id }, 'update_company_profile', 'Business', req.params.id, updateObj);
+
+    res.json({ success: true, message: 'Company profile updated.', workspace: { id: updated._id.toString(), name: updated.name, phone: updated.phone, gstNumber: updated.gstNumber, businessCategory: updated.businessCategory, companyAddress: updated.companyAddress, logo: updated.logo } });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update company profile: ' + err.message });
+  }
+});
+
+// POST /api/workspaces/:id/regenerate-join-code — Primary Owner regenerates join code
+app.post('/api/workspaces/:id/regenerate-join-code', authMiddleware, async (req, res) => {
+  try {
+    const bus = await Business.findById(req.params.id);
+    if (!bus) return res.status(404).json({ error: 'Workspace not found.' });
+
+    if (bus.primaryOwnerId !== req.userId) {
+      return res.status(403).json({ error: 'Only the Primary Owner can regenerate the join code.' });
+    }
+
+    const newCode = generateJoinCode();
+    bus.joinCode = newCode;
+    await bus.save();
+
+    await logAudit({ userId: req.userId, isPersonal: false, workspaceId: req.params.id }, 'regenerate_join_code', 'Business', req.params.id, { newCode });
+
+    res.json({ success: true, joinCode: newCode, message: 'Join code regenerated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to regenerate join code: ' + err.message });
+  }
+});
+
+// GET /api/workspaces/:id/activity-log — Owners see activity log
+app.get('/api/workspaces/:id/activity-log', authMiddleware, async (req, res) => {
+  try {
+    const membership = await BusinessMember.findOne({ businessId: req.params.id, userId: req.userId, status: 'active' });
+    if (!membership) return res.status(403).json({ error: 'You are not a member of this workspace.' });
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const skip = (page - 1) * limit;
+
+    // Combine AuditLog + TransactionApproval history for this business
+    const [auditLogs, approvals] = await Promise.all([
+      AuditLog.find({ businessId: req.params.id }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      TransactionApproval.find({ businessId: req.params.id }).sort({ createdAt: -1 }).limit(50).lean(),
+    ]);
+
+    // Enrich audit logs with user names
+    const enriched = await Promise.all(auditLogs.map(async log => {
+      const u = await User.findById(log.userId).lean();
+      return {
+        id: log._id.toString(),
+        type: 'audit',
+        action: log.action,
+        entityType: log.entityType,
+        metadata: log.metadata,
+        user: { id: log.userId, name: u?.fullName || 'Unknown', email: u?.email || '' },
+        timestamp: log.createdAt,
+      };
+    }));
+
+    res.json({ logs: enriched, page, hasMore: enriched.length === limit });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch activity log: ' + err.message });
+  }
+});
+
+// GET /api/notifications/unread-count — fast endpoint for badge count
+app.get('/api/notifications/unread-count', authMiddleware, async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({ userId: req.userId, read: false });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get notification count: ' + err.message });
   }
 });
 
@@ -3946,6 +4241,363 @@ app.post('/api/fixed-assets/depreciate', authMiddleware, workspaceMiddleware, ch
     res.json({ success: true, count: updatedAssets.length, assets: updatedAssets });
   } catch (err) {
     res.status(500).json({ error: 'Depreciation calculation failed: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO ENTERPRISE] CORE ACCOUNTING & JOURNAL ENTRIES ─────────────────
+// Standard Chart of Accounts seed helper
+const STANDARD_ACCOUNTS = [
+  { code: '1000', name: 'Cash on Hand', type: 'Asset', subType: 'Current Asset' },
+  { code: '1010', name: 'Bank Operating Account', type: 'Asset', subType: 'Bank' },
+  { code: '1100', name: 'Accounts Receivable', type: 'Asset', subType: 'Current Asset' },
+  { code: '1200', name: 'Inventory Asset', type: 'Asset', subType: 'Inventory' },
+  { code: '2000', name: 'Accounts Payable', type: 'Asset', subType: 'Current Liability' }, // Liability
+  { code: '2100', name: 'GST Payable', type: 'Liability', subType: 'Tax' },
+  { code: '3000', name: "Owner's Equity", type: 'Equity', subType: 'Equity' },
+  { code: '4000', name: 'Sales Revenue', type: 'Revenue', subType: 'Operating Income' },
+  { code: '4100', name: 'Service Income', type: 'Revenue', subType: 'Operating Income' },
+  { code: '5000', name: 'Cost of Goods Sold (COGS)', type: 'Expense', subType: 'Direct Expense' },
+  { code: '5100', name: 'Rent & Utilities', type: 'Expense', subType: 'Operating Expense' },
+  { code: '5200', name: 'Salaries & Wages', type: 'Expense', subType: 'Payroll Expense' },
+  { code: '5300', name: 'Office Supplies', type: 'Expense', subType: 'General Expense' },
+];
+
+app.get('/api/accounting/chart-of-accounts', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    let accounts = await Account.find({ workspaceId: req.workspaceId }).sort({ code: 1 });
+    if (accounts.length === 0) {
+      // Auto-seed standard chart of accounts for workspace
+      const seeds = STANDARD_ACCOUNTS.map(a => ({
+        ...a,
+        workspaceId: req.workspaceId,
+      }));
+      accounts = await Account.insertMany(seeds);
+    }
+    res.json(accounts);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch Chart of Accounts: ' + err.message });
+  }
+});
+
+app.post('/api/accounting/chart-of-accounts', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { code, name, type, subType, description } = req.body;
+  if (!code || !name || !type) {
+    return res.status(400).json({ error: 'Account code, name, and type are required' });
+  }
+  try {
+    const newAcc = await new Account({
+      workspaceId: req.workspaceId,
+      code,
+      name,
+      type,
+      subType: subType || 'General',
+      description: description || '',
+    }).save();
+    res.status(201).json(newAcc);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create account: ' + err.message });
+  }
+});
+
+app.get('/api/accounting/journal-entries', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const entries = await JournalEntry.find({ workspaceId: req.workspaceId }).sort({ date: -1 });
+    res.json(entries);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch journal entries: ' + err.message });
+  }
+});
+
+app.post('/api/accounting/journal-entries', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { description, reference, lines } = req.body;
+  if (!description || !lines || lines.length < 2) {
+    return res.status(400).json({ error: 'A journal entry requires a description and at least two line items' });
+  }
+
+  let totalDebit = 0;
+  let totalCredit = 0;
+  lines.forEach((l) => {
+    totalDebit += Number(l.debit || 0);
+    totalCredit += Number(l.credit || 0);
+  });
+
+  if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    return res.status(400).json({ error: `Double-entry unbalance: Total Debits (₹${totalDebit}) must equal Total Credits (₹${totalCredit})` });
+  }
+
+  try {
+    const count = await JournalEntry.countDocuments({ workspaceId: req.workspaceId });
+    const entryNumber = `JE-${String(count + 1).padStart(4, '0')}`;
+
+    const entry = await new JournalEntry({
+      workspaceId: req.workspaceId,
+      entryNumber,
+      description,
+      reference: reference || '',
+      lines,
+      totalDebit,
+      totalCredit,
+      createdBy: req.userId,
+    }).save();
+
+    // Update account balances
+    for (const l of lines) {
+      if (l.accountId) {
+        const acc = await Account.findById(l.accountId);
+        if (acc) {
+          // Asset & Expense increase with Debit, decrease with Credit
+          // Liability, Equity, Revenue increase with Credit, decrease with Debit
+          let netChange = 0;
+          if (['Asset', 'Expense'].includes(acc.type)) {
+            netChange = Number(l.debit || 0) - Number(l.credit || 0);
+          } else {
+            netChange = Number(l.credit || 0) - Number(l.debit || 0);
+          }
+          await Account.findByIdAndUpdate(l.accountId, { $inc: { balance: netChange } });
+        }
+      }
+    }
+
+    res.status(201).json(entry);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to post journal entry: ' + err.message });
+  }
+});
+
+// Trial Balance Generator
+app.get('/api/accounting/trial-balance', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const accounts = await Account.find({ workspaceId: req.workspaceId }).sort({ code: 1 });
+    let grandDebit = 0;
+    let grandCredit = 0;
+
+    const report = accounts.map((acc) => {
+      let debit = 0;
+      let credit = 0;
+      if (['Asset', 'Expense'].includes(acc.type)) {
+        if (acc.balance >= 0) debit = acc.balance;
+        else credit = Math.abs(acc.balance);
+      } else {
+        if (acc.balance >= 0) credit = acc.balance;
+        else debit = Math.abs(acc.balance);
+      }
+      grandDebit += debit;
+      grandCredit += credit;
+      return {
+        id: acc._id,
+        code: acc.code,
+        name: acc.name,
+        type: acc.type,
+        debit,
+        credit,
+      };
+    });
+
+    res.json({
+      report,
+      grandDebit,
+      grandCredit,
+      isBalanced: Math.abs(grandDebit - grandCredit) < 0.01,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to calculate Trial Balance: ' + err.message });
+  }
+});
+
+// Financial Statements (Balance Sheet & P&L)
+app.get('/api/accounting/financial-statements', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const accounts = await Account.find({ workspaceId: req.workspaceId });
+
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+    let totalEquity = 0;
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+
+    accounts.forEach((a) => {
+      if (a.type === 'Asset') totalAssets += a.balance;
+      else if (a.type === 'Liability') totalLiabilities += a.balance;
+      else if (a.type === 'Equity') totalEquity += a.balance;
+      else if (a.type === 'Revenue') totalRevenue += a.balance;
+      else if (a.type === 'Expense') totalExpenses += a.balance;
+    });
+
+    const netProfit = totalRevenue - totalExpenses;
+
+    res.json({
+      balanceSheet: {
+        totalAssets,
+        totalLiabilities,
+        totalEquity,
+        retainedEarnings: netProfit,
+      },
+      profitAndLoss: {
+        totalRevenue,
+        totalExpenses,
+        netProfit,
+        profitMargin: totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate financial statements: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO ENTERPRISE] QUOTE & PO CONVERSIONS ───────────────────────────
+app.post('/api/quotes/:id/convert-to-invoice', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const quote = await Quote.findById(req.params.id);
+    if (!quote) return res.status(404).json({ error: 'Quotation not found' });
+
+    const invCount = await Invoice.countDocuments({ workspaceId: req.workspaceId });
+    const invNumber = `INV-${String(invCount + 1).padStart(4, '0')}`;
+
+    const newInvoice = await new Invoice({
+      workspaceId: req.workspaceId,
+      invoiceNumber: invNumber,
+      customerName: quote.customerName,
+      customerEmail: quote.customerEmail,
+      date: new Date(),
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      items: quote.items || [],
+      subtotal: quote.totalAmount || 0,
+      tax: 0,
+      totalAmount: quote.totalAmount || 0,
+      status: 'Sent',
+      notes: `Converted from Quotation ${quote.quoteNumber}`,
+      createdBy: req.userId,
+    }).save();
+
+    await Quote.findByIdAndUpdate(req.params.id, { status: 'Accepted' });
+    res.status(201).json(newInvoice);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to convert quotation to invoice: ' + err.message });
+  }
+});
+
+app.post('/api/quotes/:id/convert', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const quote = await Quote.findById(req.params.id);
+    if (!quote) return res.status(404).json({ error: 'Quotation not found' });
+
+    const invCount = await Invoice.countDocuments({ workspaceId: req.workspaceId });
+    const invNumber = `INV-${String(invCount + 1).padStart(4, '0')}`;
+
+    const newInvoice = await new Invoice({
+      workspaceId: req.workspaceId,
+      invoiceNumber: invNumber,
+      customerName: quote.customerName,
+      customerEmail: quote.customerEmail,
+      date: new Date(),
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      items: quote.items || [],
+      subtotal: quote.totalAmount || 0,
+      tax: 0,
+      totalAmount: quote.totalAmount || 0,
+      status: 'Sent',
+      notes: `Converted from Quotation ${quote.quoteNumber}`,
+      createdBy: req.userId,
+    }).save();
+
+    await Quote.findByIdAndUpdate(req.params.id, { status: 'Accepted' });
+    res.status(201).json(newInvoice);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to convert quotation to invoice: ' + err.message });
+  }
+});
+
+app.post('/api/purchase-orders/:id/convert-to-bill', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const po = await PurchaseOrder.findById(req.params.id);
+    if (!po) return res.status(404).json({ error: 'Purchase order not found' });
+
+    const billCount = await Bill.countDocuments({ workspaceId: req.workspaceId });
+    const billNumber = `BILL-${String(billCount + 1).padStart(4, '0')}`;
+
+    const newBill = await new Bill({
+      workspaceId: req.workspaceId,
+      billNumber,
+      vendorName: po.vendorName,
+      date: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      amount: po.totalAmount || 0,
+      status: 'Unpaid',
+      description: `Converted from Purchase Order ${po.poNumber}`,
+      createdBy: req.userId,
+    }).save();
+
+    await PurchaseOrder.findByIdAndUpdate(req.params.id, { status: 'Fulfilled' });
+    res.status(201).json(newBill);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to convert PO to Bill: ' + err.message });
+  }
+});
+
+// ─── [HISABHERO ENTERPRISE] PROJECTS & PAYROLL ROUTING ──────────────────────
+app.get('/api/projects', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const projects = await Project.find({ workspaceId: req.workspaceId }).sort({ createdAt: -1 });
+    res.json(projects);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch projects: ' + err.message });
+  }
+});
+
+app.post('/api/projects', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { name, customerName, budget, description } = req.body;
+  if (!name) return res.status(400).json({ error: 'Project name is required' });
+  try {
+    const newProj = await new Project({
+      workspaceId: req.workspaceId,
+      name,
+      customerName: customerName || '',
+      budget: Number(budget || 0),
+      description: description || '',
+    }).save();
+    res.status(201).json(newProj);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create project: ' + err.message });
+  }
+});
+
+app.get('/api/payroll', authMiddleware, workspaceMiddleware, async (req, res) => {
+  try {
+    const payrolls = await Payroll.find({ workspaceId: req.workspaceId }).sort({ createdAt: -1 });
+    res.json(payrolls);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch payroll records: ' + err.message });
+  }
+});
+
+app.post('/api/payroll', authMiddleware, workspaceMiddleware, async (req, res) => {
+  const { month, records } = req.body;
+  if (!month || !records || records.length === 0) {
+    return res.status(400).json({ error: 'Month and employee salary records are required' });
+  }
+
+  let totalAmount = 0;
+  const processedRecords = records.map((r) => {
+    const net = Number(r.basicSalary || 0) + Number(r.allowances || 0) - Number(r.deductions || 0);
+    totalAmount += net;
+    return {
+      ...r,
+      netSalary: net,
+    };
+  });
+
+  try {
+    const payroll = await new Payroll({
+      workspaceId: req.workspaceId,
+      month,
+      totalAmount,
+      records: processedRecords,
+      status: 'Approved',
+      processedBy: req.userId,
+    }).save();
+    res.status(201).json(payroll);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to process payroll: ' + err.message });
   }
 });
 

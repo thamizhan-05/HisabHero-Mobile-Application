@@ -25,6 +25,12 @@ import {
   ChevronLeft,
   Package,
   TrendingDown,
+  Bell,
+  MessageSquare,
+  CheckSquare,
+  MoreHorizontal,
+  Users,
+  Shield,
 } from 'lucide-react-native';
 
 // Import child screens
@@ -36,8 +42,10 @@ import { UploadScreen } from './UploadScreen';
 import { InvoicesBillsScreen } from './InvoicesBillsScreen';
 import { InventoryScreen } from './InventoryScreen';
 import { FixedAssetsScreen } from './FixedAssetsScreen';
+import { ChartOfAccountsScreen } from './ChartOfAccountsScreen';
+import { ProjectsScreen } from './ProjectsScreen';
+import { PayrollScreen } from './PayrollScreen';
 import { SettingsModal } from './SettingsModal';
-import { WorkspaceModal } from './WorkspaceModal';
 import { apiClient } from '../lib/apiClient';
 
 const ActivityIcon = Activity as any;
@@ -51,6 +59,12 @@ const FileTextIcon = FileText as any;
 const ChevronLeftIcon = ChevronLeft as any;
 const PackageIcon = Package as any;
 const TrendingDownIcon = TrendingDown as any;
+const BellIcon = Bell as any;
+const MessageSquareIcon = MessageSquare as any;
+const CheckSquareIcon = CheckSquare as any;
+const MoreHorizontalIcon = MoreHorizontal as any;
+const UsersIcon = Users as any;
+const ShieldIcon = Shield as any;
 
 type AppNavigatorProps = {
   authToken: string | null;
@@ -60,7 +74,11 @@ type AppNavigatorProps = {
   onUpdateApiUrl: (newUrl: string) => void;
 };
 
-type TabType = 'dashboard' | 'cashflow' | 'expenses' | 'invoicing' | 'aichat' | 'upload';
+// Personal tabs: simpler, individual finance focus
+type PersonalTab = 'dashboard' | 'expenses' | 'cashflow' | 'aichat' | 'upload';
+
+// Business tabs: collaborative, workspace-driven
+type BusinessTab = 'dashboard' | 'expenses' | 'invoicing' | 'aichat' | 'more';
 
 export function AppNavigator({
   authToken,
@@ -69,14 +87,22 @@ export function AppNavigator({
   onLogout,
   onUpdateApiUrl,
 }: AppNavigatorProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  // Derive account type from user object
+  const accountType = user?.accountType || 'personal';
+  const isBusiness = accountType === 'business';
+  const businessWorkspace = user?.businessWorkspace || null;
+
+  const [activePersonalTab, setActivePersonalTab] = useState<PersonalTab>('dashboard');
+  const [activeBusinessTab, setActiveBusinessTab] = useState<BusinessTab>('dashboard');
   const [loading, setLoading] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState('personal');
-  const [activeWorkspaceName, setActiveWorkspaceName] = useState('Personal Finance');
-  const [activeWorkspaceRole, setActiveWorkspaceRole] = useState('owner');
-  const [workspaceModalVisible, setWorkspaceModalVisible] = useState(false);
-  const [subTool, setSubTool] = useState<'upload' | 'inventory' | 'assets' | null>(null);
+  const [subTool, setSubTool] = useState<'upload' | 'inventory' | 'assets' | 'accounts' | 'projects' | 'payroll' | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Workspace context for business accounts
+  const activeWorkspaceId = isBusiness && businessWorkspace ? businessWorkspace.id : 'personal';
+  const activeWorkspaceRole = isBusiness && businessWorkspace ? businessWorkspace.role : 'owner';
+  const activeWorkspaceName = isBusiness && businessWorkspace ? businessWorkspace.name : 'Personal Finance';
 
   // Financial data state
   const [stats, setStats] = useState<any[]>([]);
@@ -92,37 +118,25 @@ export function AppNavigator({
   const loadFinancialData = async () => {
     setLoading(true);
     try {
-      // Fetch all endpoints in parallel using central apiClient
-      const [
-        resStats,
-        resTxs,
-        resCf,
-        resExp,
-        resRunway,
-        resAlerts,
-        resHealth,
-        resUploads,
-      ] = await Promise.all([
-        apiClient.get('/dashboard/stats'),
-        apiClient.get('/dashboard/transactions'),
-        apiClient.get('/dashboard/cashflow'),
-        apiClient.get('/dashboard/expenses'),
-        apiClient.get('/dashboard/runway'),
-        apiClient.get('/dashboard/alerts'),
-        apiClient.get('/dashboard/health'),
-        apiClient.get('/uploads'),
-      ]);
+      const headers: Record<string, string> = {};
+      if (isBusiness && activeWorkspaceId !== 'personal') {
+        headers['X-Workspace-Id'] = activeWorkspaceId;
+      }
 
       const [
-        dataStats,
-        dataTxs,
-        dataCf,
-        dataExp,
-        dataRunway,
-        dataAlerts,
-        dataHealth,
-        dataUploads,
+        resStats, resTxs, resCf, resExp, resRunway, resAlerts, resHealth, resUploads,
       ] = await Promise.all([
+        apiClient.get('/dashboard/stats', { headers }),
+        apiClient.get('/dashboard/transactions', { headers }),
+        apiClient.get('/dashboard/cashflow', { headers }),
+        apiClient.get('/dashboard/expenses', { headers }),
+        apiClient.get('/dashboard/runway', { headers }),
+        apiClient.get('/dashboard/alerts', { headers }),
+        apiClient.get('/dashboard/health', { headers }),
+        apiClient.get('/uploads', { headers }),
+      ]);
+
+      const [dataStats, dataTxs, dataCf, dataExp, dataRunway, dataAlerts, dataHealth, dataUploads] = await Promise.all([
         resStats.ok ? resStats.json() : [],
         resTxs.ok ? resTxs.json() : [],
         resCf.ok ? resCf.json() : ({} as any),
@@ -151,62 +165,79 @@ export function AppNavigator({
     }
   };
 
-  const bootstrapWorkspace = async () => {
+  const fetchUnreadCount = async () => {
     try {
-      const storedId = await AsyncStorage.getItem('activeWorkspaceId') || 'personal';
-      setActiveWorkspaceId(storedId);
-      
-      if (storedId === 'personal') {
-        setActiveWorkspaceName('Personal Finance');
-        setActiveWorkspaceRole('owner');
-      } else {
-        const res = await apiClient.get(`/businesses/${storedId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setActiveWorkspaceName(data.name || 'Business Workspace');
-          setActiveWorkspaceRole(data.myRole || 'viewer');
-        } else {
-          // Reset to personal if workspace is deleted or inaccessible
-          await AsyncStorage.setItem('activeWorkspaceId', 'personal');
-          setActiveWorkspaceId('personal');
-          setActiveWorkspaceName('Personal Finance');
-          setActiveWorkspaceRole('owner');
-        }
+      const res = await apiClient.get('/notifications/unread-count');
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCount(data.count || 0);
       }
-    } catch (e) {
-      console.error('Failed to bootstrap workspace:', e);
-    }
+    } catch (e) { /* silent */ }
   };
 
   useEffect(() => {
-    const init = async () => {
-      await bootstrapWorkspace();
-      loadFinancialData();
-    };
-    init();
-  }, [apiBaseUrl, authToken]);
-
-  const handleSwitchWorkspace = (workspaceId: string, name: string, role: string) => {
-    setActiveWorkspaceId(workspaceId);
-    setActiveWorkspaceName(name);
-    setActiveWorkspaceRole(role);
     loadFinancialData();
-  };
+    fetchUnreadCount();
+    // Refresh unread count every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [apiBaseUrl, authToken]);
 
   const handleLogoutPress = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out of HisabHero?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: onLogout,
-      },
+      { text: 'Sign Out', style: 'destructive', onPress: onLogout },
     ]);
   };
 
-  // Render current active tab content
-  const renderContent = () => {
-    switch (activeTab) {
+  // ─── HEADER ─────────────────────────────────────────────────────────────────
+  const renderHeader = () => {
+    const headerTitle = isBusiness
+      ? (businessWorkspace?.name || 'Business Workspace')
+      : `Welcome, ${user?.fullName || 'User'}`;
+
+    const headerSubtitle = isBusiness
+      ? `${activeWorkspaceRole.charAt(0).toUpperCase() + activeWorkspaceRole.slice(1)} · ${(businessWorkspace?.employeesCount || 0) + (businessWorkspace?.ownersCount || 0)} members`
+      : 'Personal Finance';
+
+    return (
+      <View style={styles.header}>
+        <View style={styles.headerTitleContainer}>
+          <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
+          <View style={{ flexDirection: 'column', flex: 1 }}>
+            <Text style={styles.userName} numberOfLines={1}>{headerTitle}</Text>
+            <Text style={styles.companyName}>{headerSubtitle}</Text>
+          </View>
+        </View>
+
+        <View style={styles.headerActions}>
+          {/* Notification Bell */}
+          <TouchableOpacity style={styles.headerBtn} onPress={() => { /* TODO: open notifications */ }}>
+            <BellIcon color="#8fc0ff" size={20} />
+            {unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Settings */}
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setSettingsVisible(true)}>
+            <SettingsIcon color="#8fc0ff" size={20} />
+          </TouchableOpacity>
+
+          {/* Logout */}
+          <TouchableOpacity style={styles.headerBtn} onPress={handleLogoutPress}>
+            <LogOutIcon color="#ff8f8f" size={20} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  // ─── PERSONAL CONTENT RENDERER ──────────────────────────────────────────────
+  const renderPersonalContent = () => {
+    switch (activePersonalTab) {
       case 'dashboard':
         return (
           <DashboardScreen
@@ -220,9 +251,19 @@ export function AppNavigator({
             authToken={authToken}
             loading={loading}
             onRefreshData={loadFinancialData}
-            onOpenWorkspaceSwitcher={() => setWorkspaceModalVisible(true)}
-            activeWorkspaceId={activeWorkspaceId}
-            activeWorkspaceRole={activeWorkspaceRole}
+            onOpenWorkspaceSwitcher={() => {}}
+            activeWorkspaceId="personal"
+            activeWorkspaceRole="owner"
+          />
+        );
+      case 'expenses':
+        return (
+          <ExpensesScreen
+            expensesData={expensesData}
+            loading={loading}
+            activeWorkspaceId="personal"
+            activeWorkspaceRole="owner"
+            onRefreshData={loadFinancialData}
           />
         );
       case 'cashflow':
@@ -232,14 +273,65 @@ export function AppNavigator({
             loading={loading}
             apiBaseUrl={apiBaseUrl}
             authToken={authToken}
+            activeWorkspaceId="personal"
+          />
+        );
+      case 'aichat':
+        return (
+          <AiChatScreen
+            apiBaseUrl={apiBaseUrl}
+            authToken={authToken}
+            financialContext={{
+              stats,
+              runway,
+              runwayMonths,
+              alerts,
+              healthScore,
+              expenses: transactions.filter((t) => t.type === 'expense'),
+            }}
+          />
+        );
+      case 'upload':
+        return (
+          <UploadScreen
+            uploads={uploads}
+            apiBaseUrl={apiBaseUrl}
+            authToken={authToken}
+            loadingHistory={loading}
+            onRefreshData={loadFinancialData}
+            activeWorkspaceId="personal"
+            activeWorkspaceRole="owner"
+          />
+        );
+    }
+  };
+
+  // ─── BUSINESS CONTENT RENDERER ──────────────────────────────────────────────
+  const renderBusinessContent = () => {
+    switch (activeBusinessTab) {
+      case 'dashboard':
+        return (
+          <DashboardScreen
+            stats={stats}
+            transactions={transactions}
+            runway={runway}
+            runwayMonths={runwayMonths}
+            healthScore={healthScore}
+            alerts={alerts}
+            apiBaseUrl={apiBaseUrl}
+            authToken={authToken}
+            loading={loading}
+            onRefreshData={loadFinancialData}
+            onOpenWorkspaceSwitcher={() => {}}
             activeWorkspaceId={activeWorkspaceId}
+            activeWorkspaceRole={activeWorkspaceRole}
           />
         );
       case 'expenses':
         return (
-          <ExpensesScreen 
-            expensesData={expensesData} 
-            loading={loading} 
+          <ExpensesScreen
+            expensesData={expensesData}
+            loading={loading}
             activeWorkspaceId={activeWorkspaceId}
             activeWorkspaceRole={activeWorkspaceRole}
             onRefreshData={loadFinancialData}
@@ -269,21 +361,8 @@ export function AppNavigator({
             }}
           />
         );
-      case 'upload':
-        if (activeWorkspaceId === 'personal') {
-          return (
-            <UploadScreen
-              uploads={uploads}
-              apiBaseUrl={apiBaseUrl}
-              authToken={authToken}
-              loadingHistory={loading}
-              onRefreshData={loadFinancialData}
-              activeWorkspaceId={activeWorkspaceId}
-              activeWorkspaceRole={activeWorkspaceRole}
-            />
-          );
-        }
-
+      case 'more':
+        // Sub-tools hub for business operations
         if (subTool === 'upload') {
           return (
             <View style={{ flex: 1 }}>
@@ -338,12 +417,67 @@ export function AppNavigator({
           );
         }
 
+        if (subTool === 'accounts') {
+          return (
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity style={styles.backToolsBtn} onPress={() => setSubTool(null)}>
+                <ChevronLeftIcon color="#4f8cff" size={16} style={{ marginRight: 4 }} />
+                <Text style={styles.backToolsText}>Back to Tools</Text>
+              </TouchableOpacity>
+              <ChartOfAccountsScreen />
+            </View>
+          );
+        }
+
+        if (subTool === 'projects') {
+          return (
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity style={styles.backToolsBtn} onPress={() => setSubTool(null)}>
+                <ChevronLeftIcon color="#4f8cff" size={16} style={{ marginRight: 4 }} />
+                <Text style={styles.backToolsText}>Back to Tools</Text>
+              </TouchableOpacity>
+              <ProjectsScreen />
+            </View>
+          );
+        }
+
+        if (subTool === 'payroll') {
+          return (
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity style={styles.backToolsBtn} onPress={() => setSubTool(null)}>
+                <ChevronLeftIcon color="#4f8cff" size={16} style={{ marginRight: 4 }} />
+                <Text style={styles.backToolsText}>Back to Tools</Text>
+              </TouchableOpacity>
+              <PayrollScreen />
+            </View>
+          );
+        }
+
+        // Default: show the tools grid
         return (
           <ScrollView style={{ flex: 1, backgroundColor: '#06111f' }} contentContainerStyle={{ padding: 20 }}>
             <Text style={styles.toolsTitle}>Business Operations Hub</Text>
             <Text style={styles.toolsSub}>Advanced administrative workflows for {activeWorkspaceName}</Text>
 
             <View style={styles.toolsGrid}>
+              <TouchableOpacity style={styles.toolCard} onPress={() => setSubTool('accounts')}>
+                <FileTextIcon color="#4f8cff" size={28} style={{ marginBottom: 12 }} />
+                <Text style={styles.toolCardTitle}>Chart of Accounts</Text>
+                <Text style={styles.toolCardDesc}>Double-entry General Ledger, Trial Balance & Balance Sheet.</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.toolCard} onPress={() => setSubTool('projects')}>
+                <ActivityIcon color="#e67e22" size={28} style={{ marginBottom: 12 }} />
+                <Text style={styles.toolCardTitle}>Project Accounting</Text>
+                <Text style={styles.toolCardDesc}>Track project budgets, expenses, client revenue & variance.</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.toolCard} onPress={() => setSubTool('payroll')}>
+                <UsersIcon color="#9b59b6" size={28} style={{ marginBottom: 12 }} />
+                <Text style={styles.toolCardTitle}>Payroll & Salaries</Text>
+                <Text style={styles.toolCardDesc}>Manage employee directory, monthly salary runs & payslips.</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.toolCard} onPress={() => setSubTool('upload')}>
                 <UploadIcon color="#4f8cff" size={28} style={{ marginBottom: 12 }} />
                 <Text style={styles.toolCardTitle}>Document Center</Text>
@@ -367,108 +501,77 @@ export function AppNavigator({
     }
   };
 
+  // ─── PERSONAL TAB BAR ────────────────────────────────────────────────────────
+  const renderPersonalTabBar = () => (
+    <View style={styles.tabBar}>
+      {([
+        { key: 'dashboard' as PersonalTab, icon: ActivityIcon, label: 'Dashboard' },
+        { key: 'expenses' as PersonalTab, icon: PieChartIcon, label: 'Expenses' },
+        { key: 'cashflow' as PersonalTab, icon: ArrowUpDownIcon, label: 'Cash Flow' },
+        { key: 'aichat' as PersonalTab, icon: SparklesIcon, label: 'AI Chat' },
+        { key: 'upload' as PersonalTab, icon: UploadIcon, label: 'Upload' },
+      ]).map(tab => {
+        const isActive = activePersonalTab === tab.key;
+        const Icon = tab.icon;
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tabItem, isActive && styles.tabItemActive]}
+            onPress={() => setActivePersonalTab(tab.key)}
+          >
+            <Icon color={isActive ? '#4f8cff' : '#8fc0ff'} size={22} />
+            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  // ─── BUSINESS TAB BAR ────────────────────────────────────────────────────────
+  const renderBusinessTabBar = () => (
+    <View style={styles.tabBar}>
+      {([
+        { key: 'dashboard' as BusinessTab, icon: ActivityIcon, label: 'Dashboard' },
+        { key: 'expenses' as BusinessTab, icon: PieChartIcon, label: 'Expenses' },
+        { key: 'invoicing' as BusinessTab, icon: FileTextIcon, label: 'Invoices' },
+        { key: 'aichat' as BusinessTab, icon: SparklesIcon, label: 'AI Chat' },
+        { key: 'more' as BusinessTab, icon: MoreHorizontalIcon, label: 'More' },
+      ]).map(tab => {
+        const isActive = activeBusinessTab === tab.key;
+        const Icon = tab.icon;
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tabItem, isActive && styles.tabItemActive]}
+            onPress={() => {
+              setActiveBusinessTab(tab.key);
+              if (tab.key === 'more') setSubTool(null);
+            }}
+          >
+            <Icon color={isActive ? '#4f8cff' : '#8fc0ff'} size={22} />
+            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0b1d38" />
 
-      {/* Main Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.headerTitleContainer} 
-          onPress={() => setWorkspaceModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
-          <View style={{ flexDirection: 'column' }}>
-            <Text style={styles.userName}>{activeWorkspaceName} ▼</Text>
-            <Text style={styles.companyName}>{activeWorkspaceId === 'personal' ? 'Personal workspace' : `Role: ${activeWorkspaceRole.toUpperCase()}`}</Text>
-          </View>
-        </TouchableOpacity>
+      {/* Header — differs for Personal vs Business */}
+      {renderHeader()}
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => setSettingsVisible(true)}
-          >
-            <SettingsIcon color="#8fc0ff" size={20} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.headerBtn} onPress={handleLogoutPress}>
-            <LogOutIcon color="#ff8f8f" size={20} />
-          </TouchableOpacity>
-        </View>
+      {/* Content Area — completely separate rendering */}
+      <View style={styles.content}>
+        {isBusiness ? renderBusinessContent() : renderPersonalContent()}
       </View>
 
-      {/* Content Area */}
-      <View style={styles.content}>{renderContent()}</View>
+      {/* Tab Bar — different tabs per account type */}
+      {isBusiness ? renderBusinessTabBar() : renderPersonalTabBar()}
 
-      {/* Bottom Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'dashboard' && styles.tabItemActive]}
-          onPress={() => setActiveTab('dashboard')}
-        >
-          <ActivityIcon color={activeTab === 'dashboard' ? '#4f8cff' : '#8fc0ff'} size={22} />
-          <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>
-            Dashboard
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'cashflow' && styles.tabItemActive]}
-          onPress={() => setActiveTab('cashflow')}
-        >
-          <ArrowUpDownIcon color={activeTab === 'cashflow' ? '#4f8cff' : '#8fc0ff'} size={22} />
-          <Text style={[styles.tabLabel, activeTab === 'cashflow' && styles.tabLabelActive]}>
-            Cash Flow
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'expenses' && styles.tabItemActive]}
-          onPress={() => setActiveTab('expenses')}
-        >
-          <PieChartIcon color={activeTab === 'expenses' ? '#4f8cff' : '#8fc0ff'} size={22} />
-          <Text style={[styles.tabLabel, activeTab === 'expenses' && styles.tabLabelActive]}>
-            Expenses
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'invoicing' && styles.tabItemActive]}
-          onPress={() => setActiveTab('invoicing')}
-        >
-          <FileTextIcon color={activeTab === 'invoicing' ? '#4f8cff' : '#8fc0ff'} size={22} />
-          <Text style={[styles.tabLabel, activeTab === 'invoicing' && styles.tabLabelActive]}>
-            Invoices
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'aichat' && styles.tabItemActive]}
-          onPress={() => setActiveTab('aichat')}
-        >
-          <SparklesIcon color={activeTab === 'aichat' ? '#4f8cff' : '#8fc0ff'} size={22} />
-          <Text style={[styles.tabLabel, activeTab === 'aichat' && styles.tabLabelActive]}>
-            AI Chat
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'upload' && styles.tabItemActive]}
-          onPress={() => {
-            setActiveTab('upload');
-            setSubTool(null);
-          }}
-        >
-          <UploadIcon color={activeTab === 'upload' ? '#4f8cff' : '#8fc0ff'} size={22} />
-          <Text style={[styles.tabLabel, activeTab === 'upload' && styles.tabLabelActive]}>
-            {activeWorkspaceId === 'personal' ? 'Upload' : 'Tools'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Settings Modal */}
+      {/* Settings Modal — role-aware */}
       <SettingsModal
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
@@ -476,14 +579,8 @@ export function AppNavigator({
         onSave={onUpdateApiUrl}
         activeWorkspaceId={activeWorkspaceId}
         activeWorkspaceRole={activeWorkspaceRole}
-      />
-
-      {/* Workspace Selector Modal */}
-      <WorkspaceModal
-        visible={workspaceModalVisible}
-        onClose={() => setWorkspaceModalVisible(false)}
-        activeWorkspaceId={activeWorkspaceId}
-        onSwitchWorkspace={handleSwitchWorkspace}
+        currentUser={user}
+        onLogout={onLogout}
       />
     </SafeAreaView>
   );
@@ -508,6 +605,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
   headerLogo: {
     width: 34,
@@ -527,7 +625,7 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   headerBtn: {
     width: 38,
@@ -538,6 +636,24 @@ const styles = StyleSheet.create({
     borderColor: '#15345f',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
   },
   content: {
     flex: 1,

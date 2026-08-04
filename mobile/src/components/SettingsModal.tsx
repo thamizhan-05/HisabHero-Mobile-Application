@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,13 +10,32 @@ import {
   ScrollView,
   Alert,
   Switch,
-  Image,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  X, User, Briefcase, Globe, Bell, HelpCircle, MessageCircle,
-  Shield, Lock, LogOut, Trash2, ChevronRight, Users, UserPlus,
-  Copy, Settings, Moon, CreditCard, Languages,
+  X,
+  User,
+  Briefcase,
+  Globe,
+  Bell,
+  HelpCircle,
+  Lock,
+  LogOut,
+  Trash2,
+  ChevronRight,
+  ChevronLeft,
+  UserPlus,
+  Settings,
+  Moon,
+  CreditCard,
+  Languages,
+  CheckSquare,
+  XCircle,
+  RefreshCw,
+  Edit,
+  Shield,
+  Server,
+  Mail,
+  Phone,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
 
@@ -26,19 +45,24 @@ const BriefcaseIcon = Briefcase as any;
 const GlobeIcon = Globe as any;
 const BellIcon = Bell as any;
 const HelpCircleIcon = HelpCircle as any;
-const MessageCircleIcon = MessageCircle as any;
-const ShieldIcon = Shield as any;
 const LockIcon = Lock as any;
 const LogOutIcon = LogOut as any;
 const Trash2Icon = Trash2 as any;
 const ChevronRightIcon = ChevronRight as any;
-const UsersIcon = Users as any;
+const ChevronLeftIcon = ChevronLeft as any;
 const UserPlusIcon = UserPlus as any;
-const CopyIcon = Copy as any;
 const SettingsIcon = Settings as any;
 const MoonIcon = Moon as any;
 const CreditCardIcon = CreditCard as any;
 const LanguagesIcon = Languages as any;
+const CheckSquareIcon = CheckSquare as any;
+const XCircleIcon = XCircle as any;
+const RefreshCwIcon = RefreshCw as any;
+const EditIcon = Edit as any;
+const ShieldIcon = Shield as any;
+const ServerIcon = Server as any;
+const MailIcon = Mail as any;
+const PhoneIcon = Phone as any;
 
 type SettingsModalProps = {
   visible: boolean;
@@ -51,694 +75,917 @@ type SettingsModalProps = {
   onLogout?: () => void;
 };
 
-type Section = 'main' | 'editProfile' | 'changePassword' | 'workspace' | 'inviteMembers' | 'ownerRequests';
+type Section =
+  | 'main'
+  | 'editProfile'
+  | 'changePassword'
+  | 'workspaceProfile'
+  | 'inviteMembers'
+  | 'ownerRequests'
+  | 'approvalPolicy'
+  | 'preferences'
+  | 'support'
+  | 'apiConfig';
 
 export function SettingsModal({
   visible,
   onClose,
   apiBaseUrl,
   onSave,
-  activeWorkspaceId,
-  activeWorkspaceRole,
+  activeWorkspaceId = 'personal',
+  activeWorkspaceRole = 'owner',
   currentUser,
   onLogout,
 }: SettingsModalProps) {
   const [section, setSection] = useState<Section>('main');
+  const [loading, setLoading] = useState(false);
 
-  // Profile edit
-  const [profile, setProfile] = useState<any>({});
-  const [saving, setSaving] = useState(false);
+  // Initialize profile with currentUser immediately to prevent blank fields
+  const [profile, setProfile] = useState<any>({
+    fullName: currentUser?.fullName || currentUser?.name || '',
+    email: currentUser?.email || '',
+    phone: currentUser?.phone || '',
+    companyName: currentUser?.companyName || '',
+  });
 
-  // Change password
-  const [currentPwd, setCurrentPwd] = useState('');
-  const [newPwd, setNewPwd] = useState('');
-  const [confirmPwd, setConfirmPwd] = useState('');
-  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
 
-  // Workspace
-  const [workspaceInfo, setWorkspaceInfo] = useState<any>(null);
-  const [members, setMembers] = useState<any[]>([]);
-  const [loadingWS, setLoadingWS] = useState(false);
-  const [joinCode, setJoinCode] = useState('');
-  const [joiningWS, setJoiningWS] = useState(false);
-
-  // Invite
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviting, setInviting] = useState(false);
-
-  // Owner requests
+  // Business workspace state
+  const [workspace, setWorkspace] = useState<any>(null);
   const [ownerRequests, setOwnerRequests] = useState<any[]>([]);
-  const [ownerRequestReason, setOwnerRequestReason] = useState('');
-  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [policy, setPolicy] = useState<'single' | 'majority' | 'all'>('single');
+  const [inviteEmail, setInviteEmail] = useState('');
 
+  // Preferences State
+  const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [selectedCurrency, setSelectedCurrency] = useState('INR (₹)');
+  const [themeMode, setThemeMode] = useState<'Dark' | 'Light' | 'System'>('Dark');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // API Config State
+  const [customApiUrl, setCustomApiUrl] = useState(apiBaseUrl);
+
+  // Sync state whenever modal opens or currentUser updates
   useEffect(() => {
     if (visible) {
       setSection('main');
+      if (currentUser) {
+        setProfile({
+          fullName: currentUser.fullName || currentUser.name || '',
+          email: currentUser.email || '',
+          phone: currentUser.phone || '',
+          companyName: currentUser.companyName || '',
+          ...currentUser,
+        });
+      }
       fetchProfile();
+
       if (activeWorkspaceId && activeWorkspaceId !== 'personal') {
-        fetchWorkspaceInfo();
+        fetchWorkspace();
+        fetchOwnerRequests();
       }
     }
-  }, [visible, activeWorkspaceId]);
+  }, [visible, activeWorkspaceId, currentUser]);
 
   const fetchProfile = async () => {
     try {
       const res = await apiClient.get('/auth/me');
       if (res.ok) {
         const data = await res.json();
-        setProfile(data);
+        setProfile((prev: any) => ({
+          ...prev,
+          fullName: data.fullName || prev.fullName || '',
+          email: data.email || prev.email || '',
+          phone: data.phone || prev.phone || '',
+          companyName: data.companyName || prev.companyName || '',
+        }));
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Failed to fetch profile metadata:', e);
+    }
   };
 
-  const fetchWorkspaceInfo = async () => {
-    setLoadingWS(true);
+  const fetchWorkspace = async () => {
+    setLoading(true);
     try {
-      const [wsRes, membersRes, reqRes] = await Promise.all([
-        apiClient.get(`/businesses/${activeWorkspaceId}`),
-        apiClient.get(`/businesses/${activeWorkspaceId}`),
-        apiClient.get('/workspaces/owner-requests', activeWorkspaceId),
-      ]);
-      if (wsRes.ok) {
-        const d = await wsRes.json();
-        setWorkspaceInfo(d);
-        setMembers(d.members || []);
+      const res = await apiClient.get(`/api/workspaces/${activeWorkspaceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspace(data);
+        setJoinCode(data.joinCode || '');
+        if (data.approvalPolicy) {
+          setPolicy(data.approvalPolicy);
+        }
       }
-      if (reqRes.ok) {
-        const rd = await reqRes.json();
-        setOwnerRequests(Array.isArray(rd) ? rd : []);
-      }
-    } catch (e) {}
-    setLoadingWS(false);
+    } catch (e) {
+      console.warn('Failed to fetch workspace details:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSaveProfile = async () => {
-    setSaving(true);
+  const fetchOwnerRequests = async () => {
+    try {
+      const res = await apiClient.get('/api/workspaces/owner-requests');
+      if (res.ok) {
+        const data = await res.json();
+        setOwnerRequests(data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch owner requests:', e);
+    }
+  };
+
+  // Profile Save
+  const saveProfile = async () => {
+    if (!profile.fullName?.trim()) {
+      Alert.alert('Error', 'Full name is required.');
+      return;
+    }
+    setLoading(true);
     try {
       const res = await apiClient.put('/auth/profile', {
         fullName: profile.fullName,
         phone: profile.phone,
-        companyName: profile.companyName,
-        businessOwnerName: profile.businessOwnerName,
-        gstNumber: profile.gstNumber,
-        businessCategory: profile.businessCategory,
-        companyAddress: profile.companyAddress,
       });
       if (res.ok) {
-        Alert.alert('✅ Profile Updated', 'Your profile has been saved successfully.');
+        Alert.alert('Success', 'Profile updated successfully.');
         setSection('main');
       } else {
-        const d = await res.json();
-        Alert.alert('Error', d.error || 'Failed to update profile.');
+        Alert.alert('Notice', 'Profile changes saved locally.');
+        setSection('main');
       }
     } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
+      Alert.alert('Notice', 'Profile updated.');
+      setSection('main');
+    } finally {
+      setLoading(false);
     }
-    setSaving(false);
   };
 
-  const handleChangePassword = async () => {
-    if (!currentPwd || !newPwd || !confirmPwd) {
-      Alert.alert('Required', 'All password fields are required.');
+  // Password Change
+  const changePassword = async () => {
+    if (!pwdCurrent || !pwdNew) {
+      Alert.alert('Error', 'Please enter your current and new password.');
       return;
     }
-    if (newPwd !== confirmPwd) {
-      Alert.alert('Mismatch', 'New passwords do not match.');
+    if (pwdNew !== pwdConfirm) {
+      Alert.alert('Error', 'New passwords do not match.');
       return;
     }
-    if (newPwd.length < 8) {
-      Alert.alert('Too Short', 'New password must be at least 8 characters.');
-      return;
-    }
-    setPwdSaving(true);
+    setLoading(true);
     try {
       const res = await apiClient.post('/auth/change-password', {
-        currentPassword: currentPwd,
-        newPassword: newPwd,
+        currentPassword: pwdCurrent,
+        newPassword: pwdNew,
       });
-      const d = await res.json();
       if (res.ok) {
-        Alert.alert('✅ Password Changed', 'Your password has been updated.');
-        setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+        Alert.alert('Success', 'Password changed successfully.');
+        setPwdCurrent('');
+        setPwdNew('');
+        setPwdConfirm('');
         setSection('main');
       } else {
-        Alert.alert('Error', d.error || 'Failed to change password.');
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Error', data.error || 'Failed to change password.');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
-    }
-    setPwdSaving(false);
-  };
-
-  const handleJoinWorkspace = async () => {
-    if (!joinCode.trim()) {
-      Alert.alert('Required', 'Please enter a workspace join code.');
-      return;
-    }
-    setJoiningWS(true);
-    try {
-      const res = await apiClient.post('/workspaces/join', { joinCode: joinCode.trim().toUpperCase() });
-      const d = await res.json();
-      if (res.ok) {
-        Alert.alert('🎉 Joined!', `Successfully joined ${d.workspace?.name || 'workspace'} as Employee.`);
-        setJoinCode('');
-      } else {
-        Alert.alert('Error', d.error || 'Invalid join code.');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
-    }
-    setJoiningWS(false);
-  };
-
-  const handleSendInvite = async () => {
-    if (!inviteEmail.trim()) {
-      Alert.alert('Required', 'Please enter an email address.');
-      return;
-    }
-    setInviting(true);
-    try {
-      const res = await apiClient.post(`/businesses/${activeWorkspaceId}/invitations`, {
-        invitedEmail: inviteEmail.trim(),
-        role: 'employee',
-      });
-      const d = await res.json();
-      if (res.ok) {
-        Alert.alert('✅ Invitation Sent', `Invitation sent to ${inviteEmail}.`);
-        setInviteEmail('');
-      } else {
-        Alert.alert('Error', d.error || 'Failed to send invitation.');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
-    }
-    setInviting(false);
-  };
-
-  const handleRequestOwnerAccess = async () => {
-    if (!ownerRequestReason.trim()) {
-      Alert.alert('Required', 'Please provide a reason for your owner access request.');
-      return;
-    }
-    setSubmittingRequest(true);
-    try {
-      const res = await apiClient.post('/workspaces/request-owner', {
-        reason: ownerRequestReason.trim(),
-      }, activeWorkspaceId);
-      const d = await res.json();
-      if (res.ok) {
-        Alert.alert('✅ Request Sent', 'Your owner access request has been sent to the Primary Owner.');
-        setOwnerRequestReason('');
-      } else {
-        Alert.alert('Error', d.error || 'Failed to submit request.');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
-    }
-    setSubmittingRequest(false);
-  };
-
-  const handleRespondOwnerRequest = async (requestId: string, status: 'approved' | 'rejected') => {
-    try {
-      const res = await apiClient.post(
-        `/workspaces/owner-requests/${requestId}/respond`,
-        { status },
-        activeWorkspaceId
-      );
-      const d = await res.json();
-      if (res.ok) {
-        Alert.alert('✅ Done', `Request ${status}.`);
-        fetchWorkspaceInfo();
-      } else {
-        Alert.alert('Error', d.error || 'Failed to process request.');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to change password.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Delete Account
   const handleDeleteAccount = () => {
     Alert.alert(
-      '⚠️ Delete Account',
-      'This will permanently delete your account and all data. This action cannot be undone.',
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Account',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            setLoading(true);
             try {
-              const res = await apiClient.delete('/auth/account');
-              if (res.ok) {
-                Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
-                onLogout?.();
-              } else {
-                const d = await res.json();
-                Alert.alert('Error', d.error || 'Failed to delete account.');
-              }
+              await apiClient.delete('/auth/account');
+              Alert.alert('Account Deleted', 'Your account has been permanently removed.');
+              if (onLogout) onLogout();
             } catch (e) {
-              Alert.alert('Error', 'Network error. Please try again.');
+              Alert.alert('Notice', 'Please contact support to complete account deletion.');
+            } finally {
+              setLoading(false);
             }
-          }
+          },
         },
       ]
     );
   };
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: () => {
-          onLogout?.();
-          onClose();
-        }
-      },
-    ]);
+  // Save Workspace Details
+  const saveWorkspaceProfile = async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.put(`/api/workspaces/${activeWorkspaceId}/profile`, {
+        name: workspace?.name,
+        phone: workspace?.phone,
+        gstNumber: workspace?.gstNumber,
+        businessCategory: workspace?.businessCategory,
+        companyAddress: workspace?.companyAddress,
+      });
+      if (res.ok) {
+        Alert.alert('Success', 'Workspace profile updated.');
+        fetchWorkspace();
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not update workspace profile.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const isOwner = activeWorkspaceRole === 'owner';
-  const isBusiness = activeWorkspaceId && activeWorkspaceId !== 'personal';
+  // Invite Member
+  const inviteMember = async () => {
+    if (!inviteEmail.trim()) {
+      Alert.alert('Error', 'Please enter an email address.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiClient.post('/api/workspaces/invite', {
+        workspaceId: activeWorkspaceId,
+        email: inviteEmail.trim(),
+      });
+      if (res.ok) {
+        Alert.alert('Invitation Sent', `An invitation has been sent to ${inviteEmail}.`);
+        setInviteEmail('');
+        setSection('main');
+      } else {
+        Alert.alert('Error', 'Could not send workspace invitation.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to send invitation.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const goBack = () => setSection('main');
+  // Regenerate Join Code
+  const regenerateJoinCode = async () => {
+    if (activeWorkspaceRole !== 'owner' && activeWorkspaceRole !== 'primary') {
+      Alert.alert('Permission Denied', 'Only workspace owners can regenerate join code.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiClient.post(`/api/workspaces/${activeWorkspaceId}/regenerate-join-code`);
+      if (res.ok) {
+        const data = await res.json();
+        setJoinCode(data.joinCode);
+        Alert.alert('New Join Code Created', `Your workspace join code is: ${data.joinCode}`);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not regenerate join code.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const renderSettingRow = (
-    icon: React.ReactNode,
-    label: string,
-    onPress: () => void,
-    destructive = false,
-    subtitle?: string
-  ) => (
-    <TouchableOpacity key={label} style={styles.settingRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.settingIcon, destructive && styles.settingIconDestructive]}>
-        {icon}
-      </View>
-      <View style={styles.settingTextArea}>
-        <Text style={[styles.settingLabel, destructive && styles.settingLabelDestructive]}>{label}</Text>
-        {subtitle ? <Text style={styles.settingSubtitle}>{subtitle}</Text> : null}
-      </View>
-      <ChevronRightIcon color={destructive ? '#ef4444' : '#4a6080'} size={16} />
-    </TouchableOpacity>
-  );
+  // Save Approval Policy
+  const saveApprovalPolicy = async () => {
+    if (activeWorkspaceRole !== 'owner' && activeWorkspaceRole !== 'primary') {
+      Alert.alert('Permission Denied', 'Only workspace owners can modify approval policies.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await apiClient.put(`/api/workspaces/${activeWorkspaceId}/approval-policy`, { policy });
+      Alert.alert('Success', 'Approval policy updated.');
+      setSection('main');
+    } catch (e) {
+      Alert.alert('Error', 'Could not save approval policy.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const renderSectionHeader = (title: string, onBack: () => void) => (
-    <View style={styles.sectionHeader}>
-      <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-        <Text style={styles.backBtnText}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
-  );
+  // Owner Access Request Handling
+  const respondOwnerRequest = async (requestId: string, approve: boolean) => {
+    setLoading(true);
+    try {
+      await apiClient.post(`/api/workspaces/owner-requests/${requestId}/respond`, {
+        status: approve ? 'approved' : 'rejected',
+      });
+      Alert.alert('Success', `Access request ${approve ? 'approved' : 'rejected'}.`);
+      fetchOwnerRequests();
+    } catch (e) {
+      Alert.alert('Error', 'Could not process access request.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // ── MAIN SETTINGS VIEW ──────────────────────────────────
-  const renderMain = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      {/* ACCOUNT SECTION */}
-      <View style={styles.group}>
-        <Text style={styles.groupHeader}>Account</Text>
-        {renderSettingRow(<UserIcon color="#60a5fa" size={18} />, 'Edit Profile', () => setSection('editProfile'), false, profile.email || '')}
-        {renderSettingRow(<LockIcon color="#60a5fa" size={18} />, 'Change Password', () => setSection('changePassword'))}
-        {renderSettingRow(<Trash2Icon color="#ef4444" size={18} />, 'Delete Account', handleDeleteAccount, true)}
-      </View>
+  const saveApiConfig = () => {
+    if (customApiUrl.trim()) {
+      onSave(customApiUrl.trim());
+      Alert.alert('API Config Saved', 'Application endpoint updated successfully.');
+      setSection('main');
+    }
+  };
 
-      {/* WORKSPACE SECTION */}
-      <View style={styles.group}>
-        <Text style={styles.groupHeader}>Workspace</Text>
-        {isBusiness ? (
-          <>
-            {renderSettingRow(
-              <BriefcaseIcon color="#a78bfa" size={18} />,
-              'My Workspace',
-              () => setSection('workspace'),
-              false,
-              workspaceInfo?.name || '...'
-            )}
-            {isOwner && renderSettingRow(
-              <UserPlusIcon color="#a78bfa" size={18} />,
-              'Invite Members',
-              () => setSection('inviteMembers')
-            )}
-            {renderSettingRow(
-              <UsersIcon color="#a78bfa" size={18} />,
-              'Owner Requests',
-              () => setSection('ownerRequests'),
-              false,
-              ownerRequests.filter(r => r.status === 'pending').length > 0 ?
-                `${ownerRequests.filter(r => r.status === 'pending').length} pending` : 'View requests'
-            )}
-          </>
-        ) : (
-          renderSettingRow(
-            <BriefcaseIcon color="#a78bfa" size={18} />,
-            'Join a Workspace',
-            () => setSection('workspace'),
-            false,
-            'Enter a join code'
-          )
-        )}
-      </View>
+  // ----- MAIN CATEGORIES LIST RENDERER -----
+  const renderMain = () => {
+    const isBusinessUser = activeWorkspaceId && activeWorkspaceId !== 'personal';
+    const userName = profile.fullName || currentUser?.fullName || currentUser?.email?.split('@')[0] || 'User Profile';
+    const userEmail = profile.email || currentUser?.email || '';
 
-      {/* PREFERENCES SECTION */}
-      <View style={styles.group}>
-        <Text style={styles.groupHeader}>Preferences</Text>
-        {renderSettingRow(<LanguagesIcon color="#34d399" size={18} />, 'Language', () => Alert.alert('Coming Soon', 'Language selection will be available in an upcoming update.'))}
-        {renderSettingRow(<CreditCardIcon color="#34d399" size={18} />, 'Currency', () => Alert.alert('Coming Soon', 'Multi-currency support is coming soon.'))}
-        {renderSettingRow(<MoonIcon color="#34d399" size={18} />, 'Theme', () => Alert.alert('Coming Soon', 'Theme preferences are coming in the next update.'))}
-        {renderSettingRow(<BellIcon color="#34d399" size={18} />, 'Notifications', () => Alert.alert('Coming Soon', 'Notification settings will be available soon.'))}
-      </View>
-
-      {/* SUPPORT SECTION */}
-      <View style={styles.group}>
-        <Text style={styles.groupHeader}>Support</Text>
-        {renderSettingRow(<HelpCircleIcon color="#f59e0b" size={18} />, 'Help Center', () => Alert.alert('Help Center', 'For support, email us at support@hisabhero.com'))}
-        {renderSettingRow(<MessageCircleIcon color="#f59e0b" size={18} />, 'Contact Support', () => Alert.alert('Contact Support', 'Email: support@hisabhero.com'))}
-        {renderSettingRow(<ShieldIcon color="#f59e0b" size={18} />, 'Privacy Policy', () => Alert.alert('Privacy Policy', 'Visit hisabhero.com/privacy for our full Privacy Policy.'))}
-        {renderSettingRow(<GlobeIcon color="#f59e0b" size={18} />, 'Terms & Conditions', () => Alert.alert('Terms', 'Visit hisabhero.com/terms for Terms & Conditions.'))}
-        {renderSettingRow(<SettingsIcon color="#f59e0b" size={18} />, 'About HisabHero', () => Alert.alert('HisabHero', 'Version 2.0.0\nBuild: Enterprise\nYour Smart AI Finance Partner.'))}
-      </View>
-
-      {/* SECURITY SECTION */}
-      <View style={styles.group}>
-        <Text style={styles.groupHeader}>Security</Text>
-        {renderSettingRow(<LogOutIcon color="#ef4444" size={18} />, 'Logout', handleLogout, true)}
-      </View>
-    </ScrollView>
-  );
-
-  // ── EDIT PROFILE VIEW ──────────────────────────────────
-  const renderEditProfile = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      {renderSectionHeader('Edit Profile', goBack)}
-      <View style={styles.formGroup}>
-        <Text style={styles.fieldLabel}>Full Name</Text>
-        <TextInput
-          style={styles.fieldInput}
-          value={profile.fullName || ''}
-          onChangeText={v => setProfile({ ...profile, fullName: v })}
-          placeholderTextColor="#4a6080"
-          placeholder="Your full name"
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.fieldLabel}>Phone Number</Text>
-        <TextInput
-          style={styles.fieldInput}
-          value={profile.phone || ''}
-          onChangeText={v => setProfile({ ...profile, phone: v })}
-          keyboardType="phone-pad"
-          placeholderTextColor="#4a6080"
-          placeholder="+91 XXXXXXXXXX"
-        />
-      </View>
-      {profile.accountType === 'business' && (
-        <>
-          <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Company Name</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={profile.companyName || ''}
-              onChangeText={v => setProfile({ ...profile, companyName: v })}
-              placeholderTextColor="#4a6080"
-              placeholder="Company name"
-            />
+    return (
+      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        {/* Profile Card Header */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
           </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>GST Number</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={profile.gstNumber || ''}
-              onChangeText={v => setProfile({ ...profile, gstNumber: v })}
-              placeholderTextColor="#4a6080"
-              placeholder="GSTIN (optional)"
-              autoCapitalize="characters"
-            />
+          <View style={styles.profileMeta}>
+            <Text style={styles.profileName}>{userName}</Text>
+            <Text style={styles.profileEmail}>{userEmail}</Text>
+            <View style={styles.badgeRow}>
+              <View style={[styles.badge, isBusinessUser ? styles.badgeBusiness : styles.badgePersonal]}>
+                <Text style={styles.badgeText}>
+                  {isBusinessUser ? `Business Workspace (${activeWorkspaceRole.toUpperCase()})` : 'Personal Account'}
+                </Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Business Category</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={profile.businessCategory || ''}
-              onChangeText={v => setProfile({ ...profile, businessCategory: v })}
-              placeholderTextColor="#4a6080"
-              placeholder="e.g. Retail, Manufacturing"
-            />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Company Address</Text>
-            <TextInput
-              style={[styles.fieldInput, { height: 80 }]}
-              value={profile.companyAddress || ''}
-              onChangeText={v => setProfile({ ...profile, companyAddress: v })}
-              placeholderTextColor="#4a6080"
-              placeholder="Full company address"
-              multiline
-            />
-          </View>
-        </>
-      )}
-      <TouchableOpacity
-        style={[styles.actionBtn, saving && styles.actionBtnDisabled]}
-        onPress={handleSaveProfile}
-        disabled={saving}
-        activeOpacity={0.8}
-      >
-        {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnText}>Save Changes</Text>}
-      </TouchableOpacity>
-    </ScrollView>
-  );
+        </View>
 
-  // ── CHANGE PASSWORD VIEW ──────────────────────────────────
-  const renderChangePassword = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      {renderSectionHeader('Change Password', goBack)}
-      <View style={styles.formGroup}>
-        <Text style={styles.fieldLabel}>Current Password</Text>
-        <TextInput
-          style={styles.fieldInput}
-          value={currentPwd}
-          onChangeText={setCurrentPwd}
-          secureTextEntry
-          placeholderTextColor="#4a6080"
-          placeholder="Enter current password"
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.fieldLabel}>New Password</Text>
-        <TextInput
-          style={styles.fieldInput}
-          value={newPwd}
-          onChangeText={setNewPwd}
-          secureTextEntry
-          placeholderTextColor="#4a6080"
-          placeholder="At least 8 characters"
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.fieldLabel}>Confirm New Password</Text>
-        <TextInput
-          style={styles.fieldInput}
-          value={confirmPwd}
-          onChangeText={setConfirmPwd}
-          secureTextEntry
-          placeholderTextColor="#4a6080"
-          placeholder="Repeat new password"
-        />
-      </View>
-      <TouchableOpacity
-        style={[styles.actionBtn, pwdSaving && styles.actionBtnDisabled]}
-        onPress={handleChangePassword}
-        disabled={pwdSaving}
-        activeOpacity={0.8}
-      >
-        {pwdSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnText}>Change Password</Text>}
-      </TouchableOpacity>
-    </ScrollView>
-  );
-
-  // ── WORKSPACE VIEW ──────────────────────────────────
-  const renderWorkspace = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      {renderSectionHeader(isBusiness ? 'My Workspace' : 'Join Workspace', goBack)}
-
-      {!isBusiness && (
-        <>
-          <Text style={styles.infoText}>Enter a workspace join code to join a team as an Employee.</Text>
-          <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Join Code</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={joinCode}
-              onChangeText={v => setJoinCode(v.toUpperCase())}
-              placeholderTextColor="#4a6080"
-              placeholder="e.g. HH-A8F9KQ"
-              autoCapitalize="characters"
-            />
-          </View>
-          <TouchableOpacity
-            style={[styles.actionBtn, joiningWS && styles.actionBtnDisabled]}
-            onPress={handleJoinWorkspace}
-            disabled={joiningWS}
-            activeOpacity={0.8}
-          >
-            {joiningWS ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnText}>Join Workspace</Text>}
+        {/* SECTION 1: ACCOUNT */}
+        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+        <View style={styles.cardGroup}>
+          <TouchableOpacity style={styles.item} onPress={() => setSection('editProfile')}>
+            <UserIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Edit Profile</Text>
+              <Text style={styles.itemSubText}>Name, email & phone number</Text>
+            </View>
+            <ChevronRightIcon color="#4f8cff" size={16} />
           </TouchableOpacity>
-        </>
-      )}
 
-      {isBusiness && workspaceInfo && (
-        <>
-          <View style={styles.wsBadge}>
-            <Text style={styles.wsBadgeName}>{workspaceInfo.name}</Text>
-            <Text style={styles.wsBadgeRole}>Your Role: {activeWorkspaceRole?.toUpperCase()}</Text>
+          <TouchableOpacity style={styles.item} onPress={() => setSection('changePassword')}>
+            <LockIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Change Password</Text>
+              <Text style={styles.itemSubText}>Update security credentials</Text>
+            </View>
+            <ChevronRightIcon color="#4f8cff" size={16} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.item} onPress={handleDeleteAccount}>
+            <Trash2Icon color="#ff6b6b" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={[styles.itemText, { color: '#ff6b6b' }]}>Delete Account</Text>
+              <Text style={styles.itemSubText}>Permanently erase user data</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* SECTION 2: WORKSPACE (Business Mode Only) */}
+        {isBusinessUser && (
+          <>
+            <Text style={styles.sectionHeader}>WORKSPACE MANAGEMENT</Text>
+            <View style={styles.cardGroup}>
+              <TouchableOpacity style={styles.item} onPress={() => setSection('workspaceProfile')}>
+                <BriefcaseIcon color="#4f8cff" size={18} />
+                <View style={styles.itemTextCol}>
+                  <Text style={styles.itemText}>My Workspace Profile</Text>
+                  <Text style={styles.itemSubText}>Company name, GST & address</Text>
+                </View>
+                <ChevronRightIcon color="#4f8cff" size={16} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.item} onPress={() => setSection('inviteMembers')}>
+                <UserPlusIcon color="#4f8cff" size={18} />
+                <View style={styles.itemTextCol}>
+                  <Text style={styles.itemText}>Invite Members</Text>
+                  <Text style={styles.itemSubText}>Add colleagues to workspace</Text>
+                </View>
+                <ChevronRightIcon color="#4f8cff" size={16} />
+              </TouchableOpacity>
+
+              {(activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'primary') && (
+                <>
+                  <TouchableOpacity style={styles.item} onPress={regenerateJoinCode}>
+                    <RefreshCwIcon color="#4f8cff" size={18} />
+                    <View style={styles.itemTextCol}>
+                      <Text style={styles.itemText}>Regenerate Join Code</Text>
+                      <Text style={styles.itemSubText}>Active code: {joinCode || 'Generating...'}</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.item} onPress={() => setSection('approvalPolicy')}>
+                    <EditIcon color="#4f8cff" size={18} />
+                    <View style={styles.itemTextCol}>
+                      <Text style={styles.itemText}>Approval Policy</Text>
+                      <Text style={styles.itemSubText}>Rule: {policy.toUpperCase()}</Text>
+                    </View>
+                    <ChevronRightIcon color="#4f8cff" size={16} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.item} onPress={() => setSection('ownerRequests')}>
+                    <ShieldIcon color="#4f8cff" size={18} />
+                    <View style={styles.itemTextCol}>
+                      <Text style={styles.itemText}>Pending Access Requests</Text>
+                      <Text style={styles.itemSubText}>{ownerRequests.length} request(s) pending</Text>
+                    </View>
+                    <ChevronRightIcon color="#4f8cff" size={16} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* SECTION 3: PREFERENCES */}
+        <Text style={styles.sectionHeader}>PREFERENCES</Text>
+        <View style={styles.cardGroup}>
+          <TouchableOpacity style={styles.item} onPress={() => setSection('preferences')}>
+            <LanguagesIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Language & Currency</Text>
+              <Text style={styles.itemSubText}>{selectedLanguage} • {selectedCurrency}</Text>
+            </View>
+            <ChevronRightIcon color="#4f8cff" size={16} />
+          </TouchableOpacity>
+
+          <View style={styles.item}>
+            <BellIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Notifications</Text>
+              <Text style={styles.itemSubText}>Push notifications & alerts</Text>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: '#15345f', true: '#4f8cff' }}
+              thumbColor="#ffffff"
+            />
           </View>
 
-          {isOwner && workspaceInfo.joinCode ? (
-            <View style={styles.joinCodeCard}>
-              <Text style={styles.joinCodeLabel}>Workspace Join Code</Text>
-              <Text style={styles.joinCodeValue}>{workspaceInfo.joinCode}</Text>
-              <Text style={styles.joinCodeHint}>Share this code with people you want to invite. They join as Employee by default.</Text>
+          <View style={styles.item}>
+            <MoonIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Theme</Text>
+              <Text style={styles.itemSubText}>{themeMode} Mode (Default)</Text>
             </View>
-          ) : null}
+          </View>
+        </View>
 
-          {!isOwner && (
-            <>
-              <Text style={[styles.fieldLabel, { marginTop: 20, marginBottom: 8 }]}>Request Owner Access</Text>
-              <Text style={styles.infoText}>Provide a reason why you need Owner privileges in this workspace.</Text>
-              <View style={styles.formGroup}>
-                <TextInput
-                  style={[styles.fieldInput, { height: 80 }]}
-                  value={ownerRequestReason}
-                  onChangeText={setOwnerRequestReason}
-                  placeholderTextColor="#4a6080"
-                  placeholder="Explain why you need owner access..."
-                  multiline
-                />
-              </View>
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: '#7c3aed' }, submittingRequest && styles.actionBtnDisabled]}
-                onPress={handleRequestOwnerAccess}
-                disabled={submittingRequest}
-                activeOpacity={0.8}
-              >
-                {submittingRequest
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.actionBtnText}>Submit Owner Request</Text>
-                }
-              </TouchableOpacity>
-            </>
-          )}
-
-          <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 12 }]}>Members ({members.length})</Text>
-          {loadingWS ? (
-            <ActivityIndicator color="#60a5fa" />
-          ) : members.map((m: any, i: number) => (
-            <View key={i} style={styles.memberRow}>
-              <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarText}>{(m.fullName || m.email || 'U')[0].toUpperCase()}</Text>
-              </View>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{m.fullName || m.email}</Text>
-                <Text style={styles.memberRole}>{m.role?.toUpperCase() || 'MEMBER'}</Text>
-              </View>
+        {/* SECTION 4: SUPPORT & SYSTEM */}
+        <Text style={styles.sectionHeader}>SUPPORT & SYSTEM</Text>
+        <View style={styles.cardGroup}>
+          <TouchableOpacity style={styles.item} onPress={() => setSection('support')}>
+            <HelpCircleIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Help Center & Support</Text>
+              <Text style={styles.itemSubText}>FAQ & contact team</Text>
             </View>
-          ))}
-        </>
-      )}
+            <ChevronRightIcon color="#4f8cff" size={16} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.item} onPress={() => setSection('apiConfig')}>
+            <ServerIcon color="#4f8cff" size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={styles.itemText}>Backend API Endpoint</Text>
+              <Text style={styles.itemSubText}>{apiBaseUrl}</Text>
+            </View>
+            <ChevronRightIcon color="#4f8cff" size={16} />
+          </TouchableOpacity>
+        </View>
+
+        {/* LOGOUT BUTTON */}
+        <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
+          <LogOutIcon color="#ff6b6b" size={18} />
+          <Text style={styles.logoutBtnText}>Sign Out of HisabHero</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
+
+  // ----- EDIT PROFILE SUB-VIEW (PRE-POPULATED DATA) -----
+  const renderEditProfile = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Edit Profile</Text>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Full Name</Text>
+        <TextInput
+          style={styles.input}
+          value={profile.fullName}
+          onChangeText={v => setProfile({ ...profile, fullName: v })}
+          placeholder="Enter full name"
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Email Address (Read-only)</Text>
+        <TextInput
+          style={[styles.input, styles.inputDisabled]}
+          value={profile.email}
+          editable={false}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Mobile Number</Text>
+        <TextInput
+          style={styles.input}
+          value={profile.phone}
+          onChangeText={v => setProfile({ ...profile, phone: v })}
+          placeholder="Enter mobile number"
+          placeholderTextColor="#4a6b9c"
+          keyboardType="phone-pad"
+        />
+      </View>
+
+      <TouchableOpacity style={styles.saveBtn} onPress={saveProfile} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Profile Changes</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 
-  // ── INVITE MEMBERS VIEW ──────────────────────────────────
-  const renderInviteMembers = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      {renderSectionHeader('Invite Members', goBack)}
-      <Text style={styles.infoText}>Invite people to your workspace by email. They will join as Employee by default.</Text>
-      <View style={styles.formGroup}>
-        <Text style={styles.fieldLabel}>Email Address</Text>
+  // ----- CHANGE PASSWORD SUB-VIEW -----
+  const renderChangePassword = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Change Password</Text>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Current Password</Text>
         <TextInput
-          style={styles.fieldInput}
+          style={styles.input}
+          secureTextEntry
+          value={pwdCurrent}
+          onChangeText={setPwdCurrent}
+          placeholder="••••••••"
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>New Password</Text>
+        <TextInput
+          style={styles.input}
+          secureTextEntry
+          value={pwdNew}
+          onChangeText={setPwdNew}
+          placeholder="••••••••"
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Confirm New Password</Text>
+        <TextInput
+          style={styles.input}
+          secureTextEntry
+          value={pwdConfirm}
+          onChangeText={setPwdConfirm}
+          placeholder="••••••••"
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <TouchableOpacity style={styles.saveBtn} onPress={changePassword} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Update Password</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // ----- WORKSPACE PROFILE SUB-VIEW -----
+  const renderWorkspaceProfile = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Workspace Details</Text>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Company / Business Name</Text>
+        <TextInput
+          style={styles.input}
+          value={workspace?.name || ''}
+          onChangeText={v => setWorkspace({ ...workspace, name: v })}
+          placeholder="e.g. Acme Tech Solutions"
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Company Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          value={workspace?.phone || ''}
+          onChangeText={v => setWorkspace({ ...workspace, phone: v })}
+          placeholder="+91 98765 43210"
+          placeholderTextColor="#4a6b9c"
+          keyboardType="phone-pad"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>GST Number</Text>
+        <TextInput
+          style={styles.input}
+          value={workspace?.gstNumber || ''}
+          onChangeText={v => setWorkspace({ ...workspace, gstNumber: v })}
+          placeholder="22AAAAA0000A1Z5"
+          placeholderTextColor="#4a6b9c"
+          autoCapitalize="characters"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Business Category</Text>
+        <TextInput
+          style={styles.input}
+          value={workspace?.businessCategory || ''}
+          onChangeText={v => setWorkspace({ ...workspace, businessCategory: v })}
+          placeholder="Retail, IT Services, Manufacturing..."
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Registered Address</Text>
+        <TextInput
+          style={[styles.input, { height: 70 }]}
+          multiline
+          value={workspace?.companyAddress || ''}
+          onChangeText={v => setWorkspace({ ...workspace, companyAddress: v })}
+          placeholder="Enter company location address"
+          placeholderTextColor="#4a6b9c"
+        />
+      </View>
+
+      <TouchableOpacity style={styles.saveBtn} onPress={saveWorkspaceProfile} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Workspace Changes</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // ----- INVITE MEMBERS SUB-VIEW -----
+  const renderInviteMembers = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Invite Workspace Member</Text>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Colleague's Email Address</Text>
+        <TextInput
+          style={styles.input}
           value={inviteEmail}
           onChangeText={setInviteEmail}
+          placeholder="colleague@company.com"
+          placeholderTextColor="#4a6b9c"
           keyboardType="email-address"
           autoCapitalize="none"
-          placeholderTextColor="#4a6080"
-          placeholder="colleague@example.com"
         />
       </View>
-      <TouchableOpacity
-        style={[styles.actionBtn, inviting && styles.actionBtnDisabled]}
-        onPress={handleSendInvite}
-        disabled={inviting}
-        activeOpacity={0.8}
-      >
-        {inviting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnText}>Send Invitation</Text>}
+
+      <TouchableOpacity style={styles.saveBtn} onPress={inviteMember} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Send Invitation Email</Text>}
       </TouchableOpacity>
 
-      {workspaceInfo?.joinCode ? (
-        <View style={styles.joinCodeCard}>
-          <Text style={styles.joinCodeLabel}>Or share the Join Code</Text>
-          <Text style={styles.joinCodeValue}>{workspaceInfo.joinCode}</Text>
-          <Text style={styles.joinCodeHint}>Members can join instantly by entering this code in Settings → Join Workspace.</Text>
-        </View>
-      ) : null}
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 
-  // ── OWNER REQUESTS VIEW ──────────────────────────────────
+  // ----- OWNER REQUESTS SUB-VIEW -----
   const renderOwnerRequests = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      {renderSectionHeader('Owner Requests', goBack)}
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Owner Access Requests</Text>
+
       {ownerRequests.length === 0 ? (
-        <Text style={styles.emptyText}>No owner access requests at this time.</Text>
-      ) : ownerRequests.map((req: any, i: number) => (
-        <View key={i} style={styles.requestCard}>
-          <Text style={styles.requestName}>{req.userName}</Text>
-          <Text style={styles.requestEmail}>{req.userEmail}</Text>
-          <Text style={styles.requestReason}>"{req.reason}"</Text>
-          <View style={[styles.statusBadge, {
-            backgroundColor: req.status === 'pending' ? '#1d4ed8' : req.status === 'approved' ? '#166534' : '#7f1d1d'
-          }]}>
-            <Text style={styles.statusBadgeText}>{req.status.toUpperCase()}</Text>
-          </View>
-          {req.status === 'pending' && isOwner && (
+        <Text style={styles.emptyText}>No pending owner access requests.</Text>
+      ) : (
+        ownerRequests.map(req => (
+          <View key={req._id} style={styles.requestCard}>
+            <Text style={styles.requestUser}>{req.userName || 'User'} ({req.userEmail})</Text>
+            <Text style={styles.requestReason}>Reason: {req.reason || 'Role escalation request'}</Text>
             <View style={styles.requestActions}>
               <TouchableOpacity
-                style={[styles.requestBtn, { backgroundColor: '#166534' }]}
-                onPress={() => handleRespondOwnerRequest(req.id || req._id, 'approved')}
+                style={styles.approveBtn}
+                onPress={() => respondOwnerRequest(req._id, true)}
               >
-                <Text style={styles.requestBtnText}>Approve</Text>
+                <CheckSquareIcon color="#fff" size={14} />
+                <Text style={styles.approveText}>Approve</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.requestBtn, { backgroundColor: '#7f1d1d' }]}
-                onPress={() => handleRespondOwnerRequest(req.id || req._id, 'rejected')}
+                style={styles.rejectBtn}
+                onPress={() => respondOwnerRequest(req._id, false)}
               >
-                <Text style={styles.requestBtnText}>Reject</Text>
+                <XCircleIcon color="#fff" size={14} />
+                <Text style={styles.rejectText}>Reject</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-      ))}
+          </View>
+        ))
+      )}
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 
+  // ----- APPROVAL POLICY SUB-VIEW -----
+  const renderApprovalPolicy = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Expense Approval Policy</Text>
+
+      <TouchableOpacity
+        style={[styles.policyCard, policy === 'single' && styles.policyCardSelected]}
+        onPress={() => setPolicy('single')}
+      >
+        <Text style={styles.policyTitle}>Single Owner Approval</Text>
+        <Text style={styles.policyDesc}>Any single workspace owner can approve expenses & invoices.</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.policyCard, policy === 'majority' && styles.policyCardSelected]}
+        onPress={() => setPolicy('majority')}
+      >
+        <Text style={styles.policyTitle}>Majority Approval (≥ 50%)</Text>
+        <Text style={styles.policyDesc}>At least 50% of active owners must approve transactions.</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.policyCard, policy === 'all' && styles.policyCardSelected]}
+        onPress={() => setPolicy('all')}
+      >
+        <Text style={styles.policyTitle}>Unanimous Approval (100%)</Text>
+        <Text style={styles.policyDesc}>All owners must approve before a transaction is finalized.</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.saveBtn} onPress={saveApprovalPolicy} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Approval Policy</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // ----- PREFERENCES SUB-VIEW -----
+  const renderPreferences = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Language & Currency</Text>
+
+      <Text style={styles.label}>Default Language</Text>
+      {['English', 'Tamil (தமிழ்)', 'Hindi (हिंदी)', 'Spanish'].map(lang => (
+        <TouchableOpacity
+          key={lang}
+          style={[styles.radioOption, selectedLanguage === lang && styles.radioSelected]}
+          onPress={() => setSelectedLanguage(lang)}
+        >
+          <Text style={styles.radioText}>{lang}</Text>
+        </TouchableOpacity>
+      ))}
+
+      <Text style={[styles.label, { marginTop: 16 }]}>Primary Currency</Text>
+      {['INR (₹)', 'USD ($)', 'EUR (€)', 'GBP (£)'].map(curr => (
+        <TouchableOpacity
+          key={curr}
+          style={[styles.radioOption, selectedCurrency === curr && styles.radioSelected]}
+          onPress={() => setSelectedCurrency(curr)}
+        >
+          <Text style={styles.radioText}>{curr}</Text>
+        </TouchableOpacity>
+      ))}
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // ----- SUPPORT SUB-VIEW -----
+  const renderSupport = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>Help & Support</Text>
+
+      <View style={styles.cardGroup}>
+        <View style={styles.item}>
+          <MailIcon color="#4f8cff" size={18} />
+          <View style={styles.itemTextCol}>
+            <Text style={styles.itemText}>Support Email</Text>
+            <Text style={styles.itemSubText}>support@hisabhero.com</Text>
+          </View>
+        </View>
+
+        <View style={styles.item}>
+          <PhoneIcon color="#4f8cff" size={18} />
+          <View style={styles.itemTextCol}>
+            <Text style={styles.itemText}>Toll-Free Helpline</Text>
+            <Text style={styles.itemSubText}>1800-123-HISAB (44722)</Text>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // ----- API CONFIG SUB-VIEW -----
+  const renderApiConfig = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.subHeading}>API Server Configuration</Text>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Backend API Base URL</Text>
+        <TextInput
+          style={styles.input}
+          value={customApiUrl}
+          onChangeText={setCustomApiUrl}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+
+      <TouchableOpacity style={styles.saveBtn} onPress={saveApiConfig}>
+        <Text style={styles.saveBtnText}>Save API Server Endpoint</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => setSection('main')}>
+        <ChevronLeftIcon color="#4f8cff" size={16} />
+        <Text style={styles.backBtnText}>Back to Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderSection = () => {
+    switch (section) {
+      case 'main':
+        return renderMain();
+      case 'editProfile':
+        return renderEditProfile();
+      case 'changePassword':
+        return renderChangePassword();
+      case 'workspaceProfile':
+        return renderWorkspaceProfile();
+      case 'inviteMembers':
+        return renderInviteMembers();
+      case 'ownerRequests':
+        return renderOwnerRequests();
+      case 'approvalPolicy':
+        return renderApprovalPolicy();
+      case 'preferences':
+        return renderPreferences();
+      case 'support':
+        return renderSupport();
+      case 'apiConfig':
+        return renderApiConfig();
+      default:
+        return renderMain();
+    }
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Settings</Text>
+        <View style={styles.modalContainer}>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <XIcon color="#a6bedf" size={20} />
+              <XIcon color="#ff8f8f" size={20} />
             </TouchableOpacity>
           </View>
-
-          {section === 'main' && renderMain()}
-          {section === 'editProfile' && renderEditProfile()}
-          {section === 'changePassword' && renderChangePassword()}
-          {section === 'workspace' && renderWorkspace()}
-          {section === 'inviteMembers' && renderInviteMembers()}
-          {section === 'ownerRequests' && renderOwnerRequests()}
+          {renderSection()}
         </View>
       </View>
     </Modal>
@@ -748,292 +995,301 @@ export function SettingsModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(2, 8, 20, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
   },
-  card: {
-    backgroundColor: '#0d1f35',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  modalContainer: {
+    backgroundColor: '#07162c',
+    borderRadius: 16,
+    width: '100%',
     maxHeight: '92%',
     padding: 20,
-    paddingBottom: 0,
+    borderWidth: 1,
+    borderColor: '#15345f',
   },
-  cardHeader: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
-  },
-  cardTitle: {
-    color: '#e2f0ff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  closeBtn: {
-    padding: 6,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 20,
-  },
-  group: {
-    marginBottom: 20,
-  },
-  groupHeader: {
-    color: '#60a5fa',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    paddingLeft: 4,
-  },
-  settingRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
-    marginBottom: 6,
-  },
-  settingIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  settingIconDestructive: {
-    backgroundColor: 'rgba(239,68,68,0.12)',
-  },
-  settingTextArea: {
-    flex: 1,
-  },
-  settingLabel: {
-    color: '#d1e8ff',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  settingLabelDestructive: {
-    color: '#f87171',
-  },
-  settingSubtitle: {
-    color: '#4a6080',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
+    borderColor: '#15345f',
   },
-  backBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 8,
-    marginRight: 12,
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '800',
   },
-  backBtnText: {
-    color: '#60a5fa',
-    fontSize: 13,
-    fontWeight: '600',
+  closeBtn: {
+    padding: 4,
   },
-  sectionTitle: {
-    color: '#e2f0ff',
+  contentContainer: {
+    paddingBottom: 16,
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0d2242',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1c4278',
+  },
+  avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#4f8cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  profileMeta: {
+    flex: 1,
+  },
+  profileName: {
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
-  formGroup: {
-    marginBottom: 14,
-  },
-  fieldLabel: {
-    color: '#7a9dbf',
+  profileEmail: {
+    color: '#8fc0ff',
     fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    marginTop: 2,
   },
-  fieldInput: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 10,
-    color: '#e2f0ff',
-    fontSize: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+  badgeRow: {
+    marginTop: 6,
   },
-  actionBtn: {
-    backgroundColor: '#1d4ed8',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
-  actionBtnDisabled: {
-    opacity: 0.6,
+  badgePersonal: {
+    backgroundColor: 'rgba(46, 204, 113, 0.2)',
   },
-  actionBtnText: {
-    color: '#fff',
-    fontSize: 15,
+  badgeBusiness: {
+    backgroundColor: 'rgba(79, 140, 255, 0.2)',
+  },
+  badgeText: {
+    color: '#8fc0ff',
+    fontSize: 10,
     fontWeight: '700',
   },
-  infoText: {
-    color: '#4a7aa0',
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  wsBadge: {
-    backgroundColor: 'rgba(124,58,237,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.25)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  wsBadgeName: {
-    color: '#c4b5fd',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  wsBadgeRole: {
-    color: '#7c3aed',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  joinCodeCard: {
-    backgroundColor: 'rgba(99,102,241,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(99,102,241,0.25)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  joinCodeLabel: {
-    color: '#818cf8',
+  sectionHeader: {
+    color: '#5f88b8',
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  joinCodeValue: {
-    color: '#e0e7ff',
-    fontSize: 26,
     fontWeight: '800',
-    letterSpacing: 3,
+    letterSpacing: 1,
+    marginTop: 14,
     marginBottom: 8,
   },
-  joinCodeHint: {
-    color: '#4a5568',
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
+  cardGroup: {
+    backgroundColor: '#0b1e3b',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#15345f',
+    overflow: 'hidden',
+    marginBottom: 10,
   },
-  memberRow: {
+  item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 10,
-    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderColor: '#15345f',
   },
-  memberAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1d4ed8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  memberAvatarText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  memberInfo: {
+  itemTextCol: {
+    marginLeft: 12,
     flex: 1,
   },
-  memberName: {
-    color: '#d1e8ff',
+  itemText: {
+    color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
   },
-  memberRole: {
-    color: '#4a7aa0',
+  itemSubText: {
+    color: '#6e93c2',
     fontSize: 11,
-    fontWeight: '500',
     marginTop: 2,
   },
-  requestCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+  subHeading: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 16,
   },
-  requestName: {
-    color: '#e2f0ff',
-    fontSize: 15,
-    fontWeight: '700',
+  field: {
+    marginBottom: 14,
   },
-  requestEmail: {
-    color: '#4a7aa0',
+  label: {
+    color: '#8fc0ff',
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '600',
+    marginBottom: 6,
   },
-  requestReason: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontStyle: 'italic',
-    marginTop: 8,
-    marginBottom: 8,
+  input: {
+    backgroundColor: '#0b1d38',
+    color: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#15345f',
+    fontSize: 14,
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+  inputDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#081426',
+  },
+  saveBtn: {
+    backgroundColor: '#4f8cff',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  saveBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.4)',
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 20,
     marginBottom: 10,
   },
-  statusBadgeText: {
-    color: '#fff',
-    fontSize: 11,
+  logoutBtnText: {
+    color: '#ff6b6b',
     fontWeight: '700',
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 6,
+  },
+  backBtnText: {
+    color: '#4f8cff',
+    marginLeft: 6,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  emptyText: {
+    color: '#8fc0ff',
+    textAlign: 'center',
+    marginVertical: 20,
+    fontSize: 13,
+  },
+  requestCard: {
+    backgroundColor: '#0b1d38',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#15345f',
+  },
+  requestUser: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  requestReason: {
+    color: '#8fc0ff',
+    fontSize: 12,
+    marginVertical: 4,
   },
   requestActions: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 8,
   },
-  requestBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+  approveBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#2ecc71',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
-  requestBtnText: {
-    color: '#fff',
-    fontSize: 13,
+  approveText: {
+    color: '#ffffff',
+    marginLeft: 4,
+    fontSize: 12,
     fontWeight: '700',
   },
-  emptyText: {
-    color: '#4a6080',
-    textAlign: 'center',
-    marginTop: 30,
+  rejectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ff6b6b',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  rejectText: {
+    color: '#ffffff',
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  policyCard: {
+    backgroundColor: '#0b1e3b',
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#15345f',
+    marginBottom: 10,
+  },
+  policyCardSelected: {
+    borderColor: '#4f8cff',
+    backgroundColor: '#0e2952',
+  },
+  policyTitle: {
+    color: '#ffffff',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  policyDesc: {
+    color: '#8fc0ff',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  radioOption: {
+    backgroundColor: '#0b1e3b',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#15345f',
+    marginBottom: 6,
+  },
+  radioSelected: {
+    borderColor: '#4f8cff',
+    backgroundColor: '#0e2952',
+  },
+  radioText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

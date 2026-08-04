@@ -11,6 +11,13 @@ const BusinessSchema = new mongoose.Schema({
   employees: [{ type: String, ref: 'User' }],
   createdBy: { type: String, ref: 'User', required: true },
   budgets: { type: Map, of: Number, default: {} },
+  // Extended business profile fields
+  phone: { type: String, default: '' },
+  gstNumber: { type: String, default: '' },
+  businessCategory: { type: String, default: '' },
+  companyAddress: { type: String, default: '' },
+  // Approval policy: 'single' = any one owner, 'majority' = >50% owners, 'all' = all owners
+  approvalPolicy: { type: String, enum: ['single', 'majority', 'all'], default: 'single' },
 }, { timestamps: true });
 
 export default mongoose.model('Business', BusinessSchema);
