@@ -183,12 +183,16 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   });
 
   const handleRegister = async () => {
-    if (!email || !password || !fullName || !companyName) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = fullName.trim();
+    const cleanCompany = companyName.trim();
+
+    if (!cleanEmail || !password || !cleanName || !cleanCompany) {
       setErrorMsg('Please fill in all registration fields.');
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    if (!emailRegex.test(cleanEmail)) {
       setErrorMsg('Please enter a valid email address.');
       return;
     }
@@ -204,7 +208,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const res = await fetchWithTimeout(`${apiBaseUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName, companyName }),
+        body: JSON.stringify({ email: cleanEmail, password, fullName: cleanName, companyName: cleanCompany }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Registration failed');
@@ -214,7 +218,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
         onLoginSuccess(data.token, data.user);
         return;
       }
-      Alert.alert('Verification Sent! 📧', `A 6-digit OTP code has been sent to ${email}. Please check your inbox (and spam folder).`);
+      Alert.alert('Verification Sent! 📧', `A 6-digit OTP code has been sent to ${cleanEmail}. Please check your inbox (and spam folder).`);
       setAuthMode('verifyEmail');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to connect to the server. Please try again.');
@@ -225,7 +229,8 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   };
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setErrorMsg('Please enter both email and password.');
       return;
     }
@@ -236,7 +241,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const res = await fetchWithTimeout(`${apiBaseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

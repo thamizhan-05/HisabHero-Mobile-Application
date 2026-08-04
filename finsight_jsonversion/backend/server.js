@@ -641,7 +641,7 @@ app.post('/api/auth/signup', async (req, res) => {
     });
   } catch (err) {
     console.error('[Signup] ❌ Unhandled Error:', err);
-    return res.status(500).json({ error: 'Registration failed. Please try again.' });
+    return res.status(500).json({ error: 'Registration failed: ' + (err.message || 'Internal server error') });
   }
 });
 
