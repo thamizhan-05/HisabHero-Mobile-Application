@@ -245,9 +245,35 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
         throw new Error(data.error || data.message || `Registration failed (${res.status})`);
       }
       if (data.token && data.user) {
+        // Ensure the user object contains business context for business sign‑ups
+        // The backend may be running an older version that omits `accountType` and `businessWorkspace`
+        // We already know `isBusiness` from the signup form, so we enrich the payload here.
+        const enrichedUser = { ...data.user };
+        if (isBusiness) {
+          enrichedUser.accountType = 'business';
+          // If the server didn't return a workspace, create a minimal placeholder using the just‑created user ID
+          if (!enrichedUser.businessWorkspace) {
+            enrichedUser.businessWorkspace = {
+              id: data.user.id,
+              name: data.user.companyName || data.user.fullName + "'s Business",
+              joinCode: '',
+              logo: null,
+              phone: data.user.phone || '',
+              gstNumber: data.user.gstNumber || '',
+              businessCategory: data.user.businessCategory || '',
+              companyAddress: data.user.companyAddress || '',
+              approvalPolicy: 'single',
+              primaryOwnerId: data.user.id,
+              isPrimaryOwner: true,
+              role: 'owner',
+              ownersCount: 1,
+              employeesCount: 0,
+            };
+          }
+        }
         await AsyncStorage.setItem('token', data.token);
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
-        onLoginSuccess(data.token, data.user);
+        await AsyncStorage.setItem('user', JSON.stringify(enrichedUser));
+        onLoginSuccess(data.token, enrichedUser);
         return;
       }
       Alert.alert('Verification Sent! 📧', data.message || `A 6-digit OTP code has been sent to ${cleanEmail}. Please check your inbox (and spam folder).`);
