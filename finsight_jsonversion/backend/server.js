@@ -1602,7 +1602,14 @@ Do not include any markdown wrap like \`\`\`json, just output the raw JSON array
     .on('error', err => res.status(500).json({ error: `CSV parse error: ${err.message}` }));
 });
 
-// Receipt OCR Endpoint (POST /api/upload/receipt) using Gemini AI
+// Helper to convert Devanagari numerals (०१२३४५६७८९) to standard ASCII digits (0-9)
+function normalizeDevanagariNumerals(text) {
+  if (!text || typeof text !== 'string') return text || '';
+  const devanagariDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
+  return text.replace(/[०-९]/g, (match) => devanagariDigits.indexOf(match).toString());
+}
+
+// Receipt OCR Endpoint (POST /api/upload/receipt) supporting English, Hindi, and Marathi
 app.post('/api/upload/receipt', authMiddleware, workspaceMiddleware, checkPermission('submit_self_expense'), upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No receipt image uploaded.' });
 
@@ -1611,7 +1618,7 @@ app.post('/api/upload/receipt', authMiddleware, workspaceMiddleware, checkPermis
       return res.status(500).json({ error: 'GEMINI_API_KEY is not configured in backend environment.' });
     }
 
-    console.log(`[OCR] Uploaded image: ${req.file.originalname}. Sending buffer to Gemini...`);
+    console.log(`[OCR] Uploaded image: ${req.file.originalname}. Sending buffer to Gemini Multilingual OCR...`);
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     const imgBase64 = req.file.buffer.toString('base64');
@@ -1621,15 +1628,30 @@ app.post('/api/upload/receipt', authMiddleware, workspaceMiddleware, checkPermis
     };
 
     const prompt = `
-You are a precise financial receipt parser. 
-Extract transaction details from this receipt and return strictly a raw JSON object with the following keys:
-- "date": Date of purchase in YYYY-MM-DD format (use current date if not clear, which is ${new Date().toISOString().split('T')[0]})
-- "description": Vendor or Merchant name
-- "category": Budget category (e.g. "Rent", "Payroll", "Utilities", "Marketing", "Travel", "Office", "Food", "Other") based on the vendor
-- "amount": Total amount of purchase as a positive float only
-- "type": "expense"
+You are an expert multilingual receipt parser supporting English, Hindi (हिन्दी), Marathi (मराठी), and mixed-language Indian GST invoices & local shop bills.
+Analyze this receipt image carefully. Convert any Devanagari numerals (०, १, २, ३, ४, ५, ६, ७, ८, ९) to standard English digits (0-9).
 
-Do not wrap in markdown \`\`\`json, just return the raw JSON object. If you cannot extract data, output an empty object {}.
+Extract transaction details and return strictly a raw JSON object with the exact following keys:
+- "date": Date of purchase in YYYY-MM-DD format (use current date if not clear: ${new Date().toISOString().split('T')[0]})
+- "time": Time of purchase (e.g. "14:30" or "" if absent)
+- "merchantName": Shop / Vendor / Merchant name in English or transliterated
+- "description": Concise description (e.g. "Grocery Purchase", "Restaurant Bill", "Fuel Expense")
+- "category": Budget category ("Groceries", "Food", "Rent", "Payroll", "Utilities", "Marketing", "Travel", "Office", "Fuel", "Medical", "Other")
+- "amount": Total final bill amount as a positive float number only
+- "subtotal": Amount before tax as a positive float number (or same as amount if absent)
+- "taxAmount": Total GST / CGST / SGST / VAT amount as a positive float number (or 0.0)
+- "discount": Discount amount as a positive float number (or 0.0)
+- "invoiceNumber": Bill / Invoice / Token number (e.g. "INV-1092" or "")
+- "gstNumber": GSTIN number if present (or "")
+- "paymentMethod": "cash", "card", "upi", "online", or "other"
+- "currency": Currency symbol or code (e.g. "INR", "USD")
+- "address": Merchant store address (or "")
+- "phone": Merchant contact phone number (or "")
+- "items": Array of items extracted [{ "name": "Item name", "price": 100.0, "quantity": 1 }]
+- "detectedLanguage": Detected script/language ("English", "Hindi", "Marathi", or "Mixed")
+- "confidenceScore": Estimated OCR confidence score between 0.50 and 1.00 based on text sharpness
+
+Do not wrap in markdown \`\`\`json. Output only the raw JSON object.
     `;
 
     const response = await ai.models.generateContent({
@@ -1646,19 +1668,58 @@ Do not wrap in markdown \`\`\`json, just return the raw JSON object. If you cann
     let jsonText = response.text || '{}';
     jsonText = jsonText.replace(/^```json/, '').replace(/^```/, '').replace(/```$/, '').trim();
 
-    console.log('[OCR] Gemini parsed response:', jsonText);
+    console.log('[OCR] Raw Gemini response:', jsonText);
 
-    let result = {};
+    let parsed = {};
     try {
-      result = JSON.parse(jsonText);
+      parsed = JSON.parse(jsonText);
     } catch (e) {
       console.error('Failed to parse AI OCR response as JSON:', jsonText);
-      return res.status(422).json({ error: 'AI failed to extract structured transaction details from this image.' });
+      return res.status(422).json({ error: 'AI failed to extract structured transaction details from this receipt.' });
     }
 
+    // Normalize all numeric strings (in case Devanagari numerals were returned in text)
+    const cleanNum = (val, fallback = 0) => {
+      if (typeof val === 'number') return isNaN(val) ? fallback : val;
+      const normalizedStr = normalizeDevanagariNumerals(String(val || '0')).replace(/[^\d.]/g, '');
+      const parsedFloat = parseFloat(normalizedStr);
+      return isNaN(parsedFloat) ? fallback : parsedFloat;
+    };
+
+    const cleanStr = (val) => {
+      return normalizeDevanagariNumerals(String(val || '')).trim();
+    };
+
+    const result = {
+      date: parsed.date || new Date().toISOString().split('T')[0],
+      time: parsed.time || '',
+      merchantName: cleanStr(parsed.merchantName || parsed.description || 'Merchant'),
+      description: cleanStr(parsed.description || parsed.merchantName || 'Receipt Expense'),
+      category: parsed.category || 'Other',
+      amount: cleanNum(parsed.amount, 0),
+      subtotal: cleanNum(parsed.subtotal, cleanNum(parsed.amount, 0)),
+      taxAmount: cleanNum(parsed.taxAmount, 0),
+      discount: cleanNum(parsed.discount, 0),
+      invoiceNumber: cleanStr(parsed.invoiceNumber || ''),
+      gstNumber: cleanStr(parsed.gstNumber || ''),
+      paymentMethod: parsed.paymentMethod || 'cash',
+      currency: parsed.currency || 'INR',
+      address: cleanStr(parsed.address || ''),
+      phone: cleanStr(parsed.phone || ''),
+      items: Array.isArray(parsed.items) ? parsed.items.map((i) => ({
+        name: cleanStr(i.name || 'Item'),
+        price: cleanNum(i.price, 0),
+        quantity: cleanNum(i.quantity, 1)
+      })) : [],
+      detectedLanguage: parsed.detectedLanguage || 'English',
+      confidenceScore: cleanNum(parsed.confidenceScore, 0.90),
+      type: 'expense'
+    };
+
+    console.log(`[OCR] ✅ Multilingual extraction successful for: ${result.merchantName} | Total: ₹${result.amount} | Lang: ${result.detectedLanguage}`);
     return res.json(result);
   } catch (err) {
-    console.error(err);
+    console.error('[OCR Error]', err);
     res.status(500).json({ error: 'Failed to parse receipt OCR: ' + err.message });
   }
 });

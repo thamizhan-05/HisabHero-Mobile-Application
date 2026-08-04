@@ -509,67 +509,83 @@ export function UploadScreen({
                   <AlertCircleIcon color="#a6bedf" size={24} style={{ marginBottom: 8 }} />
                   <Text style={styles.emptyHistoryText}>No statement imports recorded.</Text>
                 </View>
-              )}
-            </View>
-          </>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Statement Import (CSV / PDF)</Text>
+            <Text style={styles.cardSubtitle}>
+              Upload bank statements. AI will parse rows and isolate workspace records.
+            </Text>
+          </View>
         ) : (
-          /* Receipt Scanner Sub Tab */
           <View style={styles.ocrContainer}>
-            <View style={styles.uploadCard}>
-              <Text style={styles.cardTitle}>Receipt OCR Scanner</Text>
-              <Text style={styles.cardDesc}>
-                Take a picture of your business purchase receipt. Gemini AI will analyze, categorize, and extract transaction details.
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Multilingual Receipt Scanner</Text>
+              <Text style={styles.cardSubtitle}>
+                Supports English, Hindi (हिन्दी), and Marathi (मराठी) receipts. Devanagari digits (०–९) are automatically normalized.
               </Text>
 
-              {/* Photo Options */}
-              <View style={styles.photoActions}>
-                <TouchableOpacity style={styles.photoBtn} onPress={handleCaptureReceipt}>
-                  <CameraIcon color="#ffffff" size={20} style={{ marginRight: 8 }} />
-                  <Text style={styles.photoBtnText}>Camera</Text>
+              {/* Action Buttons */}
+              <View style={styles.ocrActionsRow}>
+                <TouchableOpacity style={styles.ocrActionBtn} onPress={handlePickCamera}>
+                  <CameraIcon color="#ffffff" size={20} />
+                  <Text style={styles.ocrActionBtnText}>Take Photo</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.photoBtn, styles.galleryBtn]} onPress={handlePickReceiptFromLibrary}>
-                  <ImageIconComponent color="#4f8cff" size={20} style={{ marginRight: 8 }} />
-                  <Text style={styles.galleryBtnText}>Gallery</Text>
+                <TouchableOpacity style={[styles.ocrActionBtn, styles.ocrGalleryBtn]} onPress={handlePickGallery}>
+                  <ImageIcon color="#ffffff" size={20} />
+                  <Text style={styles.ocrActionBtnText}>Choose Gallery</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Image Preview Box */}
+              {/* Selected Image Preview */}
               {selectedImage && (
-                <View style={styles.previewBox}>
-                  <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} />
+                <View style={styles.previewContainer}>
+                  <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} resizeMode="contain" />
                   
                   {!ocrResult && !scanning && (
                     <TouchableOpacity style={styles.scanBtn} onPress={handleScanReceipt}>
-                      <Text style={styles.scanBtnText}>Scan with Gemini AI</Text>
+                      <SparklesIcon color="#ffffff" size={18} />
+                      <Text style={styles.scanBtnText}>Scan with AI OCR</Text>
                     </TouchableOpacity>
                   )}
 
                   {scanning && (
-                    <View style={styles.scanningOverlay}>
-                      <ActivityIndicator color="#4f8cff" size="large" />
-                      <Text style={styles.scanningText}>Gemini AI is reading receipt...</Text>
+                    <View style={styles.scanningBox}>
+                      <ActivityIndicator color="#4f8cff" size="small" />
+                      <Text style={styles.scanningText}>Analyzing Multilingual Receipt...</Text>
                     </View>
                   )}
 
                   {errorOcr && (
                     <View style={styles.ocrErrorBox}>
-                      <AlertCircleIcon color="#ff6b6b" size={16} style={{ marginRight: 6 }} />
+                      <AlertCircleIcon color="#ff6b6b" size={18} />
                       <Text style={styles.ocrErrorText}>{errorOcr}</Text>
                     </View>
                   )}
                 </View>
               )}
-            </View>
 
             {/* OCR Extracted Result Review */}
             {ocrResult && (
               <View style={styles.reviewCard}>
-                <Text style={styles.reviewTitle}>Review Extracted Data</Text>
-                <Text style={styles.reviewSubtitle}>Verify details before saving to ledger.</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={styles.reviewTitle}>Review Extracted Details</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#8fc0ff', backgroundColor: '#0f2942', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                    🌐 {ocrResult.detectedLanguage}
+                  </Text>
+                </View>
+
+                {ocrResult.confidenceScore < 0.75 && (
+                  <View style={{ backgroundColor: 'rgba(255,170,0,0.15)', borderWidth: 1, borderColor: 'rgba(255,170,0,0.3)', padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                    <Text style={{ color: '#ffbb33', fontSize: 12, fontWeight: '600' }}>
+                      ⚠️ Low OCR Confidence: Please carefully verify total amount and merchant name before saving.
+                    </Text>
+                  </View>
+                )}
+
+                <Text style={styles.reviewSubtitle}>Extracted values normalized to standard digits. Edit any field below.</Text>
 
                 <View style={styles.reviewField}>
-                  <Text style={styles.fieldLabel}>Merchant / Vendor</Text>
+                  <Text style={styles.fieldLabel}>Merchant / Shop Name</Text>
                   <TextInput
                     style={styles.fieldInput}
                     value={ocrResult.description}
@@ -580,7 +596,7 @@ export function UploadScreen({
                 </View>
 
                 <View style={styles.reviewField}>
-                  <Text style={styles.fieldLabel}>Amount (₹)</Text>
+                  <Text style={styles.fieldLabel}>Total Amount (₹)</Text>
                   <TextInput
                     style={styles.fieldInput}
                     value={ocrResult.amount}
@@ -590,6 +606,19 @@ export function UploadScreen({
                     placeholderTextColor="#5f88b8"
                   />
                 </View>
+
+                {ocrResult.gstNumber !== '' && (
+                  <View style={styles.reviewField}>
+                    <Text style={styles.fieldLabel}>GSTIN / Tax ID</Text>
+                    <TextInput
+                      style={styles.fieldInput}
+                      value={ocrResult.gstNumber}
+                      onChangeText={(t) => setOcrResult({ ...ocrResult, gstNumber: t })}
+                      placeholder="GSTIN"
+                      placeholderTextColor="#5f88b8"
+                    />
+                  </View>
+                )}
 
                 <View style={styles.reviewField}>
                   <Text style={styles.fieldLabel}>Category</Text>
@@ -639,7 +668,7 @@ export function UploadScreen({
                   {savingOcr ? (
                     <ActivityIndicator color="#ffffff" size="small" />
                   ) : (
-                    <Text style={styles.saveOcrBtnText}>Confirm & Save</Text>
+                    <Text style={styles.saveOcrBtnText}>Confirm & Save to Ledger</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -647,7 +676,6 @@ export function UploadScreen({
           </View>
         )}
       </ScrollView>
-      )}
 
       {/* CSV Mapping Modal */}
       {mappingState && (
