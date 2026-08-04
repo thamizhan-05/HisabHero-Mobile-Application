@@ -210,15 +210,20 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, password, fullName: cleanName, companyName: cleanCompany }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Registration failed');
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = { error: text || 'Server returned invalid response.' }; }
+      
+      if (!res.ok) {
+        throw new Error(data.error || data.message || `Registration failed (${res.status})`);
+      }
       if (data.token && data.user) {
         await AsyncStorage.setItem('token', data.token);
         await AsyncStorage.setItem('user', JSON.stringify(data.user));
         onLoginSuccess(data.token, data.user);
         return;
       }
-      Alert.alert('Verification Sent! 📧', `A 6-digit OTP code has been sent to ${cleanEmail}. Please check your inbox (and spam folder).`);
+      Alert.alert('Verification Sent! 📧', data.message || `A 6-digit OTP code has been sent to ${cleanEmail}. Please check your inbox (and spam folder).`);
       setAuthMode('verifyEmail');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to connect to the server. Please try again.');
@@ -243,14 +248,17 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, password }),
       });
-      const data = await res.json().catch(() => ({}));
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = { error: text || 'Server returned invalid response.' }; }
+      
       if (!res.ok) {
         if (res.status === 403 && data.needsVerification) {
           Alert.alert('Verification Required', 'A new verification code was sent to your email. Please check your inbox.');
           setAuthMode('verifyEmail');
           return;
         }
-        throw new Error(data.error || 'Authentication failed');
+        throw new Error(data.error || data.message || `Authentication failed (${res.status})`);
       }
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
@@ -264,6 +272,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   };
 
   const handleVerifyEmail = async () => {
+    const cleanEmail = email.trim().toLowerCase();
     if (!verificationCode) {
       setErrorMsg('Please enter your 6-digit verification code.');
       return;
@@ -275,14 +284,21 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const res = await fetchWithTimeout(`${apiBaseUrl}/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: verificationCode.trim() }),
+        body: JSON.stringify({ email: cleanEmail, code: verificationCode.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Verification code is invalid or expired.');
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = { error: text || 'Server returned invalid response.' }; }
+      
+      if (!res.ok) throw new Error(data.error || data.message || 'Verification code is invalid or expired.');
       Alert.alert('✅ Account Verified!', 'Your account is now active. Logging in...');
-      await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
-      onLoginSuccess(data.token, data.user);
+      if (data.token && data.user) {
+        await AsyncStorage.setItem('token', data.token);
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        onLoginSuccess(data.token, data.user);
+      } else {
+        setAuthMode('login');
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Verification failed.');
     } finally {
@@ -292,6 +308,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   };
 
   const handleResendOtp = async () => {
+    const cleanEmail = email.trim().toLowerCase();
     setLoading(true);
     setErrorMsg(null);
     setStatusMsg(null);
@@ -299,13 +316,14 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const res = await fetchWithTimeout(`${apiBaseUrl}/auth/resend-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: cleanEmail }),
       });
-      if (res.ok) Alert.alert('Sent 📧', 'A new verification code has been sent to your email inbox.');
-      else {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Resend failed');
-      }
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = {}; }
+      
+      if (res.ok) Alert.alert('Sent 📧', data.message || 'A new verification code has been sent to your email inbox.');
+      else throw new Error(data.error || data.message || 'Resend failed.');
     } catch (err: any) {
       setErrorMsg(err.message || 'Resend failed.');
     } finally {
@@ -315,7 +333,8 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   };
 
   const handleForgotPassword = async () => {
-    if (!email) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       setErrorMsg('Please enter your email address.');
       return;
     }
@@ -326,11 +345,14 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const res = await fetchWithTimeout(`${apiBaseUrl}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: cleanEmail }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Request failed.');
-      Alert.alert('Code Dispatched 📧', 'If the account exists, a password reset code was sent to your email.');
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = {}; }
+      
+      if (!res.ok) throw new Error(data.error || data.message || 'Request failed.');
+      Alert.alert('Code Dispatched 📧', data.message || 'If the account exists, a password reset code was sent to your email.');
       setAuthMode('resetPassword');
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to complete request.');
@@ -341,6 +363,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   };
 
   const handleResetPassword = async () => {
+    const cleanEmail = email.trim().toLowerCase();
     if (!verificationCode || !newPassword || !confirmPassword) {
       setErrorMsg('Please fill in all reset fields.');
       return;
@@ -355,11 +378,14 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       const res = await fetch(`${apiBaseUrl}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: verificationCode.trim(), newPassword }),
+        body: JSON.stringify({ email: cleanEmail, code: verificationCode.trim(), newPassword }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Reset failed.');
-      Alert.alert('Success', 'Password has been reset! Log in with your new credentials.');
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = {}; }
+      
+      if (!res.ok) throw new Error(data.error || data.message || 'Reset failed.');
+      Alert.alert('Success', data.message || 'Password has been reset! Log in with your new credentials.');
       setPassword('');
       setAuthMode('login');
     } catch (err: any) {
