@@ -509,12 +509,9 @@ export function UploadScreen({
                   <AlertCircleIcon color="#a6bedf" size={24} style={{ marginBottom: 8 }} />
                   <Text style={styles.emptyHistoryText}>No statement imports recorded.</Text>
                 </View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Statement Import (CSV / PDF)</Text>
-            <Text style={styles.cardSubtitle}>
-              Upload bank statements. AI will parse rows and isolate workspace records.
-            </Text>
-          </View>
+              )}
+            </View>
+          </>
         ) : (
           <View style={styles.ocrContainer}>
             <View style={styles.card}>
