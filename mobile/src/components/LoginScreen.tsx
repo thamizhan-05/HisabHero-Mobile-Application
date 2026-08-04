@@ -79,12 +79,25 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  // Fetch with timeout + slow-server hint
-  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 35000): Promise<Response> => {
+  // Pre-warm backend connection as soon as LoginScreen mounts
+  useEffect(() => {
+    const prewarmServer = async () => {
+      try {
+        await fetch(`${apiBaseUrl}/health`, { method: 'GET' });
+        console.log('[LoginScreen] Server pre-warm ping sent successfully.');
+      } catch (e) {
+        // Silently ignore background prewarm failure
+      }
+    };
+    prewarmServer();
+  }, [apiBaseUrl]);
+
+  // Fetch with timeout + fast progress hint
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    // Show a hint after 5 seconds if still loading
-    const hintId = setTimeout(() => setStatusMsg('⏳ Server is waking up, please wait...'), 5000);
+    // Show quick status hint if server takes more than 2 seconds to respond
+    const hintId = setTimeout(() => setStatusMsg('⚡ Connecting to cloud server, please wait...'), 2000);
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
@@ -96,7 +109,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
       clearTimeout(hintId);
       setStatusMsg(null);
       if (err.name === 'AbortError') {
-        throw new Error('Request timed out. The server may be starting up — please try again in a moment.');
+        throw new Error('Request timed out. The server is warming up — please try tapping Sign In again in a moment.');
       }
       throw err;
     }
@@ -104,7 +117,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
 
 
   const processGoogleLogin = async (idToken: string) => {
-    const res = await fetch(`${apiBaseUrl}/auth/google`, {
+    const res = await fetchWithTimeout(`${apiBaseUrl}/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
@@ -123,65 +136,40 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings }: Logi
     setErrorMsg(null);
 
     try {
-      if (GOOGLE_CONFIGURED) {
-        // Real Google OAuth via WebBrowser sheet (works in Expo Go & Standalone)
-        const redirectUrl = 'https://auth.expo.io/@thamizhan_0.5/hisabhero-mobile';
-        const authUrl =
-          `https://accounts.google.com/o/oauth2/v2/auth?` +
-          `client_id=${encodeURIComponent(GOOGLE_WEB_CLIENT_ID)}` +
-          `&redirect_uri=${encodeURIComponent(redirectUrl)}` +
-          `&response_type=id_token` +
-          `&scope=${encodeURIComponent('openid email profile')}` +
-          `&nonce=${Math.random().toString(36).substring(2)}`;
+      // Real Google OAuth via system browser sheet with account selection
+      const redirectUrl = 'https://auth.expo.io/@thamizhan_0.5/hisabhero-mobile';
+      const authUrl =
+        `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${encodeURIComponent(GOOGLE_WEB_CLIENT_ID)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUrl)}` +
+        `&response_type=id_token` +
+        `&scope=${encodeURIComponent('openid email profile')}` +
+        `&prompt=select_account` +
+        `&nonce=${Math.random().toString(36).substring(2)}`;
 
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
-        if (result.type === 'success' && result.url) {
-          const fragment = result.url.split('#')[1];
-          if (fragment) {
-            const params = new URLSearchParams(fragment);
-            const idToken = params.get('id_token');
-            if (idToken) {
-              await processGoogleLogin(idToken);
-              setGoogleLoading(false);
-              return;
-            }
+      if (result.type === 'success' && result.url) {
+        const fragment = result.url.split('#')[1];
+        if (fragment) {
+          const params = new URLSearchParams(fragment);
+          const idToken = params.get('id_token');
+          if (idToken) {
+            await processGoogleLogin(idToken);
+            setGoogleLoading(false);
+            return;
           }
         }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        console.log('[Google Auth] Authentication session was cancelled by user.');
+        setGoogleLoading(false);
+        return;
       }
 
-      // Quick Google Account Sign-In prompt for dev testing in Expo Go
-      Alert.prompt(
-        'Continue with Google',
-        'Enter your Google email address to sign in or create an account instantly on the cloud server:',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setGoogleLoading(false),
-          },
-          {
-            text: 'Sign In with Google',
-            onPress: async (inputEmail?: string) => {
-              const targetEmail = (inputEmail && inputEmail.trim()) || email.trim() || `google_user_${Date.now()}@gmail.com`;
-              const userName = targetEmail.split('@')[0].replace(/[._]/g, ' ');
-              const simulatedToken = `mock-google-token-${targetEmail}-${userName}`;
-              setGoogleLoading(true);
-              try {
-                await processGoogleLogin(simulatedToken);
-              } catch (err: any) {
-                setErrorMsg(err.message || 'Google Sign-In failed.');
-              } finally {
-                setGoogleLoading(false);
-              }
-            },
-          },
-        ],
-        'plain-text',
-        email || ''
-      );
+      setErrorMsg('Google Sign-In was cancelled or incomplete. Please try again.');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Google authentication failed.');
+      setErrorMsg(err.message || 'Google authentication failed. Please check your network connection.');
+    } finally {
       setGoogleLoading(false);
     }
   };

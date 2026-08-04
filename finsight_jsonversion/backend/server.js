@@ -552,9 +552,8 @@ function recalculateDb(db, budgets = {}) {
 async function sendVerificationEmail(email, code) {
   console.log(`✉️ [OTP Verification Code] Sent to: ${email} -> CODE: ${code}`);
 
-  // Check if SMTP is configured
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log('⚠️ SMTP credentials not found in env. Email sending simulated (check console above).');
+    console.log('⚠️ SMTP credentials not found in env. Email sending simulated.');
     return;
   }
 
@@ -563,6 +562,8 @@ async function sendVerificationEmail(email, code) {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true',
+      connectionTimeout: 3000,
+      socketTimeout: 3000,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
@@ -595,65 +596,98 @@ async function sendVerificationEmail(email, code) {
 
 app.post('/api/auth/signup', async (req, res) => {
   const { fullName, email, password, companyName } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
   
+  const cleanEmail = email.toLowerCase().trim();
+
   try {
     const existingUser = isMongoConnected
-      ? await User.findOne({ email })
-      : await LocalUser.findOne({ email });
-    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+      ? await User.findOne({ email: cleanEmail })
+      : await LocalUser.findOne({ email: cleanEmail });
+    if (existingUser) return res.status(400).json({ error: 'An account with this email address already exists.' });
     
     // Generate 6-digit OTP code and expiry (10 minutes)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    const newUser = isMongoConnected
-      ? await new User({ fullName, email, password, companyName, isVerified: false, verificationCode: code, verificationExpires: expiry }).save()
-      : await LocalUser.createAndSave({ fullName, email, password, companyName, isVerified: false, verificationCode: code, verificationExpires: expiry });
-    
-    await sendVerificationEmail(email, code);
+    // Default isVerified to true for instant seamless mobile signup unless strict email verification is required
+    const isVerified = process.env.STRICT_EMAIL_VERIFY === 'true' ? false : true;
 
-    res.status(201).json({ success: true, email, message: 'Verification code sent to email.' });
+    const newUser = isMongoConnected
+      ? await new User({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry }).save()
+      : await LocalUser.createAndSave({ fullName, email: cleanEmail, password, companyName, isVerified, verificationCode: code, verificationExpires: expiry });
+    
+    // Send email asynchronously in background so client response is instant
+    sendVerificationEmail(cleanEmail, code).catch(e => console.error('Background email send error:', e.message));
+
+    const userId = (newUser._id || newUser.id).toString();
+
+    res.status(201).json({ 
+      success: true, 
+      email: cleanEmail, 
+      needsVerification: !isVerified,
+      token: `mock-jwt-${userId}`,
+      user: { email: cleanEmail, fullName, companyName: companyName || 'My Business' },
+      message: isVerified ? 'Registration successful.' : 'Verification code sent to email.'
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Fallback Error: ' + err.message });
+    console.error('Signup Error:', err);
+    res.status(500).json({ error: 'Registration failed: ' + err.message });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
   
+  const cleanEmail = email.toLowerCase().trim();
+
   try {
     const user = isMongoConnected
-      ? await User.findOne({ email, password })
-      : await LocalUser.findOne({ email, password });
-    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+      ? await User.findOne({ email: cleanEmail })
+      : await LocalUser.findOne({ email: cleanEmail });
+      
+    if (!user) return res.status(401).json({ error: 'Invalid email address or password.' });
     
     const userData = user.toObject ? user.toObject() : user;
 
-    // Block unverified logins
+    // Check password
+    if (userData.password && userData.password !== password) {
+      return res.status(401).json({ error: 'Invalid email address or password.' });
+    }
+
+    // Auto-verify if unverified to prevent blocking valid user login attempts
+    if (userData.isVerified === false && process.env.STRICT_EMAIL_VERIFY !== 'true') {
+      if (isMongoConnected) {
+        await User.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+      } else {
+        await LocalUser.findOneAndUpdate({ email: cleanEmail }, { isVerified: true });
+      }
+      userData.isVerified = true;
+    }
+
     if (userData.isVerified === false) {
-      // Regenerate code and resend on block
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
       isMongoConnected
-        ? await User.findOneAndUpdate({ email }, { verificationCode: code, verificationExpires: expiry })
-        : await LocalUser.findOneAndUpdate({ email }, { verificationCode: code, verificationExpires: expiry });
+        ? await User.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry })
+        : await LocalUser.findOneAndUpdate({ email: cleanEmail }, { verificationCode: code, verificationExpires: expiry });
 
-      await sendVerificationEmail(email, code);
+      sendVerificationEmail(cleanEmail, code).catch(e => console.error('Background email error:', e.message));
 
       return res.status(403).json({ 
         error: 'Please verify your email address before logging in.', 
         needsVerification: true, 
-        email 
+        email: cleanEmail 
       });
     }
 
-    const userId = user._id || user.id;
-    res.json({ token: `mock-jwt-${userId}`, user: { email: userData.email, fullName: userData.fullName, companyName: userData.companyName } });
+    const userId = (user._id || user.id).toString();
+    res.json({ token: `mock-jwt-${userId}`, user: { email: userData.email, fullName: userData.fullName, companyName: userData.companyName || 'My Business' } });
   } catch (err) {
-    res.status(500).json({ error: 'Fallback Error: ' + err.message });
+    console.error('Login Error:', err);
+    res.status(500).json({ error: 'Authentication failed: ' + err.message });
   }
 });
 
@@ -963,12 +997,39 @@ app.get('/api/auth/test-otp-code', async (req, res) => {
     const user = isMongoConnected
       ? await User.findOne({ email })
       : await LocalUser.findOne({ email });
-
     if (!user) return res.status(404).json({ error: 'User not found' });
     const userData = user.toObject ? user.toObject() : user;
     res.json({ code: userData.verificationCode });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify session token endpoint for mobile app bootstrap & auto-login check
+app.get('/api/auth/verify', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const user = isMongoConnected
+      ? await User.findById(userId)
+      : await LocalUser.findById(userId);
+
+    if (!user) {
+      return res.status(401).json({ valid: false, error: 'User account not found' });
+    }
+
+    const userData = user.toObject ? user.toObject() : user;
+    res.json({
+      valid: true,
+      user: {
+        id: userId,
+        email: userData.email,
+        fullName: userData.fullName,
+        companyName: userData.companyName || 'My Business',
+        profileImage: userData.profileImage || null
+      }
+    });
+  } catch (err) {
+    res.status(401).json({ valid: false, error: 'Invalid or expired session token' });
   }
 });
 

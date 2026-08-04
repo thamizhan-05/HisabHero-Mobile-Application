@@ -65,18 +65,78 @@ export default function App() {
       setApiBaseUrl(activeUrl);
       setGlobalApiUrl(activeUrl);
 
+      // Pre-warm backend connection in background
+      fetch(`${activeUrl}/health`).catch(() => {});
+
       const token = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');
 
-      if (token && userData) {
-        setAuthToken(token);
-        setUser(JSON.parse(userData));
-        setActiveScreen('main');
+      if (token) {
+        try {
+          // Validate session with production backend
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          
+          const verifyRes = await fetch(`${activeUrl}/auth/verify`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+            if (verifyData.valid) {
+              const updatedUser = verifyData.user || (userData ? JSON.parse(userData) : null);
+              setAuthToken(token);
+              setUser(updatedUser);
+              if (updatedUser) {
+                await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+              }
+              setActiveScreen('main');
+              return;
+            }
+          }
+
+          // Only clear credentials if backend explicitly returned 401 (token revoked/expired)
+          if (verifyRes.status === 401) {
+            console.warn('[Bootstrap] Session token revoked or expired (401). Clearing credentials.');
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            setAuthToken(null);
+            setUser(null);
+            setActiveScreen('welcome');
+            return;
+          }
+
+          // For 404 or other server statuses, fall back to cached user data if available
+          if (userData) {
+            console.log('[Bootstrap] Server /auth/verify endpoint returned status', verifyRes.status, 'falling back to cached session.');
+            setAuthToken(token);
+            setUser(JSON.parse(userData));
+            setActiveScreen('main');
+            return;
+          }
+        } catch (verifyErr) {
+          // If offline or request timed out, fall back to cached user data if available
+          console.warn('[Bootstrap] Session verification endpoint unreachable, falling back to cached user data:', verifyErr);
+          if (userData) {
+            setAuthToken(token);
+            setUser(JSON.parse(userData));
+            setActiveScreen('main');
+          } else {
+            setActiveScreen('welcome');
+          }
+        }
       } else {
         setActiveScreen('welcome');
       }
     } catch (err) {
       console.error('Failed to load bootstrap data from AsyncStorage:', err);
+      setActiveScreen('welcome');
     } finally {
       setLoading(false);
     }

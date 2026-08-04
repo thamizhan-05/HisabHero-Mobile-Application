@@ -4,12 +4,14 @@
     "slug": "hisabhero-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "hisabhero",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
       "**/*"
     ],
     "splash": {
+      "image": "./assets/logo.png",
       "backgroundColor": "#06111f",
       "resizeMode": "contain"
     },
@@ -25,11 +27,10 @@
       "package": "com.hisabhero.app",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#06111f"
       }
     },

@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000/api';
+const API_URL = process.env.API_URL || 'https://hisabhero-backend.onrender.com/api';
 
 const testEmail = `auth_test_${Date.now()}@hisabhero.com`;
 const testPassword = 'Password123!';
