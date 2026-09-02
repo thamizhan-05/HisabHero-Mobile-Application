@@ -6382,6 +6382,7 @@
       btn.disabled = true;
       btn.textContent = 'Signing in...';
 
+      const email = document.getElementById('loginEmail').value.trim().toLowerCase();
       const password = document.getElementById('loginPassword').value;
 
       let deviceId = localStorage.getItem('hh_device_id');
