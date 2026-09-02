@@ -1,10 +1,9 @@
 import pg from 'pg';
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-async function cleanSupabase() {
+export async function cleanSupabase() {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
     console.warn('⚠️ DATABASE_URL missing, skipping Supabase truncate.');
@@ -37,6 +36,8 @@ async function cleanSupabase() {
       'journal_entries',
       'accounts',
       'workspace_members',
+      'merchant_mappings',
+      'otp_verifications',
       'workspaces',
       'users'
     ];
@@ -51,45 +52,15 @@ async function cleanSupabase() {
   }
 }
 
-async function cleanMongo() {
-  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
-  if (!mongoUri) {
-    console.warn('⚠️ MONGO_URI missing, skipping MongoDB clean.');
-    return;
-  }
-
-  console.log('\n⏳ Connecting to MongoDB Atlas...');
-  try {
-    await mongoose.connect(mongoUri);
-    console.log('✅ Connected to MongoDB Atlas.');
-
-    const collections = await mongoose.connection.db.listCollections().toArray();
-    console.log(`🧹 Purging ${collections.length} collections in MongoDB Atlas...`);
-
-    for (const col of collections) {
-      if (!col.name.startsWith('system.')) {
-        await mongoose.connection.db.collection(col.name).deleteMany({});
-        console.log(`  • Cleared collection: ${col.name}`);
-      }
-    }
-
-    console.log('✨ MongoDB Atlas is completely clean and empty!');
-  } catch (err) {
-    console.error('❌ MongoDB clean error:', err.message);
-  } finally {
-    await mongoose.disconnect().catch(() => {});
-  }
-}
-
 async function main() {
   console.log('====================================================');
-  console.log('🚨 PURGING ALL TEST DATA — STARTING FRESH DATABASE 🚨');
+  console.log('🚨 PURGING SUPABASE POSTGRESQL (PURE SUPABASE ENGINE) 🚨');
   console.log('====================================================\n');
 
   await cleanSupabase();
-  await cleanMongo();
-
-  console.log('\n🎉 ALL DATABASES ARE 100% CLEAN, FRESH AND BRAND NEW!');
+  console.log('\n🎉 SUPABASE IS 100% CLEAN, FRESH AND BRAND NEW!');
 }
 
-main().catch(console.error);
+if (process.argv[1]?.includes('clean_all_databases.js')) {
+  main().catch(console.error);
+}

@@ -1,6 +1,4 @@
-import Invoice from '../models/Invoice.js';
-import PurchaseOrder from '../models/PurchaseOrder.js';
-import BankTransaction from '../models/BankTransaction.js';
+import { supabase } from '../db/supabaseClient.js';
 
 /**
  * Indian GSTIN Regex Validator (e.g. 27AAAAA0000A1Z5)
@@ -22,77 +20,90 @@ export function validateHSNCode(hsn) {
 
 /**
  * 📄 3-Way Automated Intelligent Document Reconciliation Engine
- * Matches Invoices <-> Purchase Orders <-> Bank Transactions
+ * Matches Invoices <-> Bills/POs <-> Transactions in Supabase
  */
-export async function runThreeWayReconciliation(userId, businessId = null) {
+export async function runThreeWayReconciliation(userId, workspaceId = null) {
   try {
-    const filter = businessId ? { businessId } : { userId };
+    const wsId = workspaceId;
+    let invQuery = supabase.from('invoices').select('*');
+    let billQuery = supabase.from('bills').select('*');
+    let txQuery = supabase.from('transactions').select('*');
 
-    const [invoices, purchaseOrders, bankTransactions] = await Promise.all([
-      Invoice.find(filter).lean(),
-      PurchaseOrder.find(filter).lean(),
-      BankTransaction.find(filter).lean()
+    if (wsId) {
+      invQuery = invQuery.eq('workspace_id', wsId);
+      billQuery = billQuery.eq('workspace_id', wsId);
+      txQuery = txQuery.eq('workspace_id', wsId);
+    }
+
+    const [{ data: invoices }, { data: bills }, { data: transactions }] = await Promise.all([
+      invQuery,
+      billQuery,
+      txQuery
     ]);
+
+    const invList = invoices || [];
+    const billList = bills || [];
+    const txList = transactions || [];
 
     const results = [];
     let matchedCount = 0;
     let discrepancyCount = 0;
 
-    for (const inv of invoices) {
-      const invNum = inv.invoiceNumber || '';
-      const invTotal = Number(inv.total) || Number(inv.amount) || 0;
-      const invVendor = (inv.clientName || inv.vendorName || '').toLowerCase().trim();
+    for (const inv of invList) {
+      const invNum = inv.invoice_number || '';
+      const invTotal = Number(inv.total_amount) || 0;
+      const invCustomer = (inv.customer_name || '').toLowerCase().trim();
 
-      // 1. Find matching Purchase Order
-      const matchingPO = purchaseOrders.find((po) => {
-        const poNumMatch = po.poNumber && invNum.toLowerCase().includes(po.poNumber.toLowerCase());
-        const poTotalMatch = Math.abs((Number(po.total) || 0) - invTotal) < 5;
-        return poNumMatch || poTotalMatch;
+      // 1. Find matching Bill/PO
+      const matchingBill = billList.find((b) => {
+        const numMatch = b.bill_number && invNum.toLowerCase().includes(b.bill_number.toLowerCase());
+        const totalMatch = Math.abs((Number(b.total_amount) || 0) - invTotal) < 5;
+        return numMatch || totalMatch;
       });
 
-      // 2. Find matching Bank Transaction
-      const matchingBankTx = bankTransactions.find((bt) => {
-        const amountMatch = Math.abs(Math.abs(Number(bt.amount) || 0) - invTotal) < 5;
-        const descMatch = invVendor && (bt.description || '').toLowerCase().includes(invVendor);
+      // 2. Find matching Transaction
+      const matchingTx = txList.find((t) => {
+        const amountMatch = Math.abs(Math.abs(Number(t.amount) || 0) - invTotal) < 5;
+        const descMatch = invCustomer && (t.description || '').toLowerCase().includes(invCustomer);
         return amountMatch || descMatch;
       });
 
       // Calculate 3-Way Matching Score
       let matchScore = 0;
-      if (matchingPO) matchScore += 45;
-      if (matchingBankTx) matchScore += 45;
-      if (inv.gstNumber && validateGSTIN(inv.gstNumber)) matchScore += 10;
+      if (matchingBill) matchScore += 45;
+      if (matchingTx) matchScore += 45;
+      if (inv.customer_gstin && validateGSTIN(inv.customer_gstin)) matchScore += 10;
 
       const isFullyMatched = matchScore >= 80;
-      const hasDiscrepancy = (matchingPO && Math.abs(matchingPO.total - invTotal) > 5) ||
-                             (matchingBankTx && Math.abs(Math.abs(matchingBankTx.amount) - invTotal) > 5);
+      const hasDiscrepancy = (matchingBill && Math.abs(Number(matchingBill.total_amount) - invTotal) > 5) ||
+                             (matchingTx && Math.abs(Math.abs(Number(matchingTx.amount)) - invTotal) > 5);
 
       if (isFullyMatched && !hasDiscrepancy) matchedCount++;
       else discrepancyCount++;
 
       results.push({
-        invoiceId: inv._id,
+        invoiceId: inv.id,
         invoiceNumber: invNum,
         invoiceTotal: invTotal,
-        clientName: inv.clientName,
-        matchedPO: matchingPO ? { id: matchingPO._id, poNumber: matchingPO.poNumber, total: matchingPO.total } : null,
-        matchedBankTransaction: matchingBankTx ? { id: matchingBankTx._id, amount: matchingBankTx.amount, description: matchingBankTx.description } : null,
+        customerName: inv.customer_name,
+        matchedBill: matchingBill ? { id: matchingBill.id, billNumber: matchingBill.bill_number, total: matchingBill.total_amount } : null,
+        matchedTransaction: matchingTx ? { id: matchingTx.id, amount: matchingTx.amount, description: matchingTx.description } : null,
         matchScore,
         status: isFullyMatched ? 'RECONCILED' : hasDiscrepancy ? 'DISCREPANCY_FLAGGED' : 'PARTIAL_MATCH',
-        discrepancyAmount: matchingPO ? Math.abs(matchingPO.total - invTotal) : 0,
-        gstValid: inv.gstNumber ? validateGSTIN(inv.gstNumber) : true,
+        discrepancyAmount: matchingBill ? Math.abs(Number(matchingBill.total_amount) - invTotal) : 0,
+        gstValid: inv.customer_gstin ? validateGSTIN(inv.customer_gstin) : true,
       });
     }
 
     return {
       success: true,
       summary: {
-        totalInvoices: invoices.length,
-        totalPOs: purchaseOrders.length,
-        totalBankTx: bankTransactions.length,
+        totalInvoices: invList.length,
+        totalBills: billList.length,
+        totalTransactions: txList.length,
         reconciledCount: matchedCount,
         discrepancyCount,
-        reconciliationRatePercent: invoices.length > 0 ? Math.round((matchedCount / invoices.length) * 100) : 100,
+        reconciliationRatePercent: invList.length > 0 ? Math.round((matchedCount / invList.length) * 100) : 100,
       },
       details: results,
     };

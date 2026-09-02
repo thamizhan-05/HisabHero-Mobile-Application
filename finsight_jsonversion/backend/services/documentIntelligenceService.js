@@ -2,8 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 import * as XLSX from 'xlsx';
-import Transaction from '../models/Transaction.js';
-import MerchantMapping from '../models/MerchantMapping.js';
+import { transactionsRepo, merchantMappingsRepo } from '../db/supabaseDb.js';
 import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array } from './pdfParsers.js';
 
 // Comprehensive Vernacular Indian Numerals Mapping (Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali, Devanagari)
@@ -516,12 +515,14 @@ export async function applyLearnedMerchantMappings(workspaceId, extractedList = 
   if (!workspaceId || extractedList.length === 0) return extractedList;
 
   try {
-    const mappings = await MerchantMapping.find({ workspaceId }).lean();
+    const mappings = await merchantMappingsRepo.getMappings(workspaceId);
     if (!mappings || mappings.length === 0) return extractedList;
 
     const map = new Map();
     mappings.forEach(m => {
-      map.set(m.merchantPattern.toLowerCase().trim(), m.assignedCategory);
+      const pattern = (m.raw_pattern || m.merchantPattern || '').toLowerCase().trim();
+      const cat = m.category || m.assignedCategory;
+      if (pattern && cat) map.set(pattern, cat);
     });
 
     return extractedList.map(t => {
@@ -557,9 +558,7 @@ export async function detectDuplicatesInWorkspace(workspaceId, extractedList = [
   if (!workspaceId || extractedList.length === 0) return extractedList;
 
   try {
-    const existingTxns = await Transaction.find({
-      $or: [{ businessId: workspaceId }, { userId: workspaceId }, { workspaceId }]
-    }).lean();
+    const existingTxns = await transactionsRepo.listByWorkspace(workspaceId, { limit: 1000 });
 
     const existingMap = new Set();
     existingTxns.forEach(t => {

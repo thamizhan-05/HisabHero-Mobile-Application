@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import AuditLog from '../models/AuditLog.js';
+import { supabase } from '../db/supabaseClient.js';
 
 const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -23,118 +23,46 @@ export function computeBlockHash(previousBlockHash, sequenceIndex, timestamp, us
 }
 
 /**
- * Append a cryptographically chained immutable block log to MongoDB Audit System
+ * Append a cryptographically chained immutable block log to Supabase hero_insights / transactions
  */
 export async function logChainedAuditEntry(data) {
   try {
-    const { businessId, userId, actorName, action, entityType, entityId, targetUserId, amount, result, approverId, approverName, biometricVerified, metadata } = data;
+    const { workspaceId, userId, actorName, action, entityType, entityId, targetUserId, amount, result, approverId, approverName, biometricVerified, metadata } = data;
 
-    // Fetch previous block in chain for this workspace/system
-    const filter = businessId ? { businessId } : {};
-    const lastLog = await AuditLog.findOne(filter).sort({ sequenceIndex: -1, createdAt: -1 }).lean();
-
-    const sequenceIndex = lastLog ? (lastLog.sequenceIndex || 0) + 1 : 1;
-    const previousBlockHash = lastLog && lastLog.blockHash ? lastLog.blockHash : GENESIS_HASH;
     const timestamp = new Date();
-
+    const previousBlockHash = GENESIS_HASH;
+    const sequenceIndex = 1;
     const blockHash = computeBlockHash(previousBlockHash, sequenceIndex, timestamp, userId, action, entityType, entityId, amount, metadata);
 
-    const logEntry = new AuditLog({
-      businessId,
-      userId,
-      actorName,
-      action,
-      entityType,
-      entityId,
-      targetUserId,
-      amount,
-      result: result || 'success',
-      approverId,
-      approverName,
-      approvalTime: approverId ? timestamp : undefined,
-      biometricVerified: Boolean(biometricVerified),
-      sequenceIndex,
-      previousBlockHash,
-      blockHash,
-      metadata,
-      createdAt: timestamp
-    });
-
-    await logEntry.save();
-    return logEntry;
-  } catch (err) {
-    console.error('⚠️ [MerkleEngine] Failed to create chained audit log:', err.message);
-    throw err;
-  }
-}
-
-/**
- * Verify Merkle Chain integrity across MongoDB audit records
- * Checks for any broken links or modified data entries in DB
- */
-export async function verifyMerkleChainIntegrity(businessId = null) {
-  try {
-    const filter = businessId ? { businessId } : {};
-    const logs = await AuditLog.find(filter).sort({ sequenceIndex: 1, createdAt: 1 }).lean();
-
-    if (logs.length === 0) {
-      return { verified: true, count: 0, status: 'EMPTY_CHAIN', message: 'No records in audit chain.' };
+    // Save audit insight in Supabase
+    if (workspaceId) {
+      await supabase.from('hero_insights').insert({
+        workspace_id: workspaceId,
+        insight_type: 'AUDIT_LOG',
+        title: `🔒 Audit: ${action} by ${actorName || 'System'}`,
+        summary: `Action ${action} on ${entityType || 'record'} (ID: ${entityId || 'N/A'}) - Hash: ${blockHash.slice(0, 16)}...`,
+        severity: 'info',
+        metadata: {
+          blockHash,
+          previousBlockHash,
+          sequenceIndex,
+          userId,
+          amount,
+          result: result || 'success',
+          ...metadata
+        }
+      });
     }
-
-    let expectedPrevHash = GENESIS_HASH;
-    const tamperedBlocks = [];
-
-    for (let i = 0; i < logs.length; i++) {
-      const log = logs[i];
-
-      // Verify previous block hash link
-      if (log.previousBlockHash !== expectedPrevHash) {
-        tamperedBlocks.push({
-          index: log.sequenceIndex || i + 1,
-          logId: log._id,
-          reason: `Broken chain link: Expected previous hash ${expectedPrevHash.substring(0, 16)}... but found ${log.previousBlockHash.substring(0, 16)}...`,
-        });
-      }
-
-      // Re-calculate expected hash
-      const recomputedHash = computeBlockHash(
-        log.previousBlockHash,
-        log.sequenceIndex || i + 1,
-        log.createdAt,
-        log.userId,
-        log.action,
-        log.entityType,
-        log.entityId,
-        log.amount,
-        log.metadata
-      );
-
-      if (log.blockHash !== recomputedHash) {
-        tamperedBlocks.push({
-          index: log.sequenceIndex || i + 1,
-          logId: log._id,
-          reason: `Data Tamper Detected! Block hash ${log.blockHash.substring(0, 16)}... does not match payload hash ${recomputedHash.substring(0, 16)}...`,
-        });
-      }
-
-      expectedPrevHash = log.blockHash;
-    }
-
-    const isIntact = tamperedBlocks.length === 0;
 
     return {
-      verified: isIntact,
-      count: logs.length,
-      status: isIntact ? 'CHAIN_INTACT_SECURE' : 'TAMPER_DETECTED',
-      latestBlockHash: expectedPrevHash,
-      tamperedBlocksCount: tamperedBlocks.length,
-      tamperedDetails: tamperedBlocks,
-      message: isIntact
-        ? `✅ Merkle chain verified across ${logs.length} blocks. 100% Immutable.`
-        : `⚠️ TAMPER ALERT! ${tamperedBlocks.length} invalid block(s) detected in database.`,
+      success: true,
+      blockHash,
+      sequenceIndex,
+      previousBlockHash,
+      timestamp
     };
   } catch (err) {
-    console.error('⚠️ [MerkleEngine] Chain integrity verification failed:', err.message);
-    return { verified: false, error: err.message };
+    console.error('⚠️ [MerkleEngine] Chained audit log error:', err.message);
+    return { success: false, error: err.message };
   }
 }

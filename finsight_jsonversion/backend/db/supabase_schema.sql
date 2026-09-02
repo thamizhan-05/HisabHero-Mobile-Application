@@ -276,3 +276,28 @@ CREATE TABLE IF NOT EXISTS hero_insights (
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ─── 11. OTP VERIFICATIONS & MERCHANT MAPPINGS ───────────────────────────────
+CREATE TABLE IF NOT EXISTS otp_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT,
+    phone TEXT,
+    code TEXT NOT NULL,
+    purpose TEXT DEFAULT 'signup',
+    is_verified BOOLEAN DEFAULT false,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_verifications(email);
+
+CREATE TABLE IF NOT EXISTS merchant_mappings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    raw_pattern TEXT NOT NULL,
+    clean_merchant TEXT NOT NULL,
+    category TEXT NOT NULL,
+    confidence NUMERIC(4, 2) DEFAULT 0.95,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_merchant_mappings_ws ON merchant_mappings(workspace_id);
+

@@ -1,14 +1,19 @@
 import crypto from 'crypto';
-import Invoice from '../models/Invoice.js';
-import Transaction from '../models/Transaction.js';
+import { supabase } from '../db/supabaseClient.js';
 
 /**
- * Generate GSTR-1 JSON Payload per GST Portal Specifications
+ * Generate GSTR-1 JSON Payload per GST Portal Specifications (from Supabase)
  */
-export async function generateGSTR1Payload(userId, businessId = null, month = null, year = null) {
-  const filter = businessId ? { businessId } : { userId };
-  const invoices = await Invoice.find(filter).lean();
+export async function generateGSTR1Payload(userId, workspaceId = null, month = null, year = null) {
+  let query = supabase.from('invoices').select('*');
+  if (workspaceId) {
+    query = query.eq('workspace_id', workspaceId);
+  }
 
+  const { data: invoices, error } = await query;
+  if (error) throw new Error(`[gstFilingEngine.generateGSTR1] ${error.message}`);
+
+  const invoiceList = invoices || [];
   const b2bInvoices = [];
   const b2cInvoices = [];
   let totalTaxableValue = 0;
@@ -16,24 +21,24 @@ export async function generateGSTR1Payload(userId, businessId = null, month = nu
   let totalCGST = 0;
   let totalSGST = 0;
 
-  for (const inv of invoices) {
-    const amount = Number(inv.total) || Number(inv.amount) || 0;
-    const taxRate = Number(inv.taxRate) || 18;
-    const taxableVal = Math.round(amount / (1 + taxRate / 100));
-    const taxAmt = amount - taxableVal;
-
-    const cgst = Math.round(taxAmt / 2);
-    const sgst = taxAmt - cgst;
+  for (const inv of invoiceList) {
+    const amount = Number(inv.total_amount) || 0;
+    const cgstVal = Number(inv.cgst) || 0;
+    const sgstVal = Number(inv.sgst) || 0;
+    const igstVal = Number(inv.igst) || 0;
+    const taxAmt = cgstVal + sgstVal + igstVal;
+    const taxableVal = Number(inv.subtotal) || (amount - taxAmt);
 
     totalTaxableValue += taxableVal;
-    totalCGST += cgst;
-    totalSGST += sgst;
+    totalCGST += cgstVal;
+    totalSGST += sgstVal;
+    totalIGST += igstVal;
 
     const invRecord = {
-      inum: inv.invoiceNumber || `INV-${inv._id.toString().substring(0, 6)}`,
-      idt: inv.invoiceDate || new Date().toISOString().split('T')[0],
+      inum: inv.invoice_number || `INV-${inv.id.substring(0, 8)}`,
+      idt: inv.date || new Date().toISOString().split('T')[0],
       val: amount,
-      pos: inv.placeOfSupply || '27-Maharashtra',
+      pos: '27-Maharashtra',
       rchrg: 'N',
       inv_typ: 'R',
       itms: [
@@ -41,121 +46,114 @@ export async function generateGSTR1Payload(userId, businessId = null, month = nu
           num: 1,
           itm_det: {
             txval: taxableVal,
-            rt: taxRate,
-            iamt: 0,
-            camt: cgst,
-            samt: sgst,
+            rt: 18,
+            iamt: igstVal,
+            camt: cgstVal,
+            samt: sgstVal,
             csamt: 0
           }
         }
       ]
     };
 
-    if (inv.gstNumber) {
-      b2bInvoices.push({ ctin: inv.gstNumber, inv: [invRecord] });
+    if (inv.customer_gstin) {
+      b2bInvoices.push({ ctin: inv.customer_gstin, inv: [invRecord] });
     } else {
       b2cInvoices.push(invRecord);
     }
   }
 
+  const now = new Date();
+  const filingPeriod = `${String(month || now.getMonth() + 1).padStart(2, '0')}${year || now.getFullYear()}`;
+
   return {
-    gstin: '27AAAAA0000A1Z5',
-    fp: `${month || '08'}${year || '2026'}`,
-    gt: totalTaxableValue + totalCGST + totalSGST,
-    cur_gt: totalTaxableValue + totalCGST + totalSGST,
-    b2b: b2bInvoices,
-    b2cs: b2cInvoices,
+    gstin: '27ABCDE1234F1Z5',
+    fp: filingPeriod,
+    version: 'GST_OFFLINE_TOOL_v1.0',
+    hash: crypto.createHash('sha256').update(JSON.stringify({ b2bInvoices, b2cInvoices })).digest('hex'),
     summary: {
-      totalInvoices: invoices.length,
       totalTaxableValue,
       totalCGST,
       totalSGST,
       totalIGST,
-      totalTax: totalCGST + totalSGST + totalIGST,
-    }
+      totalTaxAmount: totalCGST + totalSGST + totalIGST,
+      totalInvoices: invoiceList.length,
+      b2bCount: b2bInvoices.length,
+      b2cCount: b2cInvoices.length,
+    },
+    b2b: b2bInvoices,
+    b2cs: b2cInvoices,
   };
 }
 
 /**
- * Generate GSTR-3B Monthly Tax Summary Payload
+ * Generate GSTR-3B Summary Payload (from Supabase)
  */
-export async function generateGSTR3BPayload(userId, businessId = null) {
-  const filter = businessId ? { businessId } : { userId };
+export async function generateGSTR3BPayload(userId, workspaceId = null, month = null, year = null) {
+  const gstr1 = await generateGSTR1Payload(userId, workspaceId, month, year);
 
-  const [invoices, transactions] = await Promise.all([
-    Invoice.find(filter).lean(),
-    Transaction.find({ ...filter, type: 'expense' }).lean()
-  ]);
+  // Get Inward Supplies (Expense transactions in Supabase)
+  let txQuery = supabase
+    .from('transactions')
+    .select('*')
+    .eq('type', 'expense');
 
-  let outboundTaxable = 0;
-  let outboundTax = 0;
-  for (const inv of invoices) {
-    const amt = Number(inv.total) || 0;
-    outboundTaxable += Math.round(amt / 1.18);
-    outboundTax += amt - Math.round(amt / 1.18);
+  if (workspaceId) {
+    txQuery = txQuery.eq('workspace_id', workspaceId);
   }
 
-  let inboundTaxable = 0;
-  let itcAvailable = 0;
-  for (const tx of transactions) {
-    const amt = Math.abs(Number(tx.amount) || 0);
-    inboundTaxable += Math.round(amt / 1.18);
-    itcAvailable += amt - Math.round(amt / 1.18);
+  const { data: expenseTxns } = await txQuery;
+  const expenses = expenseTxns || [];
+
+  let itcEligibleCGST = 0;
+  let itcEligibleSGST = 0;
+  let itcEligibleIGST = 0;
+
+  for (const t of expenses) {
+    const amt = Number(t.amount) || 0;
+    const taxAmt = Number(t.tax_amount) || Math.round(amt * 0.18);
+    itcEligibleCGST += Math.round(taxAmt / 2);
+    itcEligibleSGST += Math.round(taxAmt / 2);
   }
 
-  const netTaxPayable = Math.max(0, outboundTax - itcAvailable);
+  const outwardCGST = gstr1.summary.totalCGST;
+  const outwardSGST = gstr1.summary.totalSGST;
+  const netPayableCGST = Math.max(0, outwardCGST - itcEligibleCGST);
+  const netPayableSGST = Math.max(0, outwardSGST - itcEligibleSGST);
 
   return {
-    gstin: '27AAAAA0000A1Z5',
-    ret_period: '082026',
-    table_3_1: {
-      outbound_supplies: {
-        txval: outboundTaxable,
-        iamt: 0,
-        camt: Math.round(outboundTax / 2),
-        samt: Math.round(outboundTax / 2),
-        csamt: 0
-      }
+    gstin: '27ABCDE1234F1Z5',
+    ret_period: gstr1.fp,
+    sup_details: {
+      osup_det: {
+        txval: gstr1.summary.totalTaxableValue,
+        iamt: gstr1.summary.totalIGST,
+        camt: outwardCGST,
+        samt: outwardSGST,
+        csamt: 0,
+      },
     },
-    table_4_itc: {
-      itc_available: {
-        iamt: 0,
-        camt: Math.round(itcAvailable / 2),
-        samt: Math.round(itcAvailable / 2),
-        csamt: 0
-      }
+    itc_elg: {
+      itc_avl: [
+        {
+          ty: 'All Other ITC',
+          iamt: itcEligibleIGST,
+          camt: itcEligibleCGST,
+          samt: itcEligibleSGST,
+          csamt: 0,
+        },
+      ],
     },
-    summary: {
-      outboundTax,
-      itcClaimable: itcAvailable,
-      netTaxPayableInRupees: netTaxPayable,
-    }
-  };
-}
-
-/**
- * Generate E-Invoice IRN & Dynamic B2B QR Payload
- */
-export function generateEInvoicePayload(invoice) {
-  const invNum = invoice.invoiceNumber || 'INV-1001';
-  const amount = Number(invoice.total) || Number(invoice.amount) || 0;
-  const sellerGstin = '27AAAAA0000A1Z5';
-  const buyerGstin = invoice.gstNumber || '27BBBBB1111B2Z6';
-
-  const rawIrnString = `${sellerGstin}-${invNum}-${invoice.invoiceDate || '2026-08-15'}-${amount}`;
-  const irnHash = crypto.createHash('sha256').update(rawIrnString).digest('hex');
-
-  const qrPayload = `https://hisabhero.com/pay/einvoice?irn=${irnHash}&seller=${sellerGstin}&amt=${amount}`;
-
-  return {
-    success: true,
-    irn: irnHash,
-    ackNo: Math.floor(100000000000000 + Math.random() * 900000000000000),
-    ackDate: new Date().toISOString(),
-    qrCodeString: qrPayload,
-    status: 'GENERATED_VALIDATED',
-    sellerGstin,
-    buyerGstin,
-    amount
+    tax_pmt: {
+      tx_py: [
+        {
+          trans_typ: 'Tax Payable',
+          camt: netPayableCGST,
+          samt: netPayableSGST,
+        },
+      ],
+    },
+    status: 'READY_TO_FILE',
+    generatedAt: new Date().toISOString(),
   };
 }
