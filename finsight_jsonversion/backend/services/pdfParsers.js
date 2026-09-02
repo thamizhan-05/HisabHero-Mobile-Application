@@ -26,35 +26,68 @@ export function standardizeDate(dateStr) {
   if (!dateStr) return new Date().toISOString().split('T')[0];
   const cleaned = normalizeDevanagari(String(dateStr)).trim();
 
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
-
-  // DD/MM/YY or DD/MM/YYYY or DD-MM-YYYY
-  const m = cleaned.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
-  if (m) {
-    let [, d, mo, y] = m;
-    if (y.length === 2) y = '20' + y;
-    d = d.padStart(2, '0');
-    mo = mo.padStart(2, '0');
-    return `${y}-${mo}-${d}`;
+  // 1. ISO YYYY-MM-DD
+  const iso = cleaned.match(/^(\d{4})[\/\.-](\d{1,2})[\/\.-](\d{1,2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    const mo = parseInt(m, 10);
+    const day = parseInt(d, 10);
+    if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(mo).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
   }
 
-  // DD-MMM-YYYY or DD MMM YYYY (e.g. 15-AUG-2026 or 15 Aug 2026 or 15-Aug-26)
+  // 2. Named Months: "Jan 16, 2026" or "16 Jan 2026" or "16-Jan-2026"
   const monthMap = {
     jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
     jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
   };
-  const mNamed = cleaned.match(/^(\d{1,2})[\s\/-]([A-Za-z]{3})[\s\/-]?(\d{2,4})?/);
-  if (mNamed) {
-    let [, d, mon, y] = mNamed;
-    if (!y) y = String(new Date().getFullYear());
-    else if (y.length === 2) y = '20' + y;
-    const mo = monthMap[mon.toLowerCase()] || '01';
-    return `${y}-${mo}-${d.padStart(2, '0')}`;
+  const namedMatch = cleaned.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})?/) || cleaned.match(/(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-]?(\d{2,4})?/);
+  if (namedMatch) {
+    let dayStr, monthName, yearStr;
+    if (isNaN(parseInt(namedMatch[1], 10))) {
+      monthName = namedMatch[1];
+      dayStr = namedMatch[2];
+      yearStr = namedMatch[3] || String(new Date().getFullYear());
+    } else {
+      dayStr = namedMatch[1];
+      monthName = namedMatch[2];
+      yearStr = namedMatch[3] || String(new Date().getFullYear());
+    }
+    const mKey = monthName.toLowerCase().slice(0, 3);
+    const mo = monthMap[mKey] || '01';
+    let y = yearStr;
+    if (y.length === 2) y = '20' + y;
+    const d = parseInt(dayStr, 10);
+    if (d >= 1 && d <= 31) {
+      return `${y}-${mo}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 3. DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const dmy = cleaned.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
+  if (dmy) {
+    let [, dStr, mStr, yStr] = dmy;
+    let d = parseInt(dStr, 10);
+    let m = parseInt(mStr, 10);
+    let y = yStr;
+    if (y.length === 2) y = '20' + y;
+
+    if (m > 12 && d <= 12) {
+      const temp = m; m = d; d = temp;
+    }
+
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
   }
 
   const d = new Date(cleaned);
-  return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split('T')[0];
+  }
+
+  return new Date().toISOString().split('T')[0];
 }
 
 // ─── AUTO CLASSIFIER / CATEGORIZER ───
@@ -612,25 +645,26 @@ export function parseGooglePayStatement(text) {
   let idCounter = 1;
 
   // Strategy A: Block-based ("Paid to ...", "Received from ...", "Payment to ...")
-  const blocks = text.split(/(?=Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:)/i);
+  const blocks = text.split(/(?=Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:|Refund from|Cashback)/i);
   for (const block of blocks) {
-    const isPaid = /Paid to|Payment to|Money sent to|To\s*:/i.test(block);
-    const isReceived = /Received from|From\s*:/i.test(block);
+    const trimmed = block.trim();
+    const isReceived = /^(?:Received from|From\s*:|Refund from|Cashback)/i.test(trimmed) || /\+\s*(?:₹|INR|Rs\.?)/i.test(trimmed) || /\b(?:Received|Credited)\b/i.test(trimmed);
+    const isPaid = /^(?:Paid to|Payment to|Money sent to|To\s*:)/i.test(trimmed) || /-\s*(?:₹|INR|Rs\.?)/i.test(trimmed);
     if (!isPaid && !isReceived) continue;
 
     const type = isReceived ? 'income' : 'expense';
-    const nameMatch = block.match(/(?:Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:)\s*([^\n\r]+)/i);
+    const nameMatch = trimmed.match(/^(?:Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:|Refund from|Cashback)\s*([^\n\r]+)/i);
     let partyName = nameMatch ? nameMatch[1].trim() : 'Google Pay Transfer';
     partyName = partyName.replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
 
-    const amtMatch = block.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || block.match(/([\d,]+\.\d{2})/);
+    const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
     const amount = amtMatch ? parseCleanAmount(amtMatch[1]) : 0;
     if (amount <= 0) continue;
 
-    const dateMatch = block.match(/(\d{1,2}\s+[A-Za-z]{3}(?:\s+\d{4})?|\d{2}[\/\.-]\d{2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/);
+    const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
     const dateStr = dateMatch ? dateMatch[1] : '';
 
-    const refMatch = block.match(/(?:UPI Ref ID|UPI transaction ID|Google transaction ID|UTR|Ref No)[:\s]+([A-Za-z0-9]+)/i);
+    const refMatch = trimmed.match(/(?:UPI Ref ID|UPI transaction ID|Google transaction ID|UTR|Ref No)[:\s]+([A-Za-z0-9]+)/i);
     const refNo = refMatch ? refMatch[1].trim() : undefined;
 
     transactions.push({
@@ -656,13 +690,13 @@ export function parseGooglePayStatement(text) {
   const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
-    const dateMatch = trimmed.match(/(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/);
+    const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
     const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
 
     if (dateMatch && amtMatch) {
       const amount = parseCleanAmount(amtMatch[1]);
       if (amount > 0) {
-        const isCr = /received|credited|deposit|\bcr\b/i.test(trimmed);
+        const isCr = /received|credited|deposit|\bcr\b|\binflow\b|\breceived from\b/i.test(trimmed) || /^\+/.test(amtMatch[0]);
         const type = isCr ? 'income' : 'expense';
         let desc = trimmed
           .replace(dateMatch[0], '')
