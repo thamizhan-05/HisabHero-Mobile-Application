@@ -561,22 +561,21 @@ export const documentsRepo = {
       // If document had extracted transactions recorded, remove them from transactions table
       if (Array.isArray(doc.extracted_transactions) && doc.extracted_transactions.length > 0) {
         for (const tx of doc.extracted_transactions) {
-          if (tx.amount && tx.date) {
+          if (tx.amount !== undefined && tx.date) {
             await supabase
               .from('transactions')
               .delete()
               .eq('workspace_id', wsId)
               .eq('date', tx.date)
-              .eq('amount', tx.amount)
-              .eq('description', tx.description);
+              .eq('amount', tx.amount);
           }
         }
       }
-
-      // Delete document record
-      const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
-      if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
     }
+
+    // Delete document record
+    const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
+    if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
 
     return true;
   },

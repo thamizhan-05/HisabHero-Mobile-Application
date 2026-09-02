@@ -4191,9 +4191,14 @@
                 <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin-bottom: 0.25rem;">📑 Uploaded Bank Statements &amp; Ledgers</h3>
                 <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">Manage your uploaded files and remove unwanted statements &amp; their associated transactions anytime.</p>
               </div>
-              <button class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="loadUploadedDocuments()">
-                🔄 Refresh List
-              </button>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="loadUploadedDocuments()">
+                  🔄 Refresh List
+                </button>
+                <button class="btn btn-outline" style="color: #f43f5e; border-color: rgba(244,63,94,0.4); padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="handleWipeAllStatements()">
+                  🗑️ Clear All Statements
+                </button>
+              </div>
             </div>
 
             <div style="overflow-x: auto;">
@@ -6223,7 +6228,7 @@
       const fileName = doc ? doc.fileName : 'Statement';
       const txCount = doc ? (doc.extractedTransactions?.length || doc.summary?.totalCount || 0) : '';
 
-      const confirmMsg = `⚠️ Delete Statement: "${fileName}"?\n\nThis will permanently remove this statement and all ${txCount} associated transactions from your ledger.\n\nClick OK to confirm deletion.`;
+      const confirmMsg = `⚠️ Delete Statement: "${fileName}"?\n\nThis will permanently remove this statement and purge its transactions from your ledger.\n\nClick OK to confirm deletion.`;
       if (!confirm(confirmMsg)) return;
 
       try {
@@ -6247,6 +6252,31 @@
         alert(`❌ Network error deleting statement: ${err.message}`);
       }
     }
+
+    async function handleWipeAllStatements() {
+      if (!confirm('⚠️ Are you sure you want to delete all uploaded statements and their transactions from this workspace?')) return;
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch(`/api/workspaces/${wsId}/reset-data`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`
+          }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('🗑️ All statements and transactions removed.', 'success');
+          await loadUploadedDocuments();
+          await loadWorkspaceData();
+        }
+      } catch (err) {
+        alert('Error clearing data: ' + err.message);
+      }
+    }
+
+    window.handleDeleteDocById = handleDeleteDocById;
+    window.deleteUploadedDocument = handleDeleteDocById;
+    window.handleWipeAllStatements = handleWipeAllStatements;
 
     function handleExportReport() {
       alert('Generating and printing audited P&L Statement PDF...');
