@@ -708,6 +708,17 @@ app.delete(['/api/documents/:id', '/documents/:id'], authMiddleware, async (req,
   }
 });
 
+app.post(['/api/workspaces/:id/reset-data', '/workspaces/:id/reset-data'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.params.id;
+    await transactionsRepo.deleteByWorkspace(wsId);
+    await documentsRepo.deleteByWorkspace(wsId);
+    return res.json({ success: true, message: 'All statements and transactions cleared from workspace ledger.' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── 10. INVOICES, KHATA & DEVICE SESSIONS ───
 app.get(['/api/invoices', '/invoices'], authMiddleware, async (req, res) => {
   try {

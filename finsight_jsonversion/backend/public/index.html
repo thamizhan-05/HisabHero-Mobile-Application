@@ -6203,7 +6203,7 @@
                 </span>
               </td>
               <td style="text-align: right;">
-                <button class="btn btn-outline" style="color: #f43f5e; border-color: rgba(244,63,94,0.4); padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="handleDeleteDocById('${docId}')">
+                <button type="button" data-doc-id="${docId}" class="btn btn-outline" style="color: #f43f5e; border-color: rgba(244,63,94,0.4); padding: 0.35rem 0.75rem; font-size: 0.75rem; transition: all 0.2s; cursor: pointer;" onclick="handleDeleteDocById('${docId}', this)">
                   🗑️ Delete
                 </button>
               </td>
@@ -6221,15 +6221,37 @@
       }
     }
 
-    async function handleDeleteDocById(docId) {
+    async function handleDeleteDocById(docId, btnElement) {
       if (!docId) return;
 
-      const doc = (window.currentUploadedDocsList || []).find(d => String(d.documentId || d.id || d._id) === String(docId));
-      const fileName = doc ? doc.fileName : 'Statement';
-      const txCount = doc ? (doc.extractedTransactions?.length || doc.summary?.totalCount || 0) : '';
+      const btn = btnElement || document.querySelector(`button[data-doc-id="${docId}"]`);
+      
+      // Step 1: Inline confirmation (Click 1)
+      if (btn && !btn.dataset.confirming) {
+        btn.dataset.confirming = 'true';
+        btn.innerHTML = '⚠️ Confirm?';
+        btn.style.background = '#f43f5e';
+        btn.style.color = '#ffffff';
+        btn.style.borderColor = '#f43f5e';
+        
+        // Auto-reset after 4 seconds if not clicked again
+        setTimeout(() => {
+          if (btn && btn.dataset.confirming === 'true') {
+            delete btn.dataset.confirming;
+            btn.innerHTML = '🗑️ Delete';
+            btn.style.background = '';
+            btn.style.color = '#f43f5e';
+            btn.style.borderColor = 'rgba(244,63,94,0.4)';
+          }
+        }, 4000);
+        return;
+      }
 
-      const confirmMsg = `⚠️ Delete Statement: "${fileName}"?\n\nThis will permanently remove this statement and purge its transactions from your ledger.\n\nClick OK to confirm deletion.`;
-      if (!confirm(confirmMsg)) return;
+      // Step 2: Immediate execution (Click 2)
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Deleting...';
+      }
 
       try {
         const wsId = currentActiveWorkspaceId || 'personal';
@@ -6246,15 +6268,58 @@
           await loadUploadedDocuments();
           await loadWorkspaceData();
         } else {
-          alert(`❌ Error deleting statement: ${data.error || 'Failed to delete'}`);
+          showToast(`❌ Error: ${data.error || 'Failed to delete'}`, 'danger');
+          if (btn) {
+            btn.disabled = false;
+            delete btn.dataset.confirming;
+            btn.innerHTML = '🗑️ Delete';
+            btn.style.background = '';
+            btn.style.color = '#f43f5e';
+            btn.style.borderColor = 'rgba(244,63,94,0.4)';
+          }
         }
       } catch (err) {
-        alert(`❌ Network error deleting statement: ${err.message}`);
+        showToast(`❌ Network error: ${err.message}`, 'danger');
+        if (btn) {
+          btn.disabled = false;
+          delete btn.dataset.confirming;
+          btn.innerHTML = '🗑️ Delete';
+          btn.style.background = '';
+          btn.style.color = '#f43f5e';
+          btn.style.borderColor = 'rgba(244,63,94,0.4)';
+        }
       }
     }
 
-    async function handleWipeAllStatements() {
-      if (!confirm('⚠️ Are you sure you want to delete all uploaded statements and their transactions from this workspace?')) return;
+    async function handleWipeAllStatements(btnElement) {
+      const btn = btnElement || document.getElementById('wipeAllStatementsBtn');
+      
+      // Step 1: Inline confirmation (Click 1)
+      if (btn && !btn.dataset.confirming) {
+        btn.dataset.confirming = 'true';
+        btn.innerHTML = '⚠️ Click to Confirm Clear All';
+        btn.style.background = '#f43f5e';
+        btn.style.color = '#ffffff';
+        btn.style.borderColor = '#f43f5e';
+        
+        setTimeout(() => {
+          if (btn && btn.dataset.confirming === 'true') {
+            delete btn.dataset.confirming;
+            btn.innerHTML = '🗑️ Clear All Statements';
+            btn.style.background = '';
+            btn.style.color = '#f43f5e';
+            btn.style.borderColor = 'rgba(244,63,94,0.4)';
+          }
+        }, 4000);
+        return;
+      }
+
+      // Step 2: Immediate execution (Click 2)
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Clearing All...';
+      }
+
       try {
         const wsId = currentActiveWorkspaceId || 'personal';
         const res = await fetch(`/api/workspaces/${wsId}/reset-data`, {
@@ -6265,12 +6330,23 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast('🗑️ All statements and transactions removed.', 'success');
+          showToast('🗑️ All statements and transactions removed from ledger.', 'success');
           await loadUploadedDocuments();
           await loadWorkspaceData();
+        } else {
+          showToast(`❌ Error: ${data.error || 'Failed to clear data'}`, 'danger');
         }
       } catch (err) {
-        alert('Error clearing data: ' + err.message);
+        showToast(`❌ Network error: ${err.message}`, 'danger');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          delete btn.dataset.confirming;
+          btn.innerHTML = '🗑️ Clear All Statements';
+          btn.style.background = '';
+          btn.style.color = '#f43f5e';
+          btn.style.borderColor = 'rgba(244,63,94,0.4)';
+        }
       }
     }
 
