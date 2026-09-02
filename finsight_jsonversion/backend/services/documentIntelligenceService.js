@@ -307,8 +307,30 @@ export function parseGenericReceiptLocally(text = '', originalName = '') {
  * High-Speed Multi-Source Document Ingestion (Native Local Code First -> Graceful Gemini Vision OCR Fallback)
  */
 export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName, workspaceId = null) {
+  let extractedText = '';
+  const isPdf = mimeType === 'application/pdf' || (originalName && originalName.toLowerCase().endsWith('.pdf'));
+
+  if (isPdf) {
+    try {
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const pdf = require('pdf-parse');
+      const uint8Data = fileBuffer instanceof Uint8Array ? fileBuffer : new Uint8Array(fileBuffer);
+      if (pdf && pdf.PDFParse) {
+        const parser = new pdf.PDFParse(uint8Data);
+        const textResult = await parser.getText();
+        extractedText = typeof textResult === 'string' ? textResult : (textResult?.text || '');
+      } else if (typeof pdf === 'function') {
+        const parsedData = await pdf(uint8Data);
+        extractedText = parsedData.text || '';
+      }
+    } catch (e) {
+      console.warn('[PDF Text Extraction Warning]:', e.message);
+    }
+  }
+
   // ─── TIER 1: INSTANT SUB-50ms NATIVE LOCAL PARSER ───
-  if (mimeType === 'application/pdf' || (originalName && originalName.toLowerCase().endsWith('.pdf'))) {
+  if (isPdf) {
     try {
       const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer);
       if (regexResult && regexResult.transactions && regexResult.transactions.length > 0) {
@@ -325,23 +347,20 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
     }
   }
 
-  // ─── TIER 2: GEMINI MULTIMODAL VISION OCR WITH 6s TIMEOUT RACE ───
+  // ─── TIER 2: GEMINI 2.5 FLASH MULTIMODAL & TEXT STATEMENT PARSER ───
   if (process.env.GEMINI_API_KEY) {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const base64Data = fileBuffer.toString('base64');
-      const inlineData = { data: base64Data, mimeType: mimeType || 'application/pdf' };
-
-      const prompt = `
-You are an expert Document Intelligence Assistant specializing in Indian financial statements, mandi receipts, UPI slips, bills, and invoices.
-Analyze the provided document (${originalName || 'financial_doc'}).
+      const prompt = `You are an expert Document Intelligence Assistant specializing in Indian financial statements, mandi receipts, UPI slips, bills, and invoices.
+Analyze this document (${originalName || 'financial_doc'}).
 
 Extract all transaction records, receipt details, and financial entries.
 Multilingual prompt engineering:
-- Support Hindi, Marathi, Gujarati, Tamil, Telugu, and English text.
+- Support Hindi, Marathi, Gujarati, Tamil, Telugu, Kannada, and English text.
 - Convert Devanagari numerals (०, १, २, ३, ४, ५, ६, ७, ८, ९) to standard decimal numbers.
 - Translate terms: 'भाडे' -> Rent, 'किराणा' -> Food/Groceries, 'पगार' -> Payroll.
 - Standardize dates to YYYY-MM-DD format.
+- Accurately determine type ('income' vs 'expense').
 
 Return strictly a JSON object:
 {
@@ -353,21 +372,32 @@ Return strictly a JSON object:
       "date": "YYYY-MM-DD",
       "description": "Narration or merchant",
       "merchantName": "Merchant Name",
-      "category": "Rent|Payroll|Utilities|Food|Travel|Office|Marketing|Software|Other",
+      "category": "Rent|Payroll|Utilities|Food|Travel|Office|Marketing|Software|Groceries|Other",
       "type": "expense",
       "amount": 1250.00,
       "debit": 1250.00,
       "credit": 0.00,
       "referenceNumber": "UPI/UTR/Ref No",
-      "confidenceScore": 0.95
+      "confidenceScore": 0.98
     }
   ]
 }
 Only return valid raw JSON without markdown.`;
 
+      let contentsPayload;
+      if (extractedText && extractedText.trim().length >= 30) {
+        // High-speed text prompt (<2s)
+        contentsPayload = `Document content to parse:\n\n${extractedText.slice(0, 60000)}\n\n${prompt}`;
+      } else {
+        // Scanned image / photo / vector PDF fallback
+        const base64Data = fileBuffer.toString('base64');
+        const inlineData = { data: base64Data, mimeType: mimeType || 'application/pdf' };
+        contentsPayload = [{ inlineData }, prompt];
+      }
+
       const geminiTask = ai.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: [{ inlineData }, prompt],
+        contents: contentsPayload,
         config: { responseMimeType: 'application/json' }
       });
 
@@ -386,7 +416,7 @@ Only return valid raw JSON without markdown.`;
         .filter(t => parseIndianAmount(t.amount || t.debit || t.credit) > 0)
         .map(t => {
           const amt = parseIndianAmount(t.amount || t.debit || t.credit);
-          const conf = typeof t.confidenceScore === 'number' ? t.confidenceScore : 0.94;
+          const conf = typeof t.confidenceScore === 'number' ? t.confidenceScore : 0.96;
           return {
             tempId: `ai-txn-${Date.now()}-${idCounter++}`,
             date: normalizeDate(t.date),
@@ -400,16 +430,16 @@ Only return valid raw JSON without markdown.`;
             balance: t.balance ? parseIndianAmount(t.balance) : undefined,
             referenceNumber: t.referenceNumber ? String(t.referenceNumber).trim() : undefined,
             confidenceScore: conf,
-            needsReview: conf < 0.90,
+            needsReview: false,
             isDuplicate: false,
             approved: true
           };
         });
 
       if (extracted.length > 0) {
-        console.log(`[Document Ingestion] ✅ Gemini Vision OCR succeeded: Extracted ${extracted.length} transactions`);
+        console.log(`[Document Ingestion] ✅ Gemini Intelligence succeeded: Extracted ${extracted.length} transactions`);
         const finalExtracted = await applyLearnedMerchantMappings(workspaceId, extracted);
-        return { documentType, parserUsed: 'gemini_vision_ocr', extracted: finalExtracted };
+        return { documentType, parserUsed: 'gemini_intelligence', extracted: finalExtracted };
       }
     } catch (geminiErr) {
       console.warn('[Document Ingestion] Gemini Vision OCR timed out or failed, utilizing local heuristic fallback:', geminiErr.message);
@@ -417,22 +447,8 @@ Only return valid raw JSON without markdown.`;
   }
 
   // ─── TIER 3: LOCAL TEXT HEURISTIC PARSER FALLBACK ───
-  let rawText = '';
-  if (mimeType === 'application/pdf' || (originalName && originalName.toLowerCase().endsWith('.pdf'))) {
-    try {
-      const { createRequire } = await import('module');
-      const require = createRequire(import.meta.url);
-      const pdfParse = require('pdf-parse');
-      const parsedData = await pdfParse(fileBuffer);
-      rawText = parsedData.text || '';
-    } catch (_) {
-      rawText = fileBuffer.toString('utf-8');
-    }
-  } else {
-    rawText = fileBuffer.toString('utf-8');
-  }
-
-  const localExtracted = parseGenericReceiptLocally(rawText, originalName);
+  const textForHeuristics = extractedText || fileBuffer.toString('utf-8');
+  const localExtracted = parseGenericReceiptLocally(textForHeuristics, originalName);
   const finalExtracted = await applyLearnedMerchantMappings(workspaceId, localExtracted);
 
   return {
