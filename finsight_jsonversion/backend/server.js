@@ -520,6 +520,35 @@ app.get(['/api/dashboard/stats', '/dashboard/stats'], authMiddleware, async (req
   }
 });
 
+app.get(['/api/dashboard/transactions', '/dashboard/transactions'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
+    const transactions = await transactionsRepo.listByWorkspace(wsId);
+    return res.json(transactions);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get(['/api/dashboard/health', '/dashboard/health'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
+    const metrics = await transactionsRepo.getMetrics(wsId);
+    const score = calculateHealthScore(metrics.totalInflow, metrics.totalOutflow);
+    return res.json({
+      success: true,
+      score,
+      status: score >= 80 ? 'EXCELLENT' : (score >= 50 ? 'GOOD' : 'FAIR'),
+      message: score >= 80 ? 'Strong positive cash flow' : 'Manage discretionary outflows',
+      inflow: metrics.totalInflow,
+      outflow: metrics.totalOutflow,
+      balance: metrics.netBalance
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── 9. DOCUMENT INTELLIGENCE STATEMENT PARSER & APPROVAL WORKFLOW ───
 
 // Step 1: PREVIEW ONLY (Parses file and returns transactions for user review & approval)

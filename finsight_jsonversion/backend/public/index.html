@@ -3511,7 +3511,7 @@
               </div>
               <h2 id="dashGreeting" style="color: #ffffff; font-size: 1.75rem;">Welcome to HisabHero!</h2>
               <p style="color: #94a3b8; font-size: 0.9375rem; margin-top: 4px;">
-                Real-time MongoDB financial records isolated to this workspace.
+                Real-time financial records and statement ledgers isolated to this workspace.
               </p>
             </div>
 
@@ -3664,7 +3664,7 @@
             <div class="flex justify-between items-center">
               <div>
                 <h3 style="font-size: 1.2rem;">Recent Workspace Transactions</h3>
-                <p style="font-size: 0.8125rem; color: var(--text-muted);">Real-time entries from active MongoDB workspace collection.</p>
+                <p style="font-size: 0.8125rem; color: var(--text-muted);">Real-time entries from active ledger.</p>
               </div>
               <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8125rem;" onclick="loadWorkspaceData()">
                 🔄 Refresh
@@ -5138,7 +5138,8 @@
         const txs = await txsRes.json();
         const health = await healthRes.json();
 
-        currentWorkspaceTransactions = Array.isArray(txs) ? txs : [];
+        const rawTxs = Array.isArray(txs) ? txs : (Array.isArray(txs?.transactions) ? txs.transactions : []);
+        currentWorkspaceTransactions = rawTxs;
 
         let totalIn = 0;
         let totalOut = 0;
