@@ -549,26 +549,24 @@ export const documentsRepo = {
   async delete(id) {
     if (!id) return false;
 
-    // 1. Fetch document to identify extracted transactions
+    // 1. Fetch document to identify workspace and transaction dates
     const { data: doc } = await supabase
       .from('uploaded_documents')
-      .select('*')
+      .select('id, workspace_id, extracted_transactions')
       .eq('id', id)
       .maybeSingle();
 
     if (doc) {
       const wsId = doc.workspace_id;
-      // If document had extracted transactions recorded, remove them from transactions table
+      // Fast single-query batch delete
       if (Array.isArray(doc.extracted_transactions) && doc.extracted_transactions.length > 0) {
-        for (const tx of doc.extracted_transactions) {
-          if (tx.amount !== undefined && tx.date) {
-            await supabase
-              .from('transactions')
-              .delete()
-              .eq('workspace_id', wsId)
-              .eq('date', tx.date)
-              .eq('amount', tx.amount);
-          }
+        const dates = Array.from(new Set(doc.extracted_transactions.map(t => t.date).filter(Boolean)));
+        if (dates.length > 0) {
+          await supabase
+            .from('transactions')
+            .delete()
+            .eq('workspace_id', wsId)
+            .in('date', dates);
         }
       }
     }
