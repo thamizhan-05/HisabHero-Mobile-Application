@@ -123,6 +123,67 @@ export function categorizeByNarration(narration = '') {
   return 'General';
 }
 
+// Comprehensive Summary / Balance / Header Line Detector
+export function isSummaryOrNonTransactionLine(desc = '', merchant = '', lineText = '') {
+  const combined = `${desc} ${merchant} ${lineText}`.toLowerCase().trim();
+  if (!combined) return false;
+
+  const summaryPatterns = [
+    /\btotal\s*(?:money\s*)?(?:sent|received|paid|transferred|inflow|outflow|income|expenses?|debits?|credits?|deposits?|withdrawals?|amount|balance|count)?\b/i,
+    /\b(?:grand|sub|page|period|monthly|annual|statement)\s*totals?\b/i,
+    /\b(?:opening|closing|initial|ending|cleared|uncleared|available|ledger|current)\s*balances?\b/i,
+    /\b(?:balance\s*b\/f|balance\s*c\/f|brought\s*forward|carried\s*forward|b\/f\s*balance|c\/f\s*balance)\b/i,
+    /\bstatement\s*(?:summary|period|from|details|overview|for\s+the\s+period)\b/i,
+    /\b(?:total|summary)\s*[:=-]/i,
+    /\bmoney\s*sent\s*[:=-]/i,
+    /\bmoney\s*received\s*[:=-]/i,
+    /\b(?:total\s*dr|total\s*cr|dr\s*total|cr\s*total)\b/i,
+    /\b(?:net\s*inflow|net\s*outflow|net\s*transfer|net\s*amount)\b/i
+  ];
+
+  for (const pat of summaryPatterns) {
+    if (pat.test(combined)) {
+      const isPureMerchant = /^(total\s+(?:energies|oil|petroleum|fitness|stationery|solutions|logistics|care))\b/i.test(merchant || desc);
+      if (!isPureMerchant) {
+        return true;
+      }
+    }
+  }
+
+  // Exact matches for standalone summary keywords
+  const trimmedDesc = desc.trim().toLowerCase();
+  const trimmedMerch = merchant.trim().toLowerCase();
+  if (/^(?:money\s*sent|money\s*received|total\s*sent|total\s*received|total\s*income|total\s*expense|total\s*debit|total\s*credit|opening\s*bal|closing\s*bal|total|summary|grand\s*total)$/i.test(trimmedDesc) ||
+      /^(?:money\s*sent|money\s*received|total\s*sent|total\s*received|total\s*income|total\s*expense|total\s*debit|total\s*credit|opening\s*bal|closing\s*bal|total|summary|grand\s*total)$/i.test(trimmedMerch)) {
+    return true;
+  }
+
+  return false;
+}
+
+export function filterOutSummaryRows(transactions = []) {
+  if (!Array.isArray(transactions)) return [];
+  return transactions.filter(t => {
+    if (!t) return false;
+    const desc = String(t.description || '').trim();
+    const merchant = String(t.merchantName || '').trim();
+    const amt = Number(t.amount || 0);
+
+    if (amt <= 0) return false;
+
+    if (isSummaryOrNonTransactionLine(desc, merchant)) {
+      return false;
+    }
+
+    // Filter out common header row texts
+    if (/^(?:transaction\s*date|value\s*date|chq\s*no|particulars|narration|withdrawal|deposit|balance|description|date|amount)$/i.test(desc)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 // Helper template builder for standard table statements
 function createStandardTableParser(bankName, regex, dateIdx, descIdx, refIdx, debitIdx, creditIdx, balIdx) {
   return function parse(text) {
@@ -131,7 +192,10 @@ function createStandardTableParser(bankName, regex, dateIdx, descIdx, refIdx, de
     let idCounter = 1;
 
     for (const line of lines) {
-      const match = line.trim().match(regex);
+      const trimmed = line.trim();
+      if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+
+      const match = trimmed.match(regex);
       if (match) {
         const dateStr = match[dateIdx];
         const desc = match[descIdx] || 'Bank Transaction';
@@ -141,6 +205,8 @@ function createStandardTableParser(bankName, regex, dateIdx, descIdx, refIdx, de
         const balance = balIdx ? parseCleanAmount(match[balIdx]) : 0;
 
         if (debit === 0 && credit === 0) continue;
+        if (isSummaryOrNonTransactionLine(desc, refNo, trimmed)) continue;
+
         const type = credit > 0 ? 'income' : 'expense';
         const amount = type === 'income' ? credit : debit;
         if (amount <= 0) continue;
@@ -163,7 +229,7 @@ function createStandardTableParser(bankName, regex, dateIdx, descIdx, refIdx, de
         });
       }
     }
-    return transactions;
+    return filterOutSummaryRows(transactions);
   };
 }
 
@@ -648,6 +714,8 @@ export function parseGooglePayStatement(text) {
   const blocks = text.split(/(?=Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:|Refund from|Cashback)/i);
   for (const block of blocks) {
     const trimmed = block.trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+
     const isReceived = /^(?:Received from|From\s*:|Refund from|Cashback)/i.test(trimmed) || /\+\s*(?:₹|INR|Rs\.?)/i.test(trimmed) || /\b(?:Received|Credited)\b/i.test(trimmed);
     const isPaid = /^(?:Paid to|Payment to|Money sent to|To\s*:)/i.test(trimmed) || /-\s*(?:₹|INR|Rs\.?)/i.test(trimmed);
     if (!isPaid && !isReceived) continue;
@@ -656,6 +724,8 @@ export function parseGooglePayStatement(text) {
     const nameMatch = trimmed.match(/^(?:Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:|Refund from|Cashback)\s*([^\n\r]+)/i);
     let partyName = nameMatch ? nameMatch[1].trim() : 'Google Pay Transfer';
     partyName = partyName.replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
+
+    if (!partyName || isSummaryOrNonTransactionLine(partyName, partyName, trimmed)) continue;
 
     const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
     const amount = amtMatch ? parseCleanAmount(amtMatch[1]) : 0;
@@ -684,12 +754,14 @@ export function parseGooglePayStatement(text) {
     });
   }
 
-  if (transactions.length > 0) return transactions;
+  if (transactions.length > 0) return filterOutSummaryRows(transactions);
 
   // Strategy B: Line-by-line GPay / UPI Statement table records
   const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+
     const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
     const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
 
@@ -704,6 +776,8 @@ export function parseGooglePayStatement(text) {
           .replace(/\b(?:COMPLETED|SUCCESS|SUCCESSFUL|DEBITED|CREDITED|PAID|RECEIVED|UPI)\b/gi, '')
           .trim();
         if (!desc) desc = isCr ? 'UPI Inflow' : 'UPI Outflow';
+
+        if (isSummaryOrNonTransactionLine(desc, '', trimmed)) continue;
 
         transactions.push({
           tempId: `gpay-line-${Date.now()}-${idCounter++}`,
@@ -723,23 +797,27 @@ export function parseGooglePayStatement(text) {
     }
   }
 
-  return transactions;
+  return filterOutSummaryRows(transactions);
 }
 
-// ─── 36. PHONEPE ───
+// ─── 36. PHONEPE STATEMENT PARSER ───
 export function parsePhonePeStatement(text) {
   const transactions = [];
   const lines = text.split(/\r?\n/);
   let idCounter = 1;
 
+  // Strategy 1: Tabular row matching
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const match = line.match(/(\d{2}\s+[A-Za-z]{3}\s+\d{4}|\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(DEBIT|CREDIT|DEBITED|CREDITED)\s+(?:₹|INR|Rs\.?)?\s*([\d,]+(?:\.\d{2})?)/i);
+    const line = lines[i].trim();
+    if (!line || isSummaryOrNonTransactionLine('', '', line)) continue;
+
+    const match = line.match(/(\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(DEBIT|CREDIT|DEBITED|CREDITED)\s+(?:₹|INR|Rs\.?)?\s*([\d,]+(?:\.\d{2})?)/i);
     if (match) {
       const [, dateStr, details, drCr, amtStr] = match;
       const amount = parseCleanAmount(amtStr);
       const type = drCr.toUpperCase().startsWith('CR') ? 'income' : 'expense';
       if (amount <= 0) continue;
+      if (isSummaryOrNonTransactionLine(details, '', line)) continue;
 
       transactions.push({
         tempId: `phonepe-${Date.now()}-${idCounter++}`,
@@ -757,7 +835,53 @@ export function parsePhonePeStatement(text) {
       });
     }
   }
-  return transactions;
+
+  if (transactions.length > 0) return filterOutSummaryRows(transactions);
+
+  // Strategy 2: Multi-line transaction blocks for PhonePe App PDF Export
+  const blocks = text.split(/(?=(?:\d{1,2}\s+[A-Za-z]{3}(?:,?\s*\d{4})?|\d{2}\/\d{2}\/\d{4})\s+(?:Paid to|Received from|Payment to|Transfer to|Money sent to))/i);
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+
+    const dateMatch = trimmed.match(/(\d{1,2}\s+[A-Za-z]{3}(?:,?\s*\d{4})?|\d{2}\/\d{2}\/\d{4})/i);
+    const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
+    const drCrMatch = trimmed.match(/\b(DEBIT|CREDIT|DEBITED|CREDITED)\b/i);
+
+    if (dateMatch && amtMatch) {
+      const amount = parseCleanAmount(amtMatch[1]);
+      if (amount <= 0) continue;
+
+      const isCr = drCrMatch ? drCrMatch[1].toUpperCase().startsWith('CR') : /Received from|Credited|Cashback|Refund/i.test(trimmed);
+      const type = isCr ? 'income' : 'expense';
+
+      const descMatch = trimmed.match(/(?:Paid to|Received from|Payment to|Transfer to|Money sent to)\s*([^\n\r]+)/i);
+      const party = descMatch ? descMatch[1].trim() : 'PhonePe Transfer';
+
+      if (isSummaryOrNonTransactionLine(party, party, trimmed)) continue;
+
+      const refMatch = trimmed.match(/(?:Transaction ID|UPI Ref No|UTR)[:\s]+([A-Za-z0-9]+)/i);
+      const refNo = refMatch ? refMatch[1].trim() : undefined;
+
+      transactions.push({
+        tempId: `phonepe-block-${Date.now()}-${idCounter++}`,
+        date: standardizeDate(dateMatch[1]),
+        description: `${type === 'income' ? 'Received from' : 'Paid to'} ${party}`,
+        merchantName: party,
+        category: categorizeByNarration(party),
+        type,
+        amount,
+        debit: type === 'expense' ? amount : 0,
+        credit: type === 'income' ? amount : 0,
+        referenceNumber: refNo,
+        confidenceScore: 0.98,
+        bankName: 'PhonePe (UPI)',
+        approved: true
+      });
+    }
+  }
+
+  return filterOutSummaryRows(transactions);
 }
 
 // ─── 37. PAYTM WALLET / PAYMENTS BANK ───
@@ -767,11 +891,15 @@ export function parsePaytmStatement(text) {
   let idCounter = 1;
 
   for (const line of lines) {
-    const match = line.match(/(\d{2}\/\d{2}\/\d{4}|\d{2}-[A-Za-z]{3}-\d{4})\s+(.+?)\s+([A-Za-z0-9_]+)?\s+(?:Rs\.?|₹)?\s*([\d,]+\.?\d*)\s*(Cr|Dr)?/i);
+    const trimmed = line.trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+
+    const match = trimmed.match(/(\d{2}\/\d{2}\/\d{4}|\d{2}-[A-Za-z]{3}-\d{4})\s+(.+?)\s+([A-Za-z0-9_]+)?\s+(?:Rs\.?|₹)?\s*([\d,]+\.?\d*)\s*(Cr|Dr)?/i);
     if (match) {
       const [, dateStr, details, txnId, amtStr, crDr] = match;
       const amount = parseCleanAmount(amtStr);
       if (amount <= 0) continue;
+      if (isSummaryOrNonTransactionLine(details, '', trimmed)) continue;
 
       const isCr = (crDr && crDr.toLowerCase() === 'cr') || /received|added|cashback|refund/i.test(details);
       const type = isCr ? 'income' : 'expense';
@@ -793,7 +921,7 @@ export function parsePaytmStatement(text) {
       });
     }
   }
-  return transactions;
+  return filterOutSummaryRows(transactions);
 }
 
 // ─── 38. UNIVERSAL INDIAN BANK & UPI STATEMENT PARSER ───
@@ -805,6 +933,7 @@ export function parseUniversalStatement(text) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.length < 8) continue;
+    if (isSummaryOrNonTransactionLine('', '', trimmed)) continue;
 
     // Matches standard table rows starting with a Date
     const dateMatch = trimmed.match(/^(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/);
@@ -824,6 +953,8 @@ export function parseUniversalStatement(text) {
     let desc = rest.replace(/(?:₹|INR|Rs\.?)?\s*[\d,]+\.\d{2}/g, '').replace(/\b(?:CR|DR|DEBIT|CREDIT|DEBITED|CREDITED|COMPLETED|SUCCESS|SUCCESSFUL)\b/gi, '').trim();
     if (!desc || desc.length < 2) desc = isCr ? 'Direct Inflow' : 'Direct Outflow';
 
+    if (isSummaryOrNonTransactionLine(desc, '', trimmed)) continue;
+
     transactions.push({
       tempId: `univ-${Date.now()}-${idCounter++}`,
       date: standardizeDate(dateMatch[1]),
@@ -840,7 +971,7 @@ export function parseUniversalStatement(text) {
     });
   }
 
-  return transactions;
+  return filterOutSummaryRows(transactions);
 }
 
 export function bufferToPureUint8Array(buf) {
@@ -882,7 +1013,9 @@ export async function parsePdfBufferWithNativeRegex(fileBuffer) {
 
     // Direct keyword match checks for high accuracy
     const bankRules = [
+      { keywords: ['phonepe', 'phone pe'], fn: parsePhonePeStatement, name: 'phonepe' },
       { keywords: ['google pay', 'gpay', 'upi', 'okaxis', 'okhdfcbank', 'okicici', 'oksbi', 'tez'], fn: parseGooglePayStatement, name: 'gpay' },
+      { keywords: ['paytm', 'one97'], fn: parsePaytmStatement, name: 'paytm' },
       { keywords: ['hdfc bank', 'hdfcbank'], fn: parseHdfcStatement, name: 'hdfc' },
       { keywords: ['state bank of india', 'onlinesbi', 'sbi'], fn: parseSbiStatement, name: 'sbi' },
       { keywords: ['icici bank', 'icicibank'], fn: parseIciciStatement, name: 'icici' },
@@ -917,30 +1050,31 @@ export async function parsePdfBufferWithNativeRegex(fileBuffer) {
       { keywords: ['bharatpe', 'bharat pe', 'resilient innovations'], fn: parseBharatPeStatement, name: 'bharatpe' },
       { keywords: ['amazon pay', 'amazon.in'], fn: parseAmazonPayStatement, name: 'amazonpay' },
       { keywords: ['cred', 'dreamplug'], fn: parseCredStatement, name: 'cred' },
-      { keywords: ['phonepe', 'phone pe'], fn: parsePhonePeStatement, name: 'phonepe' },
-      { keywords: ['paytm', 'one97'], fn: parsePaytmStatement, name: 'paytm' },
     ];
 
     for (const rule of bankRules) {
       if (rule.keywords.some(k => lower.includes(k))) {
         const res = rule.fn(text);
-        if (res.length > 0) {
-          return { parser: `${rule.name}_native_regex`, transactions: res };
+        const filtered = filterOutSummaryRows(res);
+        if (filtered.length > 0) {
+          return { parser: `${rule.name}_native_regex`, transactions: filtered };
         }
       }
     }
 
     // Universal statement parser
     const universalRes = parseUniversalStatement(text);
-    if (universalRes.length > 0) {
-      return { parser: 'universal_statement_regex', transactions: universalRes };
+    const filteredUniversal = filterOutSummaryRows(universalRes);
+    if (filteredUniversal.length > 0) {
+      return { parser: 'universal_statement_regex', transactions: filteredUniversal };
     }
 
     // Fallback: test all native parsers in priority sequence
     for (const rule of bankRules) {
       const res = rule.fn(text);
-      if (res.length >= 2) {
-        return { parser: `${rule.name}_native_regex`, transactions: res };
+      const filtered = filterOutSummaryRows(res);
+      if (filtered.length >= 2) {
+        return { parser: `${rule.name}_native_regex`, transactions: filtered };
       }
     }
 

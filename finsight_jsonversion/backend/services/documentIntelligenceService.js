@@ -3,7 +3,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import * as XLSX from 'xlsx';
 import { transactionsRepo, merchantMappingsRepo } from '../db/supabaseDb.js';
-import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array } from './pdfParsers.js';
+import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array, filterOutSummaryRows } from './pdfParsers.js';
 
 // Comprehensive Vernacular Indian Numerals Mapping (Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali, Devanagari)
 const INDIAN_VERNACULAR_DIGITS = {
@@ -395,7 +395,13 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
       const prompt = `You are a world-class Indian Financial Statement & Accounting Document Parser.
 Analyze this statement/receipt/invoice document (${originalName || 'financial_doc'}).
 
-Extract EVERY genuine financial transaction, debited outflow, credited inflow, UPI payment, bill, or bank ledger row.
+Extract EVERY genuine individual financial transaction, debited outflow, credited inflow, UPI payment, bill, or bank ledger row.
+
+CRITICAL EXCLUSION RULES (STRICTLY ENFORCE):
+1. DO NOT extract summary totals, "Total Money Sent", "Total Money Received", "Total Inflow", "Total Outflow", "Total Debits", "Total Credits", "Opening Balance", "Closing Balance", "Page Total", "Brought Forward", or "Grand Total" as transactions!
+2. Extract ONLY individual, itemized, discrete transaction line items.
+3. If a row/line is an aggregate summary of the statement, ignore it.
+
 CRITICAL ACCOUNTING RULES:
 1. ACCURATE CASH FLOW TYPE:
    - Money received / credited / salary / client payment / refund / cashback / deposit -> type: "income"
@@ -460,7 +466,7 @@ Return strictly raw JSON format without markdown fences:
       const rawTxns = Array.isArray(parsed.transactions) ? parsed.transactions : [];
 
       let idCounter = 1;
-      const extracted = rawTxns
+      const rawExtracted = rawTxns
         .filter(t => parseIndianAmount(t.amount || t.debit || t.credit) > 0)
         .map(t => {
           const amt = parseIndianAmount(t.amount || t.debit || t.credit);
@@ -484,6 +490,8 @@ Return strictly raw JSON format without markdown fences:
             approved: true
           };
         });
+
+      const extracted = filterOutSummaryRows(rawExtracted);
 
       if (extracted.length > 0) {
         console.log(`[Document Ingestion] ✅ Gemini Intelligence succeeded: Extracted ${extracted.length} transactions`);
