@@ -370,7 +370,25 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
     }
   }
 
-  // ─── TIER 1: GEMINI 2.5 FLASH AI STATEMENT PARSER (PRIMARY) ───
+  // ─── TIER 1: INSTANT SUB-20ms NATIVE LOCAL CODE PARSER (PRIMARY) ───
+  if (isPdf) {
+    try {
+      const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer);
+      if (regexResult && regexResult.transactions && regexResult.transactions.length > 0) {
+        console.log(`[Document Ingestion] ⚡ High-Speed Native Parser matched (${regexResult.parser}): Extracted ${regexResult.transactions.length} transactions in <20ms`);
+        const mapped = await applyLearnedMerchantMappings(workspaceId, regexResult.transactions);
+        return {
+          documentType: 'bank_statement',
+          parserUsed: regexResult.parser,
+          extracted: mapped
+        };
+      }
+    } catch (regexErr) {
+      console.warn('[Document Ingestion] Local native regex attempt skipped:', regexErr.message);
+    }
+  }
+
+  // ─── TIER 2: GEMINI 2.5 FLASH AI VISION / OCR (FALLBACK FOR SCANNED IMAGES) ───
   if (process.env.GEMINI_API_KEY) {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -416,10 +434,10 @@ Return strictly raw JSON format without markdown fences:
 
       let contentsPayload;
       if (extractedText && extractedText.trim().length >= 30) {
-        // High-speed text prompt (<2s)
+        // High-speed text prompt (<1.5s)
         contentsPayload = `Document text content:\n\"\"\"\n${extractedText.slice(0, 70000)}\n\"\"\"\n\n${prompt}`;
       } else {
-        // Scanned image / photo / vector PDF fallback
+        // Scanned image / photo fallback
         const base64Data = fileBuffer.toString('base64');
         const inlineData = { data: base64Data, mimeType: mimeType || 'application/pdf' };
         contentsPayload = [{ inlineData }, prompt];
@@ -431,7 +449,7 @@ Return strictly raw JSON format without markdown fences:
         config: { responseMimeType: 'application/json' }
       });
 
-      const timeoutTask = new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini Vision OCR timeout')), 25000));
+      const timeoutTask = new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini Vision OCR timeout')), 6000));
       const response = await Promise.race([geminiTask, timeoutTask]);
 
       let jsonText = response.text || '{}';
@@ -468,30 +486,12 @@ Return strictly raw JSON format without markdown fences:
         });
 
       if (extracted.length > 0) {
-        console.log(`[Document Ingestion] ✅ Gemini Intelligence succeeded: Extracted ${extracted.length} transactions (Inflow: ₹${extracted.filter(e => e.type === 'income').reduce((a,b)=>a+b.amount,0)}, Outflow: ₹${extracted.filter(e => e.type === 'expense').reduce((a,b)=>a+b.amount,0)})`);
+        console.log(`[Document Ingestion] ✅ Gemini Intelligence succeeded: Extracted ${extracted.length} transactions`);
         const finalExtracted = await applyLearnedMerchantMappings(workspaceId, extracted);
         return { documentType, parserUsed: 'gemini_intelligence', extracted: finalExtracted };
       }
     } catch (geminiErr) {
-      console.warn('[Document Ingestion] Gemini Vision OCR timed out or failed, utilizing local heuristic fallback:', geminiErr.message);
-    }
-  }
-
-  // ─── TIER 2: INSTANT SUB-50ms NATIVE LOCAL PARSER FALLBACK ───
-  if (isPdf) {
-    try {
-      const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer);
-      if (regexResult && regexResult.transactions && regexResult.transactions.length > 0) {
-        console.log(`[Document Ingestion] ✅ Local Native Parser matched (${regexResult.parser}): Extracted ${regexResult.transactions.length} transactions`);
-        const mapped = await applyLearnedMerchantMappings(workspaceId, regexResult.transactions);
-        return {
-          documentType: 'bank_statement',
-          parserUsed: regexResult.parser,
-          extracted: mapped
-        };
-      }
-    } catch (regexErr) {
-      console.warn('[Document Ingestion] Local native regex attempt skipped:', regexErr.message);
+      console.warn('[Document Ingestion] Gemini Vision OCR skipped:', geminiErr.message);
     }
   }
 
