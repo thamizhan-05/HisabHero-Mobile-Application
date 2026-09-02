@@ -41,28 +41,70 @@ export function parseIndianAmount(val, fallback = 0) {
 export function normalizeDate(dateStr) {
   if (!dateStr) return new Date().toISOString().split('T')[0];
   const cleaned = normalizeDevanagariNumerals(String(dateStr)).trim();
-  
-  // Matches DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-  const indianFormat = cleaned.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})$/);
-  if (indianFormat) {
-    let [, day, month, year] = indianFormat;
-    if (year.length === 2) year = '20' + year;
-    day = day.padStart(2, '0');
-    month = month.padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
 
-  // Matches YYYY-MM-DD
+  // 1. Matches ISO YYYY-MM-DD
   const isoFormat = cleaned.match(/^(\d{4})[\/\.-](\d{1,2})[\/\.-](\d{1,2})$/);
   if (isoFormat) {
     let [, year, month, day] = isoFormat;
-    day = day.padStart(2, '0');
-    month = month.padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 2. Matches Named Month (e.g. "16 Jan 2026", "Jan 16, 2026", "16-Feb-2026")
+  const monthMap = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+  };
+  const namedMatch = cleaned.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})?/) || cleaned.match(/(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-]?(\d{2,4})?/);
+  if (namedMatch) {
+    let dayStr, monthName, yearStr;
+    if (isNaN(parseInt(namedMatch[1], 10))) {
+      monthName = namedMatch[1];
+      dayStr = namedMatch[2];
+      yearStr = namedMatch[3] || String(new Date().getFullYear());
+    } else {
+      dayStr = namedMatch[1];
+      monthName = namedMatch[2];
+      yearStr = namedMatch[3] || String(new Date().getFullYear());
+    }
+    const mKey = monthName.toLowerCase().slice(0, 3);
+    const mo = monthMap[mKey] || '01';
+    let y = yearStr;
+    if (y.length === 2) y = '20' + y;
+    const d = parseInt(dayStr, 10);
+    if (d >= 1 && d <= 31) {
+      return `${y}-${mo}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 3. Matches DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const indianFormat = cleaned.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
+  if (indianFormat) {
+    let [, dStr, mStr, yStr] = indianFormat;
+    let d = parseInt(dStr, 10);
+    let m = parseInt(mStr, 10);
+    let y = yStr;
+    if (y.length === 2) y = '20' + y;
+
+    // Swap if month/day reversed
+    if (m > 12 && d <= 12) {
+      const temp = m; m = d; d = temp;
+    }
+
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
   }
 
   const d = new Date(cleaned);
-  return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split('T')[0];
+  }
+
+  return new Date().toISOString().split('T')[0];
 }
 
 export function detectCsvColumnMapping(headers = []) {
@@ -329,40 +371,30 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
     }
   }
 
-  // ─── TIER 1: INSTANT SUB-50ms NATIVE LOCAL PARSER ───
-  if (isPdf) {
-    try {
-      const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer);
-      if (regexResult && regexResult.transactions && regexResult.transactions.length > 0) {
-        console.log(`[Document Ingestion] ✅ Local Native Parser matched (${regexResult.parser}): Extracted ${regexResult.transactions.length} transactions`);
-        const mapped = await applyLearnedMerchantMappings(workspaceId, regexResult.transactions);
-        return {
-          documentType: 'bank_statement',
-          parserUsed: regexResult.parser,
-          extracted: mapped
-        };
-      }
-    } catch (regexErr) {
-      console.warn('[Document Ingestion] Local native regex attempt skipped:', regexErr.message);
-    }
-  }
-
-  // ─── TIER 2: GEMINI 2.5 FLASH MULTIMODAL & TEXT STATEMENT PARSER ───
+  // ─── TIER 1: GEMINI 2.5 FLASH AI STATEMENT PARSER (PRIMARY) ───
   if (process.env.GEMINI_API_KEY) {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `You are an expert Document Intelligence Assistant specializing in Indian financial statements, mandi receipts, UPI slips, bills, and invoices.
-Analyze this document (${originalName || 'financial_doc'}).
+      const prompt = `You are a world-class Indian Financial Statement & Accounting Document Parser.
+Analyze this statement/receipt/invoice document (${originalName || 'financial_doc'}).
 
-Extract all transaction records, receipt details, and financial entries.
-Multilingual prompt engineering:
-- Support Hindi, Marathi, Gujarati, Tamil, Telugu, Kannada, and English text.
-- Convert Devanagari numerals (०, १, २, ३, ४, ५, ६, ७, ८, ९) to standard decimal numbers.
-- Translate terms: 'भाडे' -> Rent, 'किराणा' -> Food/Groceries, 'पगार' -> Payroll.
-- Standardize dates to YYYY-MM-DD format.
-- Accurately determine type ('income' vs 'expense').
+Extract EVERY genuine financial transaction, debited outflow, credited inflow, UPI payment, bill, or bank ledger row.
+CRITICAL ACCOUNTING RULES:
+1. ACCURATE CASH FLOW TYPE:
+   - Money received / credited / salary / client payment / refund / cashback / deposit -> type: "income"
+   - Money sent / paid / debited / bill payment / purchase / transfer out -> type: "expense"
+2. DATES:
+   - Standardize all dates to strict "YYYY-MM-DD" format. (e.g. "16 Jan 2026" -> "2026-01-16", "22 Feb 2026" -> "2026-02-22").
+   - NEVER use hours, minutes, or UPI digits as days!
+3. AMOUNTS:
+   - Must be positive decimal numbers.
+   - For income: amount = positive credit amount.
+   - For expense: amount = positive debit amount.
+4. MERCHANT & DESCRIPTION:
+   - Clean up merchant name (e.g. "Paid to Swiggy" -> merchantName: "Swiggy", description: "Paid to Swiggy").
+   - Categorize accurately: Food & Dining, Rent & Utilities, Groceries, Technology, Consulting & Sales, Salary, Transportation, Health & Medical, Shopping, Other.
 
-Return strictly a JSON object:
+Return strictly raw JSON format without markdown fences:
 {
   "documentType": "bank_statement",
   "openingBalance": 0,
@@ -370,24 +402,23 @@ Return strictly a JSON object:
   "transactions": [
     {
       "date": "YYYY-MM-DD",
-      "description": "Narration or merchant",
-      "merchantName": "Merchant Name",
-      "category": "Rent|Payroll|Utilities|Food|Travel|Office|Marketing|Software|Groceries|Other",
-      "type": "expense",
-      "amount": 1250.00,
-      "debit": 1250.00,
+      "description": "Full clean description",
+      "merchantName": "Merchant / Party Name",
+      "category": "Food & Dining",
+      "type": "income" | "expense",
+      "amount": 450.00,
+      "debit": 0.00,
       "credit": 0.00,
-      "referenceNumber": "UPI/UTR/Ref No",
+      "referenceNumber": "UPI/UTR reference if present",
       "confidenceScore": 0.98
     }
   ]
-}
-Only return valid raw JSON without markdown.`;
+}`;
 
       let contentsPayload;
       if (extractedText && extractedText.trim().length >= 30) {
         // High-speed text prompt (<2s)
-        contentsPayload = `Document content to parse:\n\n${extractedText.slice(0, 60000)}\n\n${prompt}`;
+        contentsPayload = `Document text content:\n\"\"\"\n${extractedText.slice(0, 70000)}\n\"\"\"\n\n${prompt}`;
       } else {
         // Scanned image / photo / vector PDF fallback
         const base64Data = fileBuffer.toString('base64');
@@ -416,17 +447,18 @@ Only return valid raw JSON without markdown.`;
         .filter(t => parseIndianAmount(t.amount || t.debit || t.credit) > 0)
         .map(t => {
           const amt = parseIndianAmount(t.amount || t.debit || t.credit);
-          const conf = typeof t.confidenceScore === 'number' ? t.confidenceScore : 0.96;
+          const isInc = t.type === 'income' || (!t.type && (t.credit || 0) > (t.debit || 0));
+          const conf = typeof t.confidenceScore === 'number' ? t.confidenceScore : 0.98;
           return {
             tempId: `ai-txn-${Date.now()}-${idCounter++}`,
             date: normalizeDate(t.date),
-            description: String(t.description || t.merchantName || 'Extracted Transaction').trim(),
+            description: String(t.description || t.merchantName || 'Transaction').trim(),
             merchantName: String(t.merchantName || t.description || 'Merchant').trim(),
             category: t.category || 'Other',
-            type: t.type === 'income' ? 'income' : 'expense',
+            type: isInc ? 'income' : 'expense',
             amount: amt,
-            debit: parseIndianAmount(t.debit || (t.type === 'expense' ? amt : 0)),
-            credit: parseIndianAmount(t.credit || (t.type === 'income' ? amt : 0)),
+            debit: parseIndianAmount(t.debit || (isInc ? 0 : amt)),
+            credit: parseIndianAmount(t.credit || (isInc ? amt : 0)),
             balance: t.balance ? parseIndianAmount(t.balance) : undefined,
             referenceNumber: t.referenceNumber ? String(t.referenceNumber).trim() : undefined,
             confidenceScore: conf,
@@ -437,12 +469,30 @@ Only return valid raw JSON without markdown.`;
         });
 
       if (extracted.length > 0) {
-        console.log(`[Document Ingestion] ✅ Gemini Intelligence succeeded: Extracted ${extracted.length} transactions`);
+        console.log(`[Document Ingestion] ✅ Gemini Intelligence succeeded: Extracted ${extracted.length} transactions (Inflow: ₹${extracted.filter(e => e.type === 'income').reduce((a,b)=>a+b.amount,0)}, Outflow: ₹${extracted.filter(e => e.type === 'expense').reduce((a,b)=>a+b.amount,0)})`);
         const finalExtracted = await applyLearnedMerchantMappings(workspaceId, extracted);
         return { documentType, parserUsed: 'gemini_intelligence', extracted: finalExtracted };
       }
     } catch (geminiErr) {
       console.warn('[Document Ingestion] Gemini Vision OCR timed out or failed, utilizing local heuristic fallback:', geminiErr.message);
+    }
+  }
+
+  // ─── TIER 2: INSTANT SUB-50ms NATIVE LOCAL PARSER FALLBACK ───
+  if (isPdf) {
+    try {
+      const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer);
+      if (regexResult && regexResult.transactions && regexResult.transactions.length > 0) {
+        console.log(`[Document Ingestion] ✅ Local Native Parser matched (${regexResult.parser}): Extracted ${regexResult.transactions.length} transactions`);
+        const mapped = await applyLearnedMerchantMappings(workspaceId, regexResult.transactions);
+        return {
+          documentType: 'bank_statement',
+          parserUsed: regexResult.parser,
+          extracted: mapped
+        };
+      }
+    } catch (regexErr) {
+      console.warn('[Document Ingestion] Local native regex attempt skipped:', regexErr.message);
     }
   }
 
