@@ -94,8 +94,16 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Serve static assets (HTML, APK, CSS, Images, JS)
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static assets (HTML, APK, CSS, Images, JS) with zero-cache for instant UI updates
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('/')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 app.use('/asset_preview', express.static(path.join(__dirname, '../../mobile/assets')));
 
 // Multer memory storage for Document Intelligence uploads
