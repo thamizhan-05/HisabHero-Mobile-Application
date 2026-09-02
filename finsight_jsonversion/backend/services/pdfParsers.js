@@ -161,6 +161,41 @@ export function isSummaryOrNonTransactionLine(desc = '', merchant = '', lineText
   return false;
 }
 
+export function determineCashFlowType({ text = '', desc = '', debit = 0, credit = 0, drCr = '', rawAmountStr = '' }) {
+  // 1. Explicit debit / credit amounts
+  if (credit > 0 && debit === 0) return 'income';
+  if (debit > 0 && credit === 0) return 'expense';
+
+  // 2. Explicit Dr / Cr indicator
+  const cleanDrCr = String(drCr).toUpperCase().trim();
+  if (cleanDrCr === 'CR' || cleanDrCr === 'CREDIT' || cleanDrCr === 'CREDITED') return 'income';
+  if (cleanDrCr === 'DR' || cleanDrCr === 'DEBIT' || cleanDrCr === 'DEBITED') return 'expense';
+
+  // 3. Negative / Positive amount string sign
+  if (/^-\s*(?:₹|INR|Rs\.?)?\s*[\d,]+/i.test(rawAmountStr) || /\([\d,]+\.?\d*\)/.test(rawAmountStr)) return 'expense';
+  if (/^\+\s*(?:₹|INR|Rs\.?)?\s*[\d,]+/i.test(rawAmountStr)) return 'income';
+
+  const combined = `${desc} ${text}`.toLowerCase();
+
+  // 4. Action verb semantics
+  const isPaidTo = /\b(?:paid to|payment to|money sent to|sent to|transfer to|autopay to|recharge|bill payment|debited from|withdrawn from|dr\/|paid using)\b/i.test(combined);
+  const isReceivedFrom = /\b(?:received from|money received from|cashback from|cashback|refund from|refund of|refunded|deposited to|credited to|salary from|salary credit|cr\/)\b/i.test(combined);
+
+  if (isPaidTo && !isReceivedFrom) return 'expense';
+  if (isReceivedFrom && !isPaidTo) return 'income';
+
+  if (isPaidTo && isReceivedFrom) {
+    if (/\b(?:paid to|payment to|money sent to)\b/i.test(combined)) return 'expense';
+    if (/\b(?:received from|money received from|cashback|refund)\b/i.test(combined)) return 'income';
+  }
+
+  // 5. Keyword heuristics
+  if (/\b(?:debit|debited|spent|purchase|withdrawal|transfer out|dr)\b/i.test(combined)) return 'expense';
+  if (/\b(?:credit|credited|deposit|deposited|inflow|salary|dividend|cr)\b/i.test(combined)) return 'income';
+
+  return 'expense';
+}
+
 export function filterOutSummaryRows(transactions = []) {
   if (!Array.isArray(transactions)) return [];
   return transactions.filter(t => {
@@ -711,36 +746,43 @@ export function parseGooglePayStatement(text) {
   let idCounter = 1;
 
   // Strategy A: Block-based ("Paid to ...", "Received from ...", "Payment to ...")
-  const blocks = text.split(/(?=Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:|Refund from|Cashback)/i);
+  const blocks = text.split(/(?=(?:Paid to|Payment to|Money sent to|Received from|Money received from|Refund from|Cashback from|Cashback|\+\s*₹|-\s*₹|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+(?:Paid|Received)))/i);
   for (const block of blocks) {
     const trimmed = block.trim();
     if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
 
-    const isReceived = /^(?:Received from|From\s*:|Refund from|Cashback)/i.test(trimmed) || /\+\s*(?:₹|INR|Rs\.?)/i.test(trimmed) || /\b(?:Received|Credited)\b/i.test(trimmed);
-    const isPaid = /^(?:Paid to|Payment to|Money sent to|To\s*:)/i.test(trimmed) || /-\s*(?:₹|INR|Rs\.?)/i.test(trimmed);
-    if (!isPaid && !isReceived) continue;
+    const amtMatch = trimmed.match(/(?:[-+]?\s*(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?))|([\d,]+\.\d{2})/i);
+    if (!amtMatch) continue;
 
-    const type = isReceived ? 'income' : 'expense';
-    const nameMatch = trimmed.match(/^(?:Paid to|Received from|Payment to|Money sent to|To\s*:|From\s*:|Refund from|Cashback)\s*([^\n\r]+)/i);
-    let partyName = nameMatch ? nameMatch[1].trim() : 'Google Pay Transfer';
-    partyName = partyName.replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
-
-    if (!partyName || isSummaryOrNonTransactionLine(partyName, partyName, trimmed)) continue;
-
-    const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
-    const amount = amtMatch ? parseCleanAmount(amtMatch[1]) : 0;
+    const amount = parseCleanAmount(amtMatch[1] || amtMatch[0]);
     if (amount <= 0) continue;
+
+    // Determine type with accurate cash flow semantics
+    const type = determineCashFlowType({
+      text: trimmed,
+      rawAmountStr: amtMatch[0]
+    });
 
     const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
     const dateStr = dateMatch ? dateMatch[1] : '';
 
+    let partyName = 'UPI Transfer';
+    const nameMatch = trimmed.match(/(?:Paid to|Received from|Payment to|Money sent to|Transfer to|Refund from|Cashback from)\s*([^\n\r•,]+)/i);
+    if (nameMatch) {
+      partyName = nameMatch[1].replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
+    }
+
+    if (!partyName || isSummaryOrNonTransactionLine(partyName, partyName, trimmed)) continue;
+
     const refMatch = trimmed.match(/(?:UPI Ref ID|UPI transaction ID|Google transaction ID|UTR|Ref No)[:\s]+([A-Za-z0-9]+)/i);
     const refNo = refMatch ? refMatch[1].trim() : undefined;
+
+    const desc = `${type === 'income' ? 'Received from' : 'Paid to'} ${partyName}`;
 
     transactions.push({
       tempId: `gpay-${Date.now()}-${idCounter++}`,
       date: standardizeDate(dateStr),
-      description: `${type === 'income' ? 'Received from' : 'Paid to'} ${partyName}`,
+      description: desc,
       merchantName: partyName,
       category: categorizeByNarration(partyName),
       type,
@@ -763,19 +805,22 @@ export function parseGooglePayStatement(text) {
     if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
 
     const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
-    const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
+    const amtMatch = trimmed.match(/(?:[-+]?\s*(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?))|([\d,]+\.\d{2})/i);
 
     if (dateMatch && amtMatch) {
-      const amount = parseCleanAmount(amtMatch[1]);
+      const amount = parseCleanAmount(amtMatch[1] || amtMatch[0]);
       if (amount > 0) {
-        const isCr = /received|credited|deposit|\bcr\b|\binflow\b|\breceived from\b/i.test(trimmed) || /^\+/.test(amtMatch[0]);
-        const type = isCr ? 'income' : 'expense';
+        const type = determineCashFlowType({
+          text: trimmed,
+          rawAmountStr: amtMatch[0]
+        });
+
         let desc = trimmed
           .replace(dateMatch[0], '')
           .replace(amtMatch[0], '')
           .replace(/\b(?:COMPLETED|SUCCESS|SUCCESSFUL|DEBITED|CREDITED|PAID|RECEIVED|UPI)\b/gi, '')
           .trim();
-        if (!desc) desc = isCr ? 'UPI Inflow' : 'UPI Outflow';
+        if (!desc) desc = type === 'income' ? 'UPI Inflow' : 'UPI Outflow';
 
         if (isSummaryOrNonTransactionLine(desc, '', trimmed)) continue;
 
@@ -811,19 +856,26 @@ export function parsePhonePeStatement(text) {
     const line = lines[i].trim();
     if (!line || isSummaryOrNonTransactionLine('', '', line)) continue;
 
-    const match = line.match(/(\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(DEBIT|CREDIT|DEBITED|CREDITED)\s+(?:₹|INR|Rs\.?)?\s*([\d,]+(?:\.\d{2})?)/i);
+    const match = line.match(/(\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(DEBIT|CREDIT|DEBITED|CREDITED)\s+(?:[-+]?\s*(?:₹|INR|Rs\.?)?\s*([\d,]+(?:\.\d{2})?))/i);
     if (match) {
       const [, dateStr, details, drCr, amtStr] = match;
       const amount = parseCleanAmount(amtStr);
-      const type = drCr.toUpperCase().startsWith('CR') ? 'income' : 'expense';
       if (amount <= 0) continue;
+
+      const type = determineCashFlowType({
+        text: line,
+        desc: details,
+        drCr,
+        rawAmountStr: amtStr
+      });
+
       if (isSummaryOrNonTransactionLine(details, '', line)) continue;
 
       transactions.push({
         tempId: `phonepe-${Date.now()}-${idCounter++}`,
         date: standardizeDate(dateStr),
         description: details.trim(),
-        merchantName: details.replace(/^(Paid to|Received from)\s+/i, '').trim(),
+        merchantName: details.replace(/^(Paid to|Received from|Payment to|Transfer to)\s+/i, '').trim(),
         category: categorizeByNarration(details),
         type,
         amount,
@@ -845,15 +897,18 @@ export function parsePhonePeStatement(text) {
     if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
 
     const dateMatch = trimmed.match(/(\d{1,2}\s+[A-Za-z]{3}(?:,?\s*\d{4})?|\d{2}\/\d{2}\/\d{4})/i);
-    const amtMatch = trimmed.match(/(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?)/i) || trimmed.match(/([\d,]+\.\d{2})/);
+    const amtMatch = trimmed.match(/(?:[-+]?\s*(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?))|([\d,]+\.\d{2})/i);
     const drCrMatch = trimmed.match(/\b(DEBIT|CREDIT|DEBITED|CREDITED)\b/i);
 
     if (dateMatch && amtMatch) {
-      const amount = parseCleanAmount(amtMatch[1]);
+      const amount = parseCleanAmount(amtMatch[1] || amtMatch[0]);
       if (amount <= 0) continue;
 
-      const isCr = drCrMatch ? drCrMatch[1].toUpperCase().startsWith('CR') : /Received from|Credited|Cashback|Refund/i.test(trimmed);
-      const type = isCr ? 'income' : 'expense';
+      const type = determineCashFlowType({
+        text: trimmed,
+        drCr: drCrMatch ? drCrMatch[1] : '',
+        rawAmountStr: amtMatch[0]
+      });
 
       const descMatch = trimmed.match(/(?:Paid to|Received from|Payment to|Transfer to|Money sent to)\s*([^\n\r]+)/i);
       const party = descMatch ? descMatch[1].trim() : 'PhonePe Transfer';
@@ -940,18 +995,22 @@ export function parseUniversalStatement(text) {
     if (!dateMatch) continue;
 
     const rest = trimmed.slice(dateMatch[0].length).trim();
-    const amounts = [...rest.matchAll(/(?:₹|INR|Rs\.?)?\s*([\d,]+\.\d{2})/g)];
+    const amounts = [...rest.matchAll(/(?:[-+]?\s*(?:₹|INR|Rs\.?)?\s*([\d,]+\.\d{2}))/g)];
     if (amounts.length === 0) continue;
 
     const targetAmtStr = amounts[0][1];
     const amount = parseCleanAmount(targetAmtStr);
     if (amount <= 0) continue;
 
-    const isCr = /\b(?:CR|CREDIT|CREDITED|RECEIVED|DEPOSIT|DEPOSITED)\b/i.test(trimmed);
-    const type = isCr ? 'income' : 'expense';
+    let desc = rest.replace(/(?:[-+]?\s*(?:₹|INR|Rs\.?)?\s*[\d,]+\.\d{2})/g, '').replace(/\b(?:CR|DR|DEBIT|CREDIT|DEBITED|CREDITED|COMPLETED|SUCCESS|SUCCESSFUL)\b/gi, '').trim();
 
-    let desc = rest.replace(/(?:₹|INR|Rs\.?)?\s*[\d,]+\.\d{2}/g, '').replace(/\b(?:CR|DR|DEBIT|CREDIT|DEBITED|CREDITED|COMPLETED|SUCCESS|SUCCESSFUL)\b/gi, '').trim();
-    if (!desc || desc.length < 2) desc = isCr ? 'Direct Inflow' : 'Direct Outflow';
+    const type = determineCashFlowType({
+      text: trimmed,
+      desc,
+      rawAmountStr: amounts[0][0]
+    });
+
+    if (!desc || desc.length < 2) desc = type === 'income' ? 'Direct Inflow' : 'Direct Outflow';
 
     if (isSummaryOrNonTransactionLine(desc, '', trimmed)) continue;
 
