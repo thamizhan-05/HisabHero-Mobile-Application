@@ -1161,6 +1161,36 @@ app.delete(['/api/auth/account', '/auth/account', '/api/auth/user', '/auth/user'
   }
 });
 
+// ─── WORKSPACE DATA RESET (WIPE TRANSACTIONS & DOCUMENTS IN 1-CLICK) ───
+app.post(['/api/workspaces/:workspaceId/reset-data', '/workspaces/:workspaceId/reset-data'], authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId.toString();
+    const { workspaceId } = req.params;
+
+    const wsFilter = (workspaceId === 'personal' || !workspaceId) 
+      ? { $or: [{ userId }, { workspaceId: 'personal' }, { workspaceId: null }] }
+      : { workspaceId };
+
+    const [txRes, docRes, upRes, bankRes] = await Promise.all([
+      Transaction.deleteMany(wsFilter),
+      Document.deleteMany(wsFilter),
+      Upload.deleteMany(wsFilter),
+      BankTransaction.deleteMany(wsFilter)
+    ]);
+
+    const totalPurged = (txRes.deletedCount || 0) + (docRes.deletedCount || 0);
+    console.log(`[Workspace Reset] Workspace ${workspaceId} purged ${totalPurged} items.`);
+
+    return res.json({
+      success: true,
+      message: `Successfully wiped ${txRes.deletedCount || 0} transactions and ${docRes.deletedCount || 0} uploaded statements from this workspace.`
+    });
+  } catch (err) {
+    console.error('[Workspace Reset Error]', err);
+    return res.status(500).json({ error: 'Failed to reset workspace data: ' + err.message });
+  }
+});
+
 // ─── 7. FORGOT & RESET PASSWORD ───
 app.post(['/api/auth/forgot-password', '/auth/forgot-password'], async (req, res) => {
   const { email } = req.body;

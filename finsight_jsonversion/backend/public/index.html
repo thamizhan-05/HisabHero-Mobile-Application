@@ -4362,6 +4362,17 @@
               </button>
             </div>
 
+            <!-- Wipe Workspace Ledger Feature -->
+            <div style="border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.06); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+              <h4 style="color: #d97706; font-size: 1.1rem; margin-bottom: 0.5rem;">🧹 Reset Workspace Ledger (Wipe All Transactions)</h4>
+              <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1rem; line-height: 1.5;">
+                Clears all transactions, bank statements, and receipts in this active workspace. Your user account and login will remain 100% active.
+              </p>
+              <button class="btn btn-outline" style="color: #d97706; border-color: #d97706; font-weight: 700;" onclick="handleResetWorkspaceData()">
+                Wipe Workspace Transactions
+              </button>
+            </div>
+
             <!-- Delete Workspace Feature -->
             <div style="border: 1px solid rgba(244,63,94,0.35); background: rgba(244,63,94,0.08); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
               <h4 style="color: var(--danger); font-size: 1.1rem; margin-bottom: 0.5rem;">🗑️ Delete Workspace</h4>
@@ -4374,13 +4385,13 @@
             </div>
 
             <!-- Permanent Account Deletion (GDPR) -->
-            <div style="border: 2px dashed #dc2626; background: #fff1f2; padding: 1.5rem; border-radius: var(--radius-md);">
-              <h4 style="color: #991b1b; font-size: 1.1rem; margin-bottom: 0.5rem;">🚨 Permanent Account Deletion (GDPR Purge)</h4>
-              <p style="color: #b91c1c; font-size: 0.875rem; margin-bottom: 1rem; line-height: 1.5;">
-                Permanently purges your account, all personal transactions, Khata ledgers, budgets, goals, and revokes all active device sessions.
+            <div style="border: 2px dashed #dc2626; background: rgba(220, 38, 38, 0.08); padding: 1.5rem; border-radius: var(--radius-md);">
+              <h4 style="color: #ef4444; font-size: 1.1rem; margin-bottom: 0.5rem;">🚨 Permanent Account Deletion (GDPR Purge)</h4>
+              <p style="color: #fca5a5; font-size: 0.875rem; margin-bottom: 1rem; line-height: 1.5;">
+                Permanently purges your account, all personal transactions, Khata ledgers, budgets, goals, and revokes all active device sessions across all workspaces.
               </p>
-              <button class="btn btn-danger" style="background: #dc2626;" onclick="handleDeleteAccountPurge()">
-                Permanently Delete Account & All Data
+              <button class="btn btn-danger" style="background: #dc2626; font-weight: 800;" onclick="handleDeleteAccountPurge()">
+                Permanently Delete Account &amp; All Data
               </button>
             </div>
           </div>
@@ -5864,6 +5875,86 @@
         }
       } catch (e) {
         alert('Network error deleting workspace.');
+      }
+    }
+
+    // ─── PERMANENT ACCOUNT DELETION (GDPR PURGE) ───
+    async function handleDeleteAccountPurge() {
+      if (!currentToken) {
+        showToast('Please sign in first.', 'warning');
+        openLoginModal();
+        return;
+      }
+
+      const confirmText = prompt('⚠️ PERMANENT GDPR ACCOUNT & DATA DELETION\n\nThis will permanently purge your user account, all personal and business workspaces, bank statements, transactions, invoices, and ledgers across all devices.\n\nType "DELETE" to confirm permanent purge:');
+      if (confirmText !== 'DELETE') {
+        if (confirmText !== null) {
+          alert('Action cancelled: Confirmation text did not match "DELETE".');
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/account', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`
+          },
+          body: JSON.stringify({ confirmation: 'DELETE' })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + (data.message || 'Your account and all associated data have been permanently purged.'));
+          localStorage.removeItem('hh_token');
+          localStorage.removeItem('hh_user');
+          localStorage.removeItem('hh_active_ws');
+          currentToken = null;
+          currentUser = null;
+          currentActiveWorkspace = null;
+          currentActiveWorkspaceId = null;
+          window.location.href = '/';
+        } else {
+          alert('❌ Account deletion failed: ' + (data.error || 'Server error occurred.'));
+        }
+      } catch (err) {
+        alert('❌ Network error during account deletion: ' + err.message);
+      }
+    }
+
+    // ─── 1-CLICK WORKSPACE DATA WIPE (PURGE ALL TRANSACTIONS) ───
+    async function handleResetWorkspaceData() {
+      if (!currentToken) {
+        showToast('Please sign in first.', 'warning');
+        return;
+      }
+      const wsId = currentActiveWorkspaceId || 'personal';
+      const wsName = currentActiveWorkspace?.name || 'Current Workspace';
+
+      const confirmText = prompt(`⚠️ RESET WORKSPACE LEDGER: "${wsName}"\n\nThis will wipe all transactions, uploaded statements, and receipts in this workspace. Your account will remain active.\n\nType "RESET" to confirm:`);
+      if (confirmText !== 'RESET') {
+        if (confirmText !== null) alert('Action cancelled: Confirmation text did not match "RESET".');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/workspaces/${wsId}/reset-data`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`
+          }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + data.message);
+          await loadWorkspaceData();
+          await loadUploadedDocuments();
+        } else {
+          alert('❌ Reset failed: ' + (data.error || 'Server error occurred.'));
+        }
+      } catch (err) {
+        alert('❌ Network error: ' + err.message);
       }
     }
 
