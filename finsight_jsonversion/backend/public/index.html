@@ -2286,6 +2286,57 @@
       color: #ffffff;
     }
 
+    /* ─── STATEMENT REVIEW & APPROVAL STUDIO STYLES ─── */
+    .approval-studio-card {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%);
+      border: 1.5px solid rgba(16, 185, 129, 0.35);
+      border-radius: 24px;
+      padding: 2rem;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(16, 185, 129, 0.15);
+      animation: reviewSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes reviewSlideIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .batch-category-banner {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(16, 185, 129, 0.15));
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 14px;
+      padding: 12px 18px;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      animation: bannerPop 0.3s ease;
+    }
+    @keyframes bannerPop {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .review-row-deselected {
+      opacity: 0.4;
+      text-decoration: line-through;
+    }
+    .category-select-styled {
+      background: rgba(15, 23, 42, 0.85);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .category-select-styled:focus {
+      border-color: #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
+
     /* ─── MOBILE BOTTOM BAR FOR LOGGED IN DASHBOARD ─── */
     .dash-mobile-nav {
       display: none;
@@ -3926,35 +3977,27 @@
           </div>
         </div>
 
-        <!-- SECTION 9: DOCUMENT INTELLIGENCE UPLOAD -->
+        <!-- SECTION 9: DOCUMENT INTELLIGENCE UPLOAD & INTERACTIVE APPROVAL -->
         <div id="section-upload" style="display: none;">
-          <div class="upload-zone-wrapper" style="margin-bottom: 2rem;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-              <div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.35rem;">
-                  <span style="font-size: 1.5rem;">⚡</span>
-                  <h3 style="font-size: 1.45rem; font-weight: 800; color: #f8fafc; margin: 0; letter-spacing: -0.02em;">
-                    AI Document Intelligence &amp; Statement Parser
-                  </h3>
-                  <span class="pill-badge emerald" style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">
-                    Gemini 2.5 Flash + 38 Banks
-                  </span>
-                </div>
-                <p style="color: #94a3b8; font-size: 0.875rem; margin: 0; max-width: 700px; line-height: 1.5;">
-                  Upload your bank PDFs, Google Pay exports, PhonePe statements, CSV/XLSX ledgers, or mandi receipts. Transactions are extracted with sub-second precision and recorded directly to your active ledger.
-                </p>
+          
+          <!-- STAGE 1: CLEAN ANIMATED UPLOAD ZONE -->
+          <div id="uploadInitialZone" class="upload-zone-wrapper" style="margin-bottom: 2rem;">
+            <div style="text-align: center; max-width: 650px; margin: 0 auto 1.5rem;">
+              <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 14px; border-radius: 20px; margin-bottom: 0.75rem;">
+                <span style="font-size: 0.9rem;">⚡</span>
+                <span style="font-size: 0.75rem; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
+                  AI Document Intelligence • Supabase PostgreSQL
+                </span>
               </div>
-
-              <!-- Supported Format Badges -->
-              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                <span class="institution-pill" style="border-color: rgba(239, 68, 68, 0.3); color: #fca5a5;">📕 PDF Statements</span>
-                <span class="institution-pill" style="border-color: rgba(16, 185, 129, 0.3); color: #6ee7b7;">📊 CSV / Excel</span>
-                <span class="institution-pill" style="border-color: rgba(56, 189, 248, 0.3); color: #7dd3fc;">🟢 GPay &amp; UPI</span>
-                <span class="institution-pill" style="border-color: rgba(168, 85, 247, 0.3); color: #d8b4fe;">🧾 Mandi Slips</span>
-              </div>
+              <h3 style="font-size: 1.6rem; font-weight: 900; color: #f8fafc; margin-bottom: 0.4rem; letter-spacing: -0.02em;">
+                Upload Bank Statement or Ledger
+              </h3>
+              <p style="color: #94a3b8; font-size: 0.875rem; margin: 0; line-height: 1.5;">
+                Drag &amp; drop your bank PDF, GPay export, PhonePe statement, or CSV. You can review and categorize every transaction before saving to your ledger.
+              </p>
             </div>
 
-            <!-- INTERACTIVE ANIMATED DROPZONE -->
+            <!-- INTERACTIVE DROPZONE -->
             <div id="uploadDropzone" class="upload-dropzone-box" onclick="triggerFileInput()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleFileDrop(event)">
               <!-- Hologram Laser Scan Beam -->
               <div id="laserScannerBeam" class="laser-scanner-beam"></div>
@@ -3965,19 +4008,19 @@
                 <span id="uploadIconEmoji">📄</span>
               </div>
 
-              <h4 style="font-size: 1.2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.4rem;">
-                Drag &amp; Drop Statement or <span style="color: #38bdf8; text-decoration: underline; text-underline-offset: 4px;">Browse Files</span>
+              <h4 style="font-size: 1.25rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.35rem;">
+                Drop statement here or <span style="color: #38bdf8; text-decoration: underline; text-underline-offset: 4px;">Browse Files</span>
               </h4>
               <p style="color: #64748b; font-size: 0.8125rem; margin-bottom: 1.25rem;">
-                Supports Google Pay, PhonePe, Paytm, HDFC, SBI, ICICI, Axis, Kotak, CSV, XLSX, &amp; Invoices up to 50MB
+                Supports Google Pay, PhonePe, Paytm, HDFC, SBI, ICICI, Axis, Kotak, CSV, XLSX, &amp; Invoices
               </p>
 
               <!-- Hidden Real File Input -->
               <input type="file" id="docFileInput" accept=".csv, .pdf, .xlsx, .xls, image/*" style="display: none;" onchange="handleFileSelected(event)" />
 
-              <!-- Action Buttons -->
+              <!-- Action Button -->
               <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; position: relative; z-index: 5;">
-                <button type="button" class="btn btn-primary" style="background: linear-gradient(135deg, #0ea5e9, #10b981); border: none; font-weight: 700; padding: 0.65rem 1.4rem; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.35);">
+                <button type="button" class="btn btn-primary" style="background: linear-gradient(135deg, #0ea5e9, #10b981); border: none; font-weight: 700; padding: 0.65rem 1.6rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.35);">
                   📁 Choose File from Device
                 </button>
               </div>
@@ -3991,11 +4034,11 @@
                       Statement.pdf
                     </div>
                     <div id="selectedFileSize" style="font-size: 0.75rem; color: #94a3b8;">
-                      Ready for AI extraction
+                      Ready for extraction
                     </div>
                   </div>
                 </div>
-                <button type="button" onclick="clearSelectedFile(event)" style="background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; transition: all 0.2s;" title="Remove File">
+                <button type="button" onclick="clearSelectedFile(event)" style="background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;" title="Remove File">
                   ✕
                 </button>
               </div>
@@ -4004,7 +4047,7 @@
               <div id="uploadProgressTimeline" class="upload-progress-timeline" onclick="event.stopPropagation();">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                   <span id="progressTitle" style="font-size: 0.85rem; font-weight: 800; color: #38bdf8;">
-                    🤖 AI Neural Engine Ingesting Statement...
+                    🤖 AI Neural Engine Extracting Transactions...
                   </span>
                   <span id="progressPercent" style="font-size: 0.85rem; font-weight: 900; color: #10b981;">
                     0%
@@ -4020,40 +4063,125 @@
                     <span>⚡</span> <span>Stage 1: Streaming binary buffer &amp; isolating pure ArrayBuffer</span>
                   </div>
                   <div id="step2" class="progress-step-item">
-                    <span>🔍</span> <span>Stage 2: Decoding 38 Indian bank structures &amp; UPI reference identifiers</span>
+                    <span>🔍</span> <span>Stage 2: Decoding 38 Indian bank structures &amp; UPI identifiers</span>
                   </div>
                   <div id="step3" class="progress-step-item">
-                    <span>🧠</span> <span>Stage 3: Gemini 2.5 Flash classifying Inflows, Outflows &amp; Tax Categories</span>
-                  </div>
-                  <div id="step4" class="progress-step-item">
-                    <span>📊</span> <span>Stage 4: Auto-balancing double-entry ledger &amp; generating cash flow graphs</span>
+                    <span>🧠</span> <span>Stage 3: Gemini 2.5 Flash classifying Inflows, Outflows &amp; Categories</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Bottom Trigger Row -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 0.75rem; color: #64748b; font-weight: 700;">INSTITUTIONS SUPPORTED:</span>
-                <span class="institution-pill" style="color: #38bdf8;">🏛️ SBI</span>
-                <span class="institution-pill" style="color: #38bdf8;">🏦 HDFC</span>
-                <span class="institution-pill" style="color: #38bdf8;">🏢 ICICI</span>
-                <span class="institution-pill" style="color: #38bdf8;">🏦 Axis</span>
-                <span class="institution-pill" style="color: #38bdf8;">🏬 Kotak</span>
-                <span class="institution-pill" style="color: #10b981;">🟢 GPay</span>
-                <span class="institution-pill" style="color: #a855f7;">🟣 PhonePe</span>
-                <span class="institution-pill" style="color: #0284c7;">🔵 Paytm</span>
+            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 1.25rem;">
+              <button type="button" id="docUploadBtn" class="btn btn-accent" onclick="startDocUploadProcess()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.75rem 2rem; font-size: 0.9375rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); display: none; border-radius: 12px;">
+                🚀 Extract Statement Transactions →
+              </button>
+            </div>
+
+            <div id="docUploadStatus" style="margin-top: 1rem; font-weight: 700; font-size: 0.875rem; text-align: center;"></div>
+          </div>
+
+          <!-- STAGE 2: INTERACTIVE STATEMENT REVIEW & APPROVAL STUDIO -->
+          <div id="statementApprovalStudio" class="approval-studio-card" style="display: none; margin-bottom: 2rem;">
+            <!-- Header Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1.25rem;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.35rem;">
+                  <span style="font-size: 1.5rem;">📋</span>
+                  <h3 id="reviewDocTitle" style="font-size: 1.35rem; font-weight: 800; color: #f8fafc; margin: 0;">
+                    Review &amp; Approve Extracted Transactions
+                  </h3>
+                  <span id="reviewParserBadge" class="pill-badge emerald" style="font-size: 0.7rem; font-weight: 800;">
+                    38-BANK PARSER
+                  </span>
+                </div>
+                <p style="color: #94a3b8; font-size: 0.8125rem; margin: 0;">
+                  Uncheck any item to exclude it from your ledger. Changing a category can optionally be applied to all matching payments.
+                </p>
               </div>
 
-              <div style="display: flex; gap: 10px;">
-                <button type="button" id="docUploadBtn" class="btn btn-accent" onclick="startDocUploadProcess()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.7rem 1.6rem; font-size: 0.9375rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); display: none;">
-                  🚀 Process Document with AI →
+              <!-- Action Buttons -->
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline" style="color: #94a3b8; border-color: rgba(255, 255, 255, 0.15); font-weight: 700; padding: 0.6rem 1.1rem; font-size: 0.8125rem;" onclick="cancelStatementReview()">
+                  ✕ Discard
+                </button>
+                <button type="button" id="commitToSupabaseBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.65rem 1.6rem; font-size: 0.875rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); border-radius: 12px;" onclick="commitApprovedTransactions()">
+                  🚀 Approve &amp; Save (<span id="approvedCountBadge">0</span>) to Supabase →
                 </button>
               </div>
             </div>
 
-            <div id="docUploadStatus" style="margin-top: 1rem; font-weight: 700; font-size: 0.875rem; text-align: center;"></div>
+            <!-- Dynamic Live Summary Chips -->
+            <div style="display: flex; gap: 10px; margin-bottom: 1.25rem; flex-wrap: wrap;">
+              <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 8px 14px;">
+                <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Total Items</div>
+                <div id="reviewTotalCount" style="font-size: 1.1rem; font-weight: 900; color: #38bdf8;">0</div>
+              </div>
+
+              <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 8px 14px;">
+                <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Approved Inflow</div>
+                <div id="reviewInflowTotal" style="font-size: 1.1rem; font-weight: 900; color: #10b981;">+₹0</div>
+              </div>
+
+              <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 12px; padding: 8px 14px;">
+                <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Approved Outflow</div>
+                <div id="reviewOutflowTotal" style="font-size: 1.1rem; font-weight: 900; color: #f43f5e;">-₹0</div>
+              </div>
+
+              <div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 12px; padding: 8px 14px;">
+                <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Net Impact</div>
+                <div id="reviewNetTotal" style="font-size: 1.1rem; font-weight: 900; color: #c084fc;">₹0</div>
+              </div>
+            </div>
+
+            <!-- SMART BATCH CATEGORIZATION PROMPT BANNER -->
+            <div id="batchCategoryBanner" class="batch-category-banner" style="display: none;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.4rem;">💡</span>
+                <span id="batchCategoryText" style="font-size: 0.85rem; color: #f8fafc; font-weight: 600;">
+                  Apply category to other matching transactions?
+                </span>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-primary" style="background: #10b981; border: none; font-size: 0.75rem; padding: 5px 12px; font-weight: 800;" onclick="confirmApplyBatchCategory()">
+                  ✓ Yes, Apply to All (<span id="batchMatchCount">0</span>)
+                </button>
+                <button type="button" class="btn btn-outline" style="color: #cbd5e1; border-color: rgba(255,255,255,0.2); font-size: 0.75rem; padding: 5px 10px;" onclick="dismissBatchCategoryPrompt()">
+                  ✕ Only this one
+                </button>
+              </div>
+            </div>
+
+            <!-- Interactive Table -->
+            <div style="overflow-x: auto; max-height: 520px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+              <table class="table" style="width: 100%; margin: 0;">
+                <thead style="position: sticky; top: 0; background: #0f172a; z-index: 10;">
+                  <tr>
+                    <th style="width: 40px; text-align: center;">
+                      <input type="checkbox" id="reviewSelectAll" checked onchange="toggleSelectAllReview(this.checked)" style="cursor: pointer;" />
+                    </th>
+                    <th style="width: 120px;">Date</th>
+                    <th>Merchant / Description</th>
+                    <th style="width: 130px;">Amount</th>
+                    <th style="width: 190px;">Category</th>
+                    <th style="width: 60px; text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="statementReviewTbody">
+                  <!-- Rows populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Footer commit bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+              <span style="font-size: 0.8125rem; color: #94a3b8;">
+                Clicking "Approve &amp; Save" will commit only checked transactions directly to your Supabase PostgreSQL ledger.
+              </span>
+              <button type="button" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.65rem 1.6rem; font-size: 0.875rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); border-radius: 12px;" onclick="commitApprovedTransactions()">
+                🚀 Approve &amp; Save to Supabase →
+              </button>
+            </div>
           </div>
 
           <!-- UPLOADED STATEMENTS & DOCUMENTS LEDGER -->
@@ -5594,6 +5722,32 @@
       document.getElementById('docUploadStatus').textContent = '';
     }
 
+    // ─── INTERACTIVE STATEMENT EXTRACTION & APPROVAL STUDIO STATE ───
+    let currentExtractedTransactions = [];
+    let currentReviewFileName = '';
+    let currentReviewParser = '';
+    let pendingBatchMerchant = '';
+    let pendingBatchCategory = '';
+    let pendingMerchantRules = [];
+
+    const AVAILABLE_CATEGORIES = [
+      'General',
+      'Food & Dining',
+      'Groceries',
+      'Transportation & Fuel',
+      'Shopping & Retail',
+      'Technology & SaaS',
+      'Rent & Utilities',
+      'Payroll & Salary',
+      'Client Retainer',
+      'Product Sales',
+      'Entertainment',
+      'Healthcare',
+      'Investments & SIP',
+      'Travel & Hotel',
+      'Taxes & Government'
+    ];
+
     async function startDocUploadProcess() {
       if (!selectedUploadFile) {
         alert('Please choose or drag & drop a statement file first.');
@@ -5614,17 +5768,16 @@
       const titleEl = document.getElementById('progressTitle');
 
       btn.disabled = true;
-      btn.textContent = '⏳ AI Engine Ingesting...';
+      btn.textContent = '⏳ AI Engine Extracting...';
       if (scanner) scanner.classList.add('active');
       if (timeline) timeline.classList.add('active');
 
-      // Helper step animators
       const setStep = (stepNum, percent, titleText) => {
         if (bar) bar.style.width = `${percent}%`;
         if (percentEl) percentEl.textContent = `${percent}%`;
         if (titleEl) titleEl.textContent = titleText;
 
-        for (let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 3; i++) {
           const el = document.getElementById(`step${i}`);
           if (el) {
             el.classList.remove('active', 'completed');
@@ -5634,18 +5787,17 @@
         }
       };
 
-      setStep(1, 20, '⚡ Streaming binary buffer & isolating pure ArrayBuffer...');
+      setStep(1, 25, '⚡ Streaming binary buffer & isolating pure ArrayBuffer...');
 
       const formData = new FormData();
       formData.append('file', selectedUploadFile);
 
-      // Simulation ticks for smooth user feedback
-      const tick1 = setTimeout(() => setStep(2, 50, '🔍 Decoding 38 Indian bank structures & UPI tables...'), 500);
-      const tick2 = setTimeout(() => setStep(3, 80, '🧠 Gemini 2.5 Flash AI validating Inflows, Outflows & Categories...'), 1200);
+      const tick1 = setTimeout(() => setStep(2, 60, '🔍 Decoding 38 Indian bank structures & UPI identifiers...'), 600);
+      const tick2 = setTimeout(() => setStep(3, 85, '🧠 Gemini 2.5 Flash classifying Inflows, Outflows & Categories...'), 1400);
 
       try {
         const wsId = currentActiveWorkspaceId || 'personal';
-        const res = await fetch('/api/upload/intelligence', {
+        const res = await fetch('/api/upload/preview', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${currentToken}`,
@@ -5660,30 +5812,23 @@
         const data = await res.json();
 
         if (res.ok && data.success) {
-          setStep(4, 100, '✅ Ingestion Complete: Updating Double-Entry Ledger!');
-          for (let i = 1; i <= 4; i++) {
+          setStep(3, 100, '✅ Extraction Complete! Opening Review Studio...');
+          for (let i = 1; i <= 3; i++) {
             document.getElementById(`step${i}`)?.classList.add('completed');
           }
 
           if (scanner) scanner.classList.remove('active');
-          status.style.color = '#10b981';
-          status.innerHTML = `🎉 <strong>Success!</strong> ${data.message || 'Transactions extracted.'} Ledger &amp; Cash Flow updated.`;
+          btn.disabled = false;
+          btn.textContent = '🚀 Extract Statement Transactions →';
 
-          showToast(`⚡ ${data.message || 'Transactions parsed & committed!'}`, 'success');
-
-          // Refresh documents list and dashboard charts
-          await loadUploadedDocuments();
-          await loadWorkspaceData();
-
-          setTimeout(() => {
-            clearSelectedFile();
-          }, 3500);
+          // Open Interactive Review Studio
+          openStatementReviewStudio(data);
         } else {
           if (scanner) scanner.classList.remove('active');
           status.style.color = '#f43f5e';
-          status.textContent = `❌ ${data.error || 'Failed to process document.'}`;
+          status.textContent = `❌ ${data.error || 'Failed to extract statement.'}`;
           btn.disabled = false;
-          btn.textContent = '🚀 Retry AI Extraction →';
+          btn.textContent = '🚀 Retry Extraction →';
         }
       } catch (err) {
         clearTimeout(tick1);
@@ -5692,7 +5837,285 @@
         status.style.color = '#f43f5e';
         status.textContent = '❌ Network upload error: ' + err.message;
         btn.disabled = false;
-        btn.textContent = '🚀 Retry AI Extraction →';
+        btn.textContent = '🚀 Retry Extraction →';
+      }
+    }
+
+    function openStatementReviewStudio(data) {
+      currentExtractedTransactions = (data.transactions || []).map((t, idx) => ({
+        ...t,
+        tempId: t.tempId || `tmp_${Date.now()}_${idx}`,
+        selected: true
+      }));
+      currentReviewFileName = data.fileName || 'Uploaded Statement';
+      currentReviewParser = data.parserUsed || 'Universal Parser';
+      pendingMerchantRules = [];
+
+      document.getElementById('reviewDocTitle').textContent = `Review & Approve: ${currentReviewFileName}`;
+      document.getElementById('reviewParserBadge').textContent = currentReviewParser.toUpperCase();
+
+      document.getElementById('uploadInitialZone').style.display = 'none';
+      document.getElementById('statementApprovalStudio').style.display = 'block';
+
+      renderStatementApprovalTable();
+      updateReviewSummaryMetrics();
+
+      showToast(`⚡ Extracted ${currentExtractedTransactions.length} transactions. Please review and approve.`, 'info');
+    }
+
+    function renderStatementApprovalTable() {
+      const tbody = document.getElementById('statementReviewTbody');
+      if (!tbody) return;
+
+      if (currentExtractedTransactions.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align: center; color: #94a3b8; padding: 2.5rem;">
+              All extracted transactions have been excluded. Click "Discard" to upload a new statement.
+            </td>
+          </tr>
+        `;
+        updateReviewSummaryMetrics();
+        return;
+      }
+
+      tbody.innerHTML = currentExtractedTransactions.map((tx, idx) => {
+        const isIncome = tx.type === 'income' || tx.type === 'INCOME';
+        const isSelected = tx.selected !== false;
+        const rowClass = isSelected ? '' : 'review-row-deselected';
+        const merchantDisplay = tx.merchantName || tx.description || 'Transaction';
+
+        const categoryOptions = AVAILABLE_CATEGORIES.map(cat => {
+          const selectedAttr = (tx.category || 'General').toLowerCase() === cat.toLowerCase() ? 'selected' : '';
+          return `<option value="${escapeHtml(cat)}" ${selectedAttr}>${escapeHtml(cat)}</option>`;
+        }).join('');
+
+        return `
+          <tr id="reviewRow_${tx.tempId}" class="${rowClass}" style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: all 0.2s;">
+            <td style="text-align: center;">
+              <input type="checkbox" id="check_${tx.tempId}" ${isSelected ? 'checked' : ''} onchange="toggleReviewRow('${tx.tempId}', this.checked)" style="cursor: pointer; width: 16px; height: 16px; accent-color: #10b981;" />
+            </td>
+            <td>
+              <input type="date" value="${tx.date || ''}" onchange="updateRowDate('${tx.tempId}', this.value)" style="background: rgba(15,23,42,0.6); color: #f8fafc; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 3px 6px; font-size: 0.75rem; outline: none;" />
+            </td>
+            <td>
+              <div style="font-weight: 700; color: #f8fafc; font-size: 0.875rem;">
+                ${escapeHtml(tx.description)}
+              </div>
+              ${tx.merchantName ? `<div style="font-size: 0.75rem; color: #94a3b8;">Merchant: ${escapeHtml(tx.merchantName)}</div>` : ''}
+            </td>
+            <td>
+              <span style="font-weight: 800; font-size: 0.9375rem; color: ${isIncome ? '#10b981' : '#f43f5e'};">
+                ${isIncome ? '+' : '-'}₹${Number(tx.amount || 0).toLocaleString('en-IN')}
+              </span>
+            </td>
+            <td>
+              <select class="category-select-styled" onchange="handleCategoryChange('${tx.tempId}', this.value)">
+                ${categoryOptions}
+              </select>
+            </td>
+            <td style="text-align: right;">
+              <button type="button" onclick="deleteReviewRow('${tx.tempId}')" style="background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; transition: all 0.2s;" title="Remove this item">
+                🗑️
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleReviewRow(tempId, isChecked) {
+      const tx = currentExtractedTransactions.find(t => t.tempId === tempId);
+      if (tx) {
+        tx.selected = isChecked;
+        const row = document.getElementById(`reviewRow_${tempId}`);
+        if (row) {
+          if (isChecked) row.classList.remove('review-row-deselected');
+          else row.classList.add('review-row-deselected');
+        }
+        updateReviewSummaryMetrics();
+      }
+    }
+
+    function toggleSelectAllReview(isChecked) {
+      currentExtractedTransactions.forEach(tx => {
+        tx.selected = isChecked;
+        const row = document.getElementById(`reviewRow_${tx.tempId}`);
+        const chk = document.getElementById(`check_${tx.tempId}`);
+        if (chk) chk.checked = isChecked;
+        if (row) {
+          if (isChecked) row.classList.remove('review-row-deselected');
+          else row.classList.add('review-row-deselected');
+        }
+      });
+      updateReviewSummaryMetrics();
+    }
+
+    function updateRowDate(tempId, newDate) {
+      const tx = currentExtractedTransactions.find(t => t.tempId === tempId);
+      if (tx && newDate) tx.date = newDate;
+    }
+
+    function handleCategoryChange(tempId, newCategory) {
+      const tx = currentExtractedTransactions.find(t => t.tempId === tempId);
+      if (!tx) return;
+
+      tx.category = newCategory;
+
+      // Detect other transactions with matching merchant or description keyword
+      const targetKey = (tx.merchantName || tx.description || '').toLowerCase().trim();
+      if (!targetKey || targetKey.length < 3) return;
+
+      const matchingOthers = currentExtractedTransactions.filter(t => {
+        if (t.tempId === tempId) return false;
+        const key = (t.merchantName || t.description || '').toLowerCase().trim();
+        return (key.includes(targetKey) || targetKey.includes(key)) && t.category !== newCategory;
+      });
+
+      if (matchingOthers.length > 0) {
+        pendingBatchMerchant = tx.merchantName || tx.description;
+        pendingBatchCategory = newCategory;
+
+        const banner = document.getElementById('batchCategoryBanner');
+        const text = document.getElementById('batchCategoryText');
+        const count = document.getElementById('batchMatchCount');
+
+        if (banner && text && count) {
+          text.innerHTML = `Apply category <strong>"${escapeHtml(newCategory)}"</strong> to all other <strong>${matchingOthers.length}</strong> transactions from <em>"${escapeHtml(pendingBatchMerchant)}"</em>?`;
+          count.textContent = matchingOthers.length;
+          banner.style.display = 'flex';
+        }
+      }
+    }
+
+    function confirmApplyBatchCategory() {
+      if (!pendingBatchMerchant || !pendingBatchCategory) return;
+
+      const targetKey = pendingBatchMerchant.toLowerCase().trim();
+      let updatedCount = 0;
+
+      currentExtractedTransactions.forEach(t => {
+        const key = (t.merchantName || t.description || '').toLowerCase().trim();
+        if (key.includes(targetKey) || targetKey.includes(key)) {
+          t.category = pendingBatchCategory;
+          updatedCount++;
+        }
+      });
+
+      // Add merchant rule so Supabase remembers it
+      pendingMerchantRules.push({
+        pattern: pendingBatchMerchant,
+        category: pendingBatchCategory,
+        cleanMerchant: pendingBatchMerchant
+      });
+
+      dismissBatchCategoryPrompt();
+      renderStatementApprovalTable();
+      showToast(`✓ Applied "${pendingBatchCategory}" to ${updatedCount} matching transactions.`, 'success');
+    }
+
+    function dismissBatchCategoryPrompt() {
+      pendingBatchMerchant = '';
+      pendingBatchCategory = '';
+      const banner = document.getElementById('batchCategoryBanner');
+      if (banner) banner.style.display = 'none';
+    }
+
+    function deleteReviewRow(tempId) {
+      currentExtractedTransactions = currentExtractedTransactions.filter(t => t.tempId !== tempId);
+      renderStatementApprovalTable();
+      updateReviewSummaryMetrics();
+      showToast('Item removed from approval list.', 'info');
+    }
+
+    function updateReviewSummaryMetrics() {
+      const selected = currentExtractedTransactions.filter(t => t.selected !== false);
+      let inflow = 0;
+      let outflow = 0;
+
+      selected.forEach(t => {
+        const amt = Number(t.amount || 0);
+        const isIncome = t.type === 'income' || t.type === 'INCOME';
+        if (isIncome) inflow += amt;
+        else outflow += amt;
+      });
+
+      const net = inflow - outflow;
+
+      document.getElementById('reviewTotalCount').textContent = currentExtractedTransactions.length;
+      document.getElementById('approvedCountBadge').textContent = selected.length;
+      document.getElementById('reviewInflowTotal').textContent = `+₹${inflow.toLocaleString('en-IN')}`;
+      document.getElementById('reviewOutflowTotal').textContent = `-₹${outflow.toLocaleString('en-IN')}`;
+      document.getElementById('reviewNetTotal').textContent = `${net >= 0 ? '+' : '-'}₹${Math.abs(net).toLocaleString('en-IN')}`;
+    }
+
+    function cancelStatementReview() {
+      if (confirm('Are you sure you want to discard this statement extraction? No transactions will be saved.')) {
+        currentExtractedTransactions = [];
+        pendingMerchantRules = [];
+        document.getElementById('statementApprovalStudio').style.display = 'none';
+        document.getElementById('uploadInitialZone').style.display = 'block';
+        clearSelectedFile();
+      }
+    }
+
+    async function commitApprovedTransactions() {
+      const approved = currentExtractedTransactions.filter(t => t.selected !== false);
+      if (approved.length === 0) {
+        alert('Please check at least 1 transaction to save to your ledger.');
+        return;
+      }
+
+      const commitBtn = document.getElementById('commitToSupabaseBtn');
+      if (commitBtn) {
+        commitBtn.disabled = true;
+        commitBtn.textContent = '⏳ Saving to Supabase Ledger...';
+      }
+
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch('/api/upload/commit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`,
+            'X-Workspace-Id': wsId
+          },
+          body: JSON.stringify({
+            fileName: currentReviewFileName,
+            parserUsed: currentReviewParser,
+            transactions: approved,
+            merchantRules: pendingMerchantRules
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          showToast(`🎉 ${data.message || 'Transactions committed to Supabase!'}`, 'success');
+          
+          currentExtractedTransactions = [];
+          pendingMerchantRules = [];
+          document.getElementById('statementApprovalStudio').style.display = 'none';
+          document.getElementById('uploadInitialZone').style.display = 'block';
+          clearSelectedFile();
+
+          // Refresh documents and live ledger
+          await loadUploadedDocuments();
+          await loadWorkspaceData();
+        } else {
+          alert('Failed to commit transactions: ' + (data.error || 'Server error'));
+          if (commitBtn) {
+            commitBtn.disabled = false;
+            commitBtn.textContent = `🚀 Approve & Save (${approved.length}) to Supabase →`;
+          }
+        }
+      } catch (err) {
+        alert('Network error while committing: ' + err.message);
+        if (commitBtn) {
+          commitBtn.disabled = false;
+          commitBtn.textContent = `🚀 Approve & Save (${approved.length}) to Supabase →`;
+        }
       }
     }
 

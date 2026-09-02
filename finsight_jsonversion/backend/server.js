@@ -520,8 +520,10 @@ app.get(['/api/dashboard/stats', '/dashboard/stats'], authMiddleware, async (req
   }
 });
 
-// ─── 9. DOCUMENT INTELLIGENCE STATEMENT PARSER (SUPABASE STORAGE & PARSER) ───
-app.post(['/api/upload/intelligence', '/upload/intelligence'], authMiddleware, upload.single('file'), async (req, res) => {
+// ─── 9. DOCUMENT INTELLIGENCE STATEMENT PARSER & APPROVAL WORKFLOW ───
+
+// Step 1: PREVIEW ONLY (Parses file and returns transactions for user review & approval)
+app.post(['/api/upload/preview', '/upload/preview'], authMiddleware, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Please select a statement file (PDF, CSV, XLSX, or Receipt Image) to upload.' });
@@ -529,32 +531,91 @@ app.post(['/api/upload/intelligence', '/upload/intelligence'], authMiddleware, u
 
     const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
     if (!wsId) {
-      return res.status(400).json({ error: 'Active Workspace ID is required for document intelligence ingestion.' });
+      return res.status(400).json({ error: 'Active Workspace ID is required.' });
     }
 
     const fileBuffer = req.file.buffer;
     const fileName = req.file.originalname || 'Uploaded Statement';
     const mimeType = req.file.mimetype || 'application/pdf';
 
-    console.log(`[Document Intelligence] Parsing ${fileName} (${(fileBuffer.length / 1024).toFixed(1)} KB) for workspace ${wsId}...`);
+    console.log(`[Document Preview] Parsing ${fileName} (${(fileBuffer.length / 1024).toFixed(1)} KB) for review in workspace ${wsId}...`);
 
     let parsedResult;
+    let parserUsed = 'Universal Parser';
+    let extractedTransactions = [];
+
     if (fileName.toLowerCase().endsWith('.csv')) {
-      parsedResult = await processCSVBuffer(fileBuffer, wsId);
+      const res = await processCSVBuffer(fileBuffer, wsId);
+      extractedTransactions = Array.isArray(res) ? res : (res.extracted || []);
+      parserUsed = 'CSV Parser Engine';
     } else if (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls')) {
-      parsedResult = await processXLSXBuffer(fileBuffer, wsId);
+      const res = await processXLSXBuffer(fileBuffer, wsId);
+      extractedTransactions = Array.isArray(res) ? res : (res.extracted || []);
+      parserUsed = 'Excel Parser Engine';
     } else {
-      parsedResult = await processPDFOrImageWithAI(fileBuffer, mimeType, wsId, fileName);
+      const res = await processPDFOrImageWithAI(fileBuffer, mimeType, wsId, fileName);
+      extractedTransactions = Array.isArray(res.extracted) ? res.extracted : (Array.isArray(res) ? res : []);
+      parserUsed = res.parserUsed || 'Gemini 2.5 Flash';
     }
 
-    const extractedTransactions = Array.isArray(parsedResult.extracted) ? parsedResult.extracted : [];
-    console.log(`[Document Intelligence] Extracted ${extractedTransactions.length} transactions via ${parsedResult.parserUsed || 'Universal Parser'}.`);
+    console.log(`[Document Preview] Extracted ${extractedTransactions.length} items for approval via ${parserUsed}.`);
 
     let totalInflow = 0;
     let totalOutflow = 0;
 
-    // Prepare batch transaction records for Supabase
-    const transactionsToInsert = extractedTransactions.map(tx => {
+    const formattedList = extractedTransactions.map((tx, idx) => {
+      const amt = Number(tx.amount || 0);
+      const isIncome = tx.type === 'income' || tx.type === 'INCOME';
+      if (isIncome) totalInflow += amt;
+      else totalOutflow += amt;
+
+      return {
+        tempId: `tmp_${Date.now()}_${idx}`,
+        description: tx.description || 'Statement Transaction',
+        amount: amt,
+        type: isIncome ? 'income' : 'expense',
+        category: tx.category || 'General',
+        date: tx.date || new Date().toISOString().split('T')[0],
+        merchantName: tx.merchantName || '',
+        selected: true
+      };
+    });
+
+    return res.json({
+      success: true,
+      fileName,
+      fileSize: fileBuffer.length,
+      mimeType,
+      parserUsed: parserUsed || 'Gemini 2.5 Flash',
+      count: formattedList.length,
+      totalInflow,
+      totalOutflow,
+      net: totalInflow - totalOutflow,
+      transactions: formattedList
+    });
+  } catch (err) {
+    console.error('[Document Preview Error]', err);
+    return res.status(500).json({ error: 'Failed to extract statement: ' + err.message });
+  }
+});
+
+// Step 2: COMMIT APPROVED TRANSACTIONS (User reviews, categorizes, and commits to Supabase)
+app.post(['/api/upload/commit', '/upload/commit'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
+    const { fileName, parserUsed, transactions, merchantRules } = req.body;
+
+    if (!wsId) return res.status(400).json({ error: 'Active Workspace ID is required.' });
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({ error: 'No approved transactions provided to commit.' });
+    }
+
+    console.log(`[Document Commit] Committing ${transactions.length} approved transactions for workspace ${wsId}...`);
+
+    let totalInflow = 0;
+    let totalOutflow = 0;
+
+    const preparedTransactions = transactions.map(tx => {
       const amt = Number(tx.amount || 0);
       const isIncome = tx.type === 'income' || tx.type === 'INCOME';
       if (isIncome) totalInflow += amt;
@@ -574,32 +635,42 @@ app.post(['/api/upload/intelligence', '/upload/intelligence'], authMiddleware, u
       };
     });
 
-    // Save transactions in Supabase
-    if (transactionsToInsert.length > 0) {
-      await transactionsRepo.createBatch(transactionsToInsert);
-    }
+    // 1. Insert into Supabase transactions
+    await transactionsRepo.createBatch(preparedTransactions);
 
-    // Save document record in Supabase
+    // 2. Insert into Supabase uploaded_documents
     const docRecord = await documentsRepo.create({
       workspaceId: wsId,
-      fileName,
-      fileSize: fileBuffer.length,
-      mimeType,
-      parserUsed: parsedResult.parserUsed || 'Gemini 2.5 Flash',
+      fileName: fileName || 'Uploaded Statement',
+      parserUsed: parserUsed || 'Statement Parser',
       summary: {
-        totalCount: extractedTransactions.length,
+        totalCount: preparedTransactions.length,
         inflow: totalInflow,
         outflow: totalOutflow,
         net: totalInflow - totalOutflow
       },
-      extractedTransactions: transactionsToInsert
+      extractedTransactions: preparedTransactions
     });
+
+    // 3. Save any learned merchant rules for future auto-categorization
+    if (Array.isArray(merchantRules) && merchantRules.length > 0) {
+      for (const rule of merchantRules) {
+        if (rule.pattern && rule.category) {
+          await merchantMappingsRepo.saveMapping({
+            workspaceId: wsId,
+            rawPattern: rule.pattern,
+            cleanMerchant: rule.cleanMerchant || rule.pattern,
+            category: rule.category
+          });
+        }
+      }
+    }
 
     return res.json({
       success: true,
-      message: `Extracted ${extractedTransactions.length} transactions (+₹${totalInflow.toLocaleString('en-IN')} / -₹${totalOutflow.toLocaleString('en-IN')}) into your Supabase ledger.`,
+      message: `Committed ${preparedTransactions.length} transactions (+₹${totalInflow.toLocaleString('en-IN')} / -₹${totalOutflow.toLocaleString('en-IN')}) directly to your Supabase ledger.`,
       documentId: docRecord.id,
-      count: extractedTransactions.length,
+      count: preparedTransactions.length,
       summary: {
         inflow: totalInflow,
         outflow: totalOutflow,
@@ -607,9 +678,15 @@ app.post(['/api/upload/intelligence', '/upload/intelligence'], authMiddleware, u
       }
     });
   } catch (err) {
-    console.error('[Document Intelligence Error]', err);
-    return res.status(500).json({ error: 'Statement processing failed: ' + err.message });
+    console.error('[Document Commit Error]', err);
+    return res.status(500).json({ error: 'Failed to commit transactions: ' + err.message });
   }
+});
+
+// Backward compatible alias
+app.post(['/api/upload/intelligence', '/upload/intelligence'], authMiddleware, upload.single('file'), async (req, res) => {
+  req.url = '/api/upload/preview';
+  return app._router.handle(req, res);
 });
 
 app.get(['/api/documents', '/documents'], authMiddleware, async (req, res) => {
