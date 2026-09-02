@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
+    "@supabase/supabase-js": "^2.112.4",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.3.1",
@@ -19,7 +21,12 @@
     "mongoose": "^9.3.2",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.4",
-    "tweetnacl": "^1.0.3"
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.23.0",
+    "resend": "^6.19.0",
+    "tweetnacl": "^1.0.3",
+    "twilio": "^6.1.0",
+    "xlsx": "^0.18.5"
   },
   "engines": {
     "node": ">=20.0.0"

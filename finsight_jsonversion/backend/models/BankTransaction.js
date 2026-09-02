@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const BankTransactionSchema = new mongoose.Schema({
+  workspaceId: { type: String, ref: 'Workspace', index: true },
+  workspaceType: { type: String, enum: ['personal', 'business'] },
   userId: { type: String, ref: 'User', required: true },
   businessId: { type: String, ref: 'Business', default: null },
   date: { type: String, required: true }, // Format matching setup (YYYY-MM-DD string)
@@ -17,4 +19,6 @@ const BankTransactionSchema = new mongoose.Schema({
   aiSuggestedCategory: { type: String, default: 'Other' },
 }, { timestamps: true });
 
+
+BankTransactionSchema.index({ workspaceId: 1, createdAt: -1 });
 export default mongoose.model('BankTransaction', BankTransactionSchema);

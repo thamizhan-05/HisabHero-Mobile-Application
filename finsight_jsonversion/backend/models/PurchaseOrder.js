@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const PurchaseOrderItemSchema = new mongoose.Schema({
+  workspaceId: { type: String, ref: 'Workspace', index: true },
+  workspaceType: { type: String, enum: ['personal', 'business'] },
   inventoryItemId: { type: String, ref: 'InventoryItem', required: true },
   name: { type: String, required: true },
   quantity: { type: Number, required: true },
@@ -23,4 +25,6 @@ const PurchaseOrderSchema = new mongoose.Schema({
   notes: { type: String, default: '' },
 }, { timestamps: true });
 
+
+PurchaseOrderItemSchema.index({ workspaceId: 1, createdAt: -1 });
 export default mongoose.model('PurchaseOrder', PurchaseOrderSchema);

@@ -5,7 +5,8 @@ const BusinessSchema = new mongoose.Schema({
   description: { type: String },
   logo: { type: String },
   currency: { type: String, default: 'INR' },
-  joinCode: { type: String, unique: true, index: true },
+  joinCode: { type: String, required: true, unique: true, index: true },
+  joinEnabled: { type: Boolean, default: true },
   primaryOwnerId: { type: String, ref: 'User', required: true },
   owners: [{ type: String, ref: 'User' }],
   employees: [{ type: String, ref: 'User' }],
@@ -18,6 +19,17 @@ const BusinessSchema = new mongoose.Schema({
   companyAddress: { type: String, default: '' },
   // Approval policy: 'single' = any one owner, 'majority' = >50% owners, 'all' = all owners
   approvalPolicy: { type: String, enum: ['single', 'majority', 'all'], default: 'single' },
-}, { timestamps: true });
+  // Role Permission Matrix Overrides (e.g. rolePermissions: { "admin": ["view_transactions", "create_invoices"], "employee": ["view_transactions"] })
+  rolePermissions: { type: Map, of: [String], default: {} },
+  // Multi-Owner Approval Thresholds (Tier 1: 1 Owner + Biometric, Tier 2: 2 Owners + Biometrics)
+  approvalPolicyConfig: {
+    tier1Threshold: { type: Number, default: 5000 },
+    tier2Threshold: { type: Number, default: 50000 },
+    requireTier1Biometric: { type: Boolean, default: true },
+    requireTier2MultiOwner: { type: Boolean, default: true }
+  }
+}, { timestamps: true, autoIndex: false });
+
+BusinessSchema.index({ joinCode: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model('Business', BusinessSchema);

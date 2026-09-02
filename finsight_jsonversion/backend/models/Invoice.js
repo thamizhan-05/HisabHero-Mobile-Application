@@ -2,7 +2,9 @@ import mongoose from 'mongoose';
 
 const InvoiceSchema = new mongoose.Schema({
   invoiceNumber: { type: String, required: true },
-  businessId: { type: String, ref: 'Business', default: null },
+  workspaceId: { type: String, ref: 'Workspace', index: true },
+  workspaceType: { type: String, enum: ['personal', 'business'], default: 'business' },
+  businessId: { type: String, ref: 'Business', default: null, index: true },
   customerId: { type: String, ref: 'Contact', required: true },
   invoiceDate: { type: String, required: true },
   dueDate: { type: String, required: true },
@@ -29,5 +31,10 @@ const InvoiceSchema = new mongoose.Schema({
   }],
   createdBy: { type: String, ref: 'User', required: true }
 }, { timestamps: true });
+
+InvoiceSchema.index({ workspaceId: 1, invoiceNumber: 1 });
+InvoiceSchema.index({ workspaceId: 1, dueDate: 1 });
+InvoiceSchema.index({ businessId: 1, invoiceNumber: 1 });
+InvoiceSchema.index({ businessId: 1, dueDate: 1 });
 
 export default mongoose.model('Invoice', InvoiceSchema);

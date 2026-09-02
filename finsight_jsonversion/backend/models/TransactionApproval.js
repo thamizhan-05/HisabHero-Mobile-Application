@@ -9,8 +9,21 @@ const TransactionApprovalSchema = new mongoose.Schema({
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   requiredApprovers: [{ type: String, ref: 'User' }],
   approvedBy: [{ type: String, ref: 'User' }],
+  approvalLogs: [{
+    userId: { type: String, ref: 'User' },
+    userName: { type: String },
+    timestamp: { type: Date, default: Date.now },
+    biometricVerified: { type: Boolean, default: false }
+  }],
   rejectedBy: { type: String, ref: 'User' },
   rejectionReason: { type: String },
+  rejectionDetails: {
+    rejectedBy: { type: String, ref: 'User' },
+    rejectedByName: { type: String },
+    reason: { type: String },
+    timestamp: { type: Date },
+    biometricVerified: { type: Boolean, default: false }
+  },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
   createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });

@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const FixedAssetSchema = new mongoose.Schema({
+  workspaceId: { type: String, ref: 'Workspace', index: true },
+  workspaceType: { type: String, enum: ['personal', 'business'] },
   businessId: { type: String, ref: 'Business', required: true },
   name: { type: String, required: true },
   category: { 
@@ -16,4 +18,6 @@ const FixedAssetSchema = new mongoose.Schema({
   accumulatedDepreciation: { type: Number, default: 0 },
 }, { timestamps: true });
 
+
+FixedAssetSchema.index({ workspaceId: 1, createdAt: -1 });
 export default mongoose.model('FixedAsset', FixedAssetSchema);

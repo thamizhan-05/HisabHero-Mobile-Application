@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const BillSchema = new mongoose.Schema({
+  workspaceId: { type: String, ref: 'Workspace', index: true },
+  workspaceType: { type: String, enum: ['personal', 'business'] },
   billNumber: { type: String, required: true },
   businessId: { type: String, ref: 'Business', default: null },
   supplierId: { type: String, ref: 'Contact', required: true },
@@ -26,4 +28,6 @@ const BillSchema = new mongoose.Schema({
   createdBy: { type: String, ref: 'User', required: true }
 }, { timestamps: true });
 
+
+BillSchema.index({ workspaceId: 1, createdAt: -1 });
 export default mongoose.model('Bill', BillSchema);
