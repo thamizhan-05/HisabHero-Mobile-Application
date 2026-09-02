@@ -3986,7 +3986,7 @@
               <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 14px; border-radius: 20px; margin-bottom: 0.75rem;">
                 <span style="font-size: 0.9rem;">⚡</span>
                 <span style="font-size: 0.75rem; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
-                  AI Document Intelligence • Supabase PostgreSQL
+                  AI Document Intelligence • Instant Ledger Engine
                 </span>
               </div>
               <h3 style="font-size: 1.6rem; font-weight: 900; color: #f8fafc; margin-bottom: 0.4rem; letter-spacing: -0.02em;">
@@ -4106,7 +4106,7 @@
                   ✕ Discard
                 </button>
                 <button type="button" id="commitToSupabaseBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.65rem 1.6rem; font-size: 0.875rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); border-radius: 12px;" onclick="commitApprovedTransactions()">
-                  🚀 Approve &amp; Save (<span id="approvedCountBadge">0</span>) to Supabase →
+                  🚀 Approve &amp; Save (<span id="approvedCountBadge">0</span>) Transactions →
                 </button>
               </div>
             </div>
@@ -4176,10 +4176,10 @@
             <!-- Footer commit bar -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; gap: 1rem;">
               <span style="font-size: 0.8125rem; color: #94a3b8;">
-                Clicking "Approve &amp; Save" will commit only checked transactions directly to your Supabase PostgreSQL ledger.
+                Clicking "Approve &amp; Save" will commit only checked transactions directly to your active ledger.
               </span>
               <button type="button" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.65rem 1.6rem; font-size: 0.875rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); border-radius: 12px;" onclick="commitApprovedTransactions()">
-                🚀 Approve &amp; Save to Supabase →
+                🚀 Approve &amp; Save to Ledger →
               </button>
             </div>
           </div>
@@ -5896,7 +5896,9 @@
               <input type="checkbox" id="check_${tx.tempId}" ${isSelected ? 'checked' : ''} onchange="toggleReviewRow('${tx.tempId}', this.checked)" style="cursor: pointer; width: 16px; height: 16px; accent-color: #10b981;" />
             </td>
             <td>
-              <input type="date" value="${tx.date || ''}" onchange="updateRowDate('${tx.tempId}', this.value)" style="background: rgba(15,23,42,0.6); color: #f8fafc; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 3px 6px; font-size: 0.75rem; outline: none;" />
+              <div style="font-weight: 700; color: #cbd5e1; font-size: 0.8125rem; font-family: monospace; white-space: nowrap;">
+                ${escapeHtml(tx.date || '')}
+              </div>
             </td>
             <td>
               <div style="font-weight: 700; color: #f8fafc; font-size: 0.875rem;">
@@ -5951,11 +5953,6 @@
       updateReviewSummaryMetrics();
     }
 
-    function updateRowDate(tempId, newDate) {
-      const tx = currentExtractedTransactions.find(t => t.tempId === tempId);
-      if (tx && newDate) tx.date = newDate;
-    }
-
     function handleCategoryChange(tempId, newCategory) {
       const tx = currentExtractedTransactions.find(t => t.tempId === tempId);
       if (!tx) return;
@@ -6002,7 +5999,7 @@
         }
       });
 
-      // Add merchant rule so Supabase remembers it
+      // Add merchant rule so ledger remembers it
       pendingMerchantRules.push({
         pattern: pendingBatchMerchant,
         category: pendingBatchCategory,
@@ -6069,7 +6066,7 @@
       const commitBtn = document.getElementById('commitToSupabaseBtn');
       if (commitBtn) {
         commitBtn.disabled = true;
-        commitBtn.textContent = '⏳ Saving to Supabase Ledger...';
+        commitBtn.textContent = '⏳ Saving to Ledger...';
       }
 
       try {
@@ -6092,7 +6089,7 @@
         const data = await res.json();
 
         if (res.ok && data.success) {
-          showToast(`🎉 ${data.message || 'Transactions committed to Supabase!'}`, 'success');
+          showToast(`🎉 Transactions added to your ledger successfully!`, 'success');
           
           currentExtractedTransactions = [];
           pendingMerchantRules = [];
@@ -6107,14 +6104,14 @@
           alert('Failed to commit transactions: ' + (data.error || 'Server error'));
           if (commitBtn) {
             commitBtn.disabled = false;
-            commitBtn.textContent = `🚀 Approve & Save (${approved.length}) to Supabase →`;
+            commitBtn.textContent = `🚀 Approve & Save (${approved.length}) Transactions →`;
           }
         }
       } catch (err) {
         alert('Network error while committing: ' + err.message);
         if (commitBtn) {
           commitBtn.disabled = false;
-          commitBtn.textContent = `🚀 Approve & Save (${approved.length}) to Supabase →`;
+          commitBtn.textContent = `🚀 Approve & Save (${approved.length}) Transactions →`;
         }
       }
     }
@@ -6130,6 +6127,8 @@
         .replace(/'/g, '&#039;');
     }
 
+    window.currentUploadedDocsList = [];
+
     async function loadUploadedDocuments() {
       if (!currentToken) return;
       const tbody = document.getElementById('uploadedDocsTbody');
@@ -6144,6 +6143,7 @@
         });
         const data = await res.json();
         const docs = Array.isArray(data.documents) ? data.documents : [];
+        window.currentUploadedDocsList = docs;
 
         if (docs.length === 0) {
           tbody.innerHTML = `
@@ -6158,7 +6158,7 @@
         }
 
         tbody.innerHTML = docs.map(doc => {
-          const docId = doc.documentId || doc._id;
+          const docId = String(doc.documentId || doc.id || doc._id || '');
           const fileName = doc.fileName || 'Uploaded Statement';
           const isPdf = fileName.toLowerCase().endsWith('.pdf');
           const isCsv = fileName.toLowerCase().endsWith('.csv') || fileName.toLowerCase().endsWith('.xlsx');
@@ -6176,7 +6176,7 @@
                   <span style="font-size: 1.25rem;">${icon}</span>
                   <div>
                     <div>${escapeHtml(fileName)}</div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500;">ID: ${escapeHtml(String(docId).slice(0, 16))}...</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500;">ID: ${escapeHtml(docId.slice(0, 16))}...</div>
                   </div>
                 </div>
               </td>
@@ -6198,7 +6198,7 @@
                 </span>
               </td>
               <td style="text-align: right;">
-                <button class="btn btn-outline" style="color: #f43f5e; border-color: rgba(244,63,94,0.4); padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="deleteUploadedDocument('${String(docId)}', '${encodeURIComponent(fileName)}', ${txCount})">
+                <button class="btn btn-outline" style="color: #f43f5e; border-color: rgba(244,63,94,0.4); padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="handleDeleteDocById('${docId}')">
                   🗑️ Delete
                 </button>
               </td>
@@ -6216,22 +6216,28 @@
       }
     }
 
-    async function deleteUploadedDocument(docId, encodedFileName, txCount) {
-      const fileName = decodeURIComponent(encodedFileName || 'Statement');
-      const confirmMsg = `⚠️ Delete Statement: "${fileName}"?\n\nThis will permanently remove this statement and purge all ${txCount} associated transactions from your workspace ledger.\n\nClick OK to confirm deletion.`;
+    async function handleDeleteDocById(docId) {
+      if (!docId) return;
+
+      const doc = (window.currentUploadedDocsList || []).find(d => String(d.documentId || d.id || d._id) === String(docId));
+      const fileName = doc ? doc.fileName : 'Statement';
+      const txCount = doc ? (doc.extractedTransactions?.length || doc.summary?.totalCount || 0) : '';
+
+      const confirmMsg = `⚠️ Delete Statement: "${fileName}"?\n\nThis will permanently remove this statement and all ${txCount} associated transactions from your ledger.\n\nClick OK to confirm deletion.`;
       if (!confirm(confirmMsg)) return;
 
       try {
+        const wsId = currentActiveWorkspaceId || 'personal';
         const res = await fetch(`/api/documents/${encodeURIComponent(docId)}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${currentToken}`,
-            'X-Workspace-Id': currentActiveWorkspaceId
+            'X-Workspace-Id': wsId
           }
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast(`✅ ${data.message}`);
+          showToast(`🗑️ ${data.message || 'Statement and transactions removed from ledger.'}`, 'success');
           await loadUploadedDocuments();
           await loadWorkspaceData();
         } else {

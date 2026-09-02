@@ -547,8 +547,37 @@ export const documentsRepo = {
   },
 
   async delete(id) {
-    const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
-    if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
+    if (!id) return false;
+
+    // 1. Fetch document to identify extracted transactions
+    const { data: doc } = await supabase
+      .from('uploaded_documents')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (doc) {
+      const wsId = doc.workspace_id;
+      // If document had extracted transactions recorded, remove them from transactions table
+      if (Array.isArray(doc.extracted_transactions) && doc.extracted_transactions.length > 0) {
+        for (const tx of doc.extracted_transactions) {
+          if (tx.amount && tx.date) {
+            await supabase
+              .from('transactions')
+              .delete()
+              .eq('workspace_id', wsId)
+              .eq('date', tx.date)
+              .eq('amount', tx.amount)
+              .eq('description', tx.description);
+          }
+        }
+      }
+
+      // Delete document record
+      const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
+      if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
+    }
+
     return true;
   },
 
