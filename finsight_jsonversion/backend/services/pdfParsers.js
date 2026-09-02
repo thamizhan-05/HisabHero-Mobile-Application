@@ -809,22 +809,33 @@ export function parseUniversalStatement(text) {
   return transactions;
 }
 
+export function bufferToPureUint8Array(buf) {
+  if (!buf) return new Uint8Array(0);
+  if (buf instanceof Uint8Array && !Buffer.isBuffer(buf)) return buf;
+  const ab = new ArrayBuffer(buf.length);
+  const view = new Uint8Array(ab);
+  for (let i = 0; i < buf.length; i++) {
+    view[i] = buf[i];
+  }
+  return view;
+}
+
 // ─── HIGH LEVEL DISPATCHER WITH ALL 37 INSTITUTIONS ───
 export async function parsePdfBufferWithNativeRegex(fileBuffer) {
   try {
     let extractedText = '';
-    const uint8Data = fileBuffer instanceof Uint8Array ? fileBuffer : new Uint8Array(fileBuffer);
+    const pureUint8 = bufferToPureUint8Array(fileBuffer);
 
     if (pdfParse && pdfParse.PDFParse) {
-      const parser = new pdfParse.PDFParse(uint8Data);
+      const parser = new pdfParse.PDFParse(pureUint8);
       const textResult = await parser.getText();
       extractedText = typeof textResult === 'string' ? textResult : (textResult?.text || '');
     } else if (typeof pdfParse === 'function') {
-      const parsedData = await pdfParse(uint8Data);
-      extractedText = parsedData.text || '';
+      const parsedData = await pdfParse(pureUint8);
+      extractedText = parsedData?.text || '';
     } else if (typeof pdfParse?.default === 'function') {
-      const parsedData = await pdfParse.default(uint8Data);
-      extractedText = parsedData.text || '';
+      const parsedData = await pdfParse.default(pureUint8);
+      extractedText = parsedData?.text || '';
     }
 
     const text = normalizeDevanagari(extractedText);

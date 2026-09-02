@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 import * as XLSX from 'xlsx';
 import Transaction from '../models/Transaction.js';
 import MerchantMapping from '../models/MerchantMapping.js';
-import { parsePdfBufferWithNativeRegex } from './pdfParsers.js';
+import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array } from './pdfParsers.js';
 
 // Comprehensive Vernacular Indian Numerals Mapping (Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali, Devanagari)
 const INDIAN_VERNACULAR_DIGITS = {
@@ -315,14 +315,14 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
       const { createRequire } = await import('module');
       const require = createRequire(import.meta.url);
       const pdf = require('pdf-parse');
-      const uint8Data = fileBuffer instanceof Uint8Array ? fileBuffer : new Uint8Array(fileBuffer);
+      const pureUint8 = bufferToPureUint8Array(fileBuffer);
       if (pdf && pdf.PDFParse) {
-        const parser = new pdf.PDFParse(uint8Data);
+        const parser = new pdf.PDFParse(pureUint8);
         const textResult = await parser.getText();
         extractedText = typeof textResult === 'string' ? textResult : (textResult?.text || '');
       } else if (typeof pdf === 'function') {
-        const parsedData = await pdf(uint8Data);
-        extractedText = parsedData.text || '';
+        const parsedData = await pdf(pureUint8);
+        extractedText = parsedData?.text || '';
       }
     } catch (e) {
       console.warn('[PDF Text Extraction Warning]:', e.message);
