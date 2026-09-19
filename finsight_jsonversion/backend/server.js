@@ -225,11 +225,20 @@ app.post(['/api/auth/signup', '/auth/signup'], async (req, res) => {
 });
 
 // ─── 2. VERIFY OTP & COMPLETE REGISTRATION ───
-app.post(['/api/auth/verify-otp', '/auth/verify-otp'], async (req, res) => {
+app.post([
+  '/api/auth/verify-code',
+  '/api/auth/verify-otp',
+  '/api/auth/verify-email-otp',
+  '/api/auth/verify-email',
+  '/auth/verify-code',
+  '/auth/verify-otp',
+  '/auth/verify-email'
+], async (req, res) => {
   try {
-    const { email, otp, password, fullName = 'User', workspaceChoice = 'personal', businessName, industry } = req.body;
+    const { email, password, fullName = 'User', workspaceChoice = 'personal', businessName, industry } = req.body;
+    const otp = (req.body.otp || req.body.code || '').toString().trim();
     if (!email || !otp) {
-      return res.status(400).json({ error: 'Email and verification code are required.' });
+      return res.status(400).json({ success: false, error: 'Email and verification code are required.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -237,7 +246,7 @@ app.post(['/api/auth/verify-otp', '/auth/verify-otp'], async (req, res) => {
 
     // Allow demo master code 656527 as well
     if (!isValid && otp !== '656527') {
-      return res.status(400).json({ error: 'Invalid or expired verification code. Please try again.' });
+      return res.status(400).json({ success: false, error: 'Invalid or expired verification code. Please try again.' });
     }
 
     let user = await usersRepo.findByEmail(cleanEmail);
@@ -289,12 +298,18 @@ app.post(['/api/auth/verify-otp', '/auth/verify-otp'], async (req, res) => {
     });
   } catch (err) {
     console.error('[Verify OTP Error]', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // ─── 3. RESEND OTP ───
-app.post(['/api/auth/resend-otp', '/auth/resend-otp'], async (req, res) => {
+app.post([
+  '/api/auth/resend-code',
+  '/api/auth/resend-otp',
+  '/api/auth/resend-email-otp',
+  '/auth/resend-code',
+  '/auth/resend-otp'
+], async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required.' });
@@ -376,7 +391,7 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
 });
 
 // ─── 5. GET CURRENT USER PROFILE & WORKSPACES ───
-app.get(['/api/auth/me', '/auth/me'], authMiddleware, async (req, res) => {
+app.get(['/api/auth/me', '/auth/me', '/api/auth/verify', '/auth/verify'], authMiddleware, async (req, res) => {
   try {
     const user = await usersRepo.findById(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found.' });

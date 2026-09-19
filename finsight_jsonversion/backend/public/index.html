@@ -7095,12 +7095,19 @@
       }
 
       try {
-        const res = await fetch('/api/auth/verify-code', {
+        let res = await fetch('/api/auth/verify-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingVerificationEmail, code })
+          body: JSON.stringify({ email: pendingVerificationEmail, code, otp: code })
         });
-        const data = await res.json();
+        if (!res.ok && res.status === 404) {
+          res = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: pendingVerificationEmail, code, otp: code })
+          });
+        }
+        const data = await res.json().catch(() => ({}));
 
         if (res.ok && data.success) {
           showOtpSuccessState();
@@ -7182,12 +7189,19 @@
       }
 
       try {
-        const res = await fetch('/api/auth/resend-code', {
+        let res = await fetch('/api/auth/resend-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: pendingVerificationEmail })
         });
-        const data = await res.json();
+        if (!res.ok && res.status === 404) {
+          res = await fetch('/api/auth/resend-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: pendingVerificationEmail })
+          });
+        }
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
           alert('A fresh 6-digit verification code has been dispatched to your email.');
           startResendTimer(60);
