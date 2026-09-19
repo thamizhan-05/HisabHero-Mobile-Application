@@ -2608,13 +2608,11 @@
        🎓 IN-APP GUIDANCE & PRODUCT TOUR SYSTEM (8 Guidance Types)
        ═════════════════════════════════════════════════════════════════ */
     
-    /* 1. Fullscreen Dimmed Spotlight Overlay */
+    /* 1. Fullscreen Dimmed Spotlight Overlay (SVG Mask Cutout - 100% Crisp Target) */
     .hh-tour-backdrop {
       position: fixed;
       inset: 0;
       z-index: 99990;
-      background: rgba(3, 7, 18, 0.78);
-      backdrop-filter: blur(4px);
       display: none;
       opacity: 0;
       transition: opacity 0.3s ease;
@@ -2625,13 +2623,23 @@
       opacity: 1;
     }
 
+    /* Elevated 100% Crisp Unblurred Target */
+    .hh-tour-active-target {
+      position: relative !important;
+      z-index: 99993 !important;
+      filter: none !important;
+      backdrop-filter: none !important;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.7) !important;
+      transition: box-shadow 0.3s ease !important;
+    }
+
     /* Dynamic Cutout Focus Frame */
     .hh-tour-highlight-box {
       position: fixed;
-      z-index: 99992;
+      z-index: 99994;
       border-radius: 14px;
-      border: 2px solid #10b981;
-      box-shadow: 0 0 0 9999px rgba(3, 7, 18, 0.8), 0 0 25px rgba(16, 185, 129, 0.5), inset 0 0 15px rgba(16, 185, 129, 0.2);
+      border: 2.5px solid #10b981;
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.65), inset 0 0 15px rgba(16, 185, 129, 0.3);
       transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
       pointer-events: none;
       display: none;
@@ -5259,8 +5267,21 @@
        🎓 IN-APP GUIDANCE & PRODUCT TOUR SYSTEM DOM ELEMENTS
        ═══════════════════════════════════════════════════════════════════ -->
 
-  <!-- 1. Interactive Spotlight Backdrop & Highlight Box -->
-  <div id="hhTourBackdrop" class="hh-tour-backdrop" onclick="skipTour()"></div>
+  <!-- 1. Interactive Spotlight Backdrop & SVG Cutout Mask (100% Crisp Target) -->
+  <div id="hhTourBackdrop" class="hh-tour-backdrop" onclick="skipTour()">
+    <svg width="100%" height="100%" style="position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none;">
+      <defs>
+        <mask id="hhTourCutoutMask">
+          <!-- Entire screen filled with white (reveals dark overlay) -->
+          <rect x="0" y="0" width="100%" height="100%" fill="white" />
+          <!-- Cutout rectangle filled with black (transparent hole: 100% crisp, zero haze/blur!) -->
+          <rect id="hhTourCutoutHole" x="0" y="0" width="0" height="0" rx="14" ry="14" fill="black" />
+        </mask>
+      </defs>
+      <!-- Dark backdrop fills the viewport EXCEPT through the transparent cutout hole -->
+      <rect x="0" y="0" width="100%" height="100%" fill="rgba(3, 7, 18, 0.82)" mask="url(#hhTourCutoutMask)" style="pointer-events: auto;" />
+    </svg>
+  </div>
   <div id="hhTourHighlightBox" class="hh-tour-highlight-box"></div>
 
   <!-- 2. Floating Coach Mark Tour Card -->
@@ -9603,11 +9624,31 @@
 
         setTimeout(() => {
           const freshRect = el.getBoundingClientRect();
+
+          // Clear previous target styling and elevate current target
+          if (window.__activeTourTargetEl) {
+            window.__activeTourTargetEl.classList.remove('hh-tour-active-target');
+            window.__activeTourTargetEl = null;
+          }
+          if (el && el !== document.body) {
+            window.__activeTourTargetEl = el;
+            el.classList.add('hh-tour-active-target');
+          }
+
+          // Punch 100% transparent cutout hole into the dark SVG mask
+          const hole = document.getElementById('hhTourCutoutHole');
+          if (hole) {
+            hole.setAttribute('x', Math.max(0, freshRect.left - 6));
+            hole.setAttribute('y', Math.max(0, freshRect.top - 6));
+            hole.setAttribute('width', freshRect.width + 12);
+            hole.setAttribute('height', freshRect.height + 12);
+          }
+
           if (box) {
-            box.style.top = `${Math.max(10, freshRect.top - 8)}px`;
-            box.style.left = `${Math.max(10, freshRect.left - 8)}px`;
-            box.style.width = `${freshRect.width + 16}px`;
-            box.style.height = `${freshRect.height + 16}px`;
+            box.style.top = `${Math.max(10, freshRect.top - 6)}px`;
+            box.style.left = `${Math.max(10, freshRect.left - 6)}px`;
+            box.style.width = `${freshRect.width + 12}px`;
+            box.style.height = `${freshRect.height + 12}px`;
           }
 
           // Position Card intelligently
@@ -9693,6 +9734,16 @@
       if (backdrop) backdrop.classList.remove('active');
       if (box) box.classList.remove('active');
       if (card) card.classList.remove('active');
+
+      if (window.__activeTourTargetEl) {
+        window.__activeTourTargetEl.classList.remove('hh-tour-active-target');
+        window.__activeTourTargetEl = null;
+      }
+      const hole = document.getElementById('hhTourCutoutHole');
+      if (hole) {
+        hole.setAttribute('width', '0');
+        hole.setAttribute('height', '0');
+      }
 
       toggleHeroBotDrawer(false);
       showSection('overview');
