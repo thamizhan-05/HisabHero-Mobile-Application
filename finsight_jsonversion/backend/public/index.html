@@ -3704,7 +3704,7 @@
         <!-- 🎓 In-App Guidance & Product Tour Launcher -->
         <div style="position: relative;">
           <button id="hhGuideMenuBtn" class="btn btn-outline" style="padding: 0.45rem 0.85rem; font-size: 0.8125rem; display: flex; align-items: center; gap: 6px; border-color: rgba(16, 185, 129, 0.45); color: #34d399; background: rgba(16, 185, 129, 0.08);" onclick="toggleGuidanceMenu(event)">
-            <span>🎓</span> <span style="font-weight: 700;">Guide & Tour</span>
+            <span>🎓</span> <span id="topGuideText" data-i18n="top_guide" style="font-weight: 700;">Guide & Tour</span>
           </button>
           <div id="hhGuideDropdown" class="hh-guide-dropdown">
             <div class="hh-guide-menu-item" onclick="startInteractiveTour(); toggleGuidanceMenu();">
@@ -3740,7 +3740,7 @@
 
         <!-- 🔍 Command-K Spotlight Omni-Search Button -->
         <button class="btn btn-outline" style="padding: 0.45rem 0.85rem; font-size: 0.8125rem; display: flex; align-items: center; gap: 6px;" onclick="openSpotlightModal()">
-          <span>🔍</span> <span style="font-weight: 600;">Search</span> <span style="background: var(--border); border-radius: 4px; padding: 1px 5px; font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">⌘K</span>
+          <span>🔍</span> <span id="topSearchText" data-i18n="top_search" style="font-weight: 600;">Search</span> <span style="background: var(--border); border-radius: 4px; padding: 1px 5px; font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">⌘K</span>
         </button>
 
         <!-- 👁️ 1-Tap Stealth / Privacy Balance Mask Toggle -->
@@ -3750,12 +3750,12 @@
 
         <!-- 🎙️ Voice Bookkeeper -->
         <button class="btn btn-outline" style="padding: 0.45rem 0.85rem; font-size: 0.8125rem;" onclick="openVoiceModal()">
-          🎙️ Voice Bookkeeper
+          🎙️ <span id="topVoiceText" data-i18n="top_voice">Voice Bookkeeper</span>
         </button>
 
         <!-- + Add Transaction Button -->
         <button class="btn btn-accent" style="padding: 0.45rem 0.95rem; font-size: 0.8125rem;" onclick="openAddTxModal()">
-          + Add Transaction
+          <span id="topAddTxText" data-i18n="top_add_tx">+ Add Transaction</span>
         </button>
 
         <!-- User Profile Avatar & Identity -->
@@ -3771,7 +3771,7 @@
 
         <!-- Logout Button -->
         <button class="btn btn-outline" style="padding: 0.45rem 0.85rem; font-size: 0.75rem;" onclick="handleLogout()">
-          🚪 Sign Out
+          🚪 <span id="topSignOutText" data-i18n="top_sign_out">Sign Out</span>
         </button>
       </div>
     </header>
@@ -3795,46 +3795,46 @@
       <!-- Sidebar -->
       <aside class="dash-sidebar">
         <div class="dash-nav-item active" onclick="showSection('overview')">
-          <span>📊</span> Overview Dashboard
+          <span>📊</span> <span class="nav-text" data-i18n="nav_overview">Overview Dashboard</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('transactions')">
-          <span>💳</span> Transactions & Expenses
+          <span>💳</span> <span class="nav-text" data-i18n="nav_transactions">Transactions &amp; Expenses</span>
         </div>
         <div class="dash-nav-item" id="expenseAnalysisNavItem" onclick="showSection('expenseAnalysis')">
-          <span>🔍</span> Expense Analysis
+          <span>🔍</span> <span class="nav-text" data-i18n="nav_expense_analysis">Expense Analysis</span>
         </div>
         <div class="dash-nav-item" id="invoicesNavItem" onclick="showSection('invoices')">
-          <span>🧾</span> Invoices & GST
+          <span>🧾</span> <span class="nav-text" data-i18n="nav_invoices">Invoices &amp; GST</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('khata')">
-          <span>📒</span> Khata Book Ledger
+          <span>📒</span> <span class="nav-text" data-i18n="nav_khata">Khata Book Ledger</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('cashflow')">
-          <span>📈</span> Cash Flow Runway
+          <span>📈</span> <span class="nav-text" data-i18n="nav_cashflow">Cash Flow Runway</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('inventory')">
-          <span>📦</span> Inventory & Assets
+          <span>📦</span> <span class="nav-text" data-i18n="nav_inventory">Inventory &amp; Assets</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('subscriptions')">
-          <span>🔁</span> SaaS & Subscriptions
+          <span>🔁</span> <span class="nav-text" data-i18n="nav_subscriptions">SaaS &amp; Subscriptions</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('reports')">
-          <span>📑</span> Executive P&L Reports
+          <span>📑</span> <span class="nav-text" data-i18n="nav_reports">Executive P&amp;L Reports</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('aichat')">
-          <span>🤖</span> AI CFO Copilot
+          <span>🤖</span> <span class="nav-text" data-i18n="nav_aichat">AI CFO Copilot</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('upload')">
-          <span>📄</span> Document Intelligence
+          <span>📄</span> <span class="nav-text" data-i18n="nav_upload">Document Intelligence</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('merkle')">
-          <span>🔒</span> Merkle Audit Vault
+          <span>🔒</span> <span class="nav-text" data-i18n="nav_merkle">Merkle Audit Vault</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('team')">
-          <span>👥</span> Team & Join Code
+          <span>👥</span> <span class="nav-text" data-i18n="nav_team">Team &amp; Join Code</span>
         </div>
         <div class="dash-nav-item" onclick="showSection('settings')">
-          <span>⚙️</span> Workspace Settings
+          <span>⚙️</span> <span class="nav-text" data-i18n="nav_settings">Workspace Settings</span>
         </div>
       </aside>
 
@@ -3870,7 +3870,7 @@
             <!-- Health Score Gauge (Clickable) -->
             <div class="flex items-center gap-4" style="background: rgba(255,255,255,0.06); padding: 0.75rem 1.25rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="openHealthReportModal()">
               <div style="text-align: center;">
-                <div style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 800;">Health Gauge 🔍</div>
+                <div id="dashHealthScoreTitle" data-i18n="health_gauge_title" style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 800;">Health Gauge 🔍</div>
                 <div id="dashHealthScoreNumber" style="font-size: 1.75rem; font-weight: 900; color: #10b981; font-family: var(--font-display);">--/100</div>
               </div>
               <div style="width: 2px; height: 36px; background: rgba(255,255,255,0.1);"></div>
@@ -3882,15 +3882,15 @@
 
             <div class="flex items-center gap-3 flex-wrap">
               <button class="btn btn-accent" onclick="openAddTxModal()">+ Add Transaction</button>
-              <button class="btn btn-outline" onclick="showSection('upload')">📄 Upload Statement</button>
+              <button class="btn btn-outline" id="dashUploadStatementBtn" data-i18n="btn_upload_statement" onclick="showSection('upload')">📄 Upload Statement</button>
             </div>
           </div>
 
           <!-- Dynamic Workspace Presets (Section 10.1: Executive, Analyst, Operations) -->
           <div style="display: flex; gap: 8px; margin-bottom: 1.25rem; background: var(--surface); padding: 6px; border-radius: var(--radius-md); border: 1px solid var(--border);">
-            <button id="presetBtnExec" class="btn btn-primary" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('executive')">📊 Executive View</button>
-            <button id="presetBtnAnalyst" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('analyst')">📈 Analyst View</button>
-            <button id="presetBtnOps" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('operations')">⚙️ Operations View</button>
+            <button id="presetBtnExec" data-i18n="view_exec" class="btn btn-primary" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('executive')">📊 Executive View</button>
+            <button id="presetBtnAnalyst" data-i18n="view_analyst" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('analyst')">📈 Analyst View</button>
+            <button id="presetBtnOps" data-i18n="view_ops" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('operations')">⚙️ Operations View</button>
           </div>
 
           <!-- Inline Starting Balance & Safe Daily Spend Card -->
@@ -3910,7 +3910,7 @@
 
             <div id="webSafeSpendCard" style="flex: 1 1 300px; background: var(--secondary-soft); border: 1px solid var(--border-focus); border-radius: var(--radius-md); padding: 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 0.75rem; font-weight: 800; color: var(--secondary); text-transform: uppercase;">🧭 Safe Daily Spend (Personal)</div>
+                <div id="webSafeSpendTitle" data-i18n="safespend_title" style="font-size: 0.75rem; font-weight: 800; color: var(--secondary); text-transform: uppercase;">🧭 Safe Daily Spend (Personal)</div>
                 <span id="webSafeSpendDays" class="pill-badge" style="font-size: 0.65rem; padding: 2px 6px;">-- DAYS LEFT</span>
               </div>
               <div id="webSafeSpendAmount" style="font-size: 1.35rem; font-weight: 900; color: var(--secondary); margin-top: 2px;">₹0 <span style="font-size: 0.8rem; font-weight: 600;">/ day</span></div>
@@ -3958,22 +3958,22 @@
           <!-- 4 Metric Cards Matrix (Clickable) -->
           <div class="metrics-grid">
             <div class="metric-card" onclick="showSection('cashflow')" title="Click to view Cash Flow Analysis">
-              <div class="metric-title">Total Inflow 🔍</div>
+              <div class="metric-title" id="metricInflowTitle" data-i18n="metric_total_inflow">Total Inflow 🔍</div>
               <div id="statInflow" class="metric-value" style="color: var(--accent);">₹0</div>
               <div class="metric-sub">+ Recorded Inflow</div>
             </div>
             <div class="metric-card" onclick="showSection('expenseAnalysis')" title="Click to view Expense Analysis">
-              <div class="metric-title">Total Outflow 🔍</div>
+              <div class="metric-title" id="metricOutflowTitle" data-i18n="metric_total_outflow">Total Outflow 🔍</div>
               <div id="statOutflow" class="metric-value" style="color: var(--primary);">₹0</div>
               <div class="metric-sub" style="color: var(--danger);">- Recorded Expenses</div>
             </div>
             <div class="metric-card" onclick="showSection('cashflow')" title="Click to view Margin Breakdown">
-              <div class="metric-title">Net Margin 🔍</div>
+              <div class="metric-title" id="metricMarginTitle" data-i18n="metric_net_margin">Net Margin 🔍</div>
               <div id="statMargin" class="metric-value">₹0</div>
               <div id="statMarginPct" class="metric-sub">Calculated Balance</div>
             </div>
             <div class="metric-card" onclick="showSection('cashflow')" title="Click to view Runway Scenario Simulator">
-              <div class="metric-title">Cash Runway 🔍</div>
+              <div class="metric-title" id="metricRunwayTitle" data-i18n="metric_cash_runway">Cash Runway 🔍</div>
               <div id="statRunway" class="metric-value" style="color: var(--secondary);">N/A</div>
               <div class="metric-sub">MONTHS COVERAGE</div>
             </div>
@@ -4644,11 +4644,11 @@
             <div style="background: var(--background); border: 1px solid var(--border); padding: 1.75rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h4 style="font-size: 1.15rem; color: var(--primary); display: flex; align-items: center; gap: 8px;">
-                  <span>🎨</span> <span>Interface Theme & Mood Studio</span>
+                  <span>🎨</span> <span id="settingsThemeTitle" data-i18n="settings_theme_title">Interface Theme &amp; Mood Studio</span>
                 </h4>
                 <span id="activeThemeBadge" class="pill-badge emerald" style="font-size: 0.7rem; padding: 2px 8px;">MERCURY OBSIDIAN (ACTIVE)</span>
               </div>
-              <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+              <p id="settingsThemeDesc" data-i18n="settings_theme_desc" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
                 Switch your visual workspace and typography system instantly based on your mood or lighting environment.
               </p>
 
@@ -4721,11 +4721,11 @@
             <div style="background: var(--background); border: 1px solid var(--border); padding: 1.75rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h4 style="font-size: 1.15rem; color: var(--primary); display: flex; align-items: center; gap: 8px;">
-                  <span>🌐</span> <span>Language &amp; Vernacular Localization</span>
+                  <span>🌐</span> <span id="settingsLangTitle" data-i18n="settings_lang_title">Language &amp; Vernacular Localization</span>
                 </h4>
                 <span id="activeLangBadge" class="pill-badge emerald" style="font-size: 0.7rem; padding: 2px 8px;">ENGLISH (ACTIVE)</span>
               </div>
-              <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+              <p id="settingsLangDesc" data-i18n="settings_lang_desc" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
                 Select your preferred interface language. All menus, currency labels, and financial analytics will adapt instantly.
               </p>
 
@@ -4808,15 +4808,15 @@
 
             <div style="background: var(--background); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
               <div class="form-group">
-                <label class="form-label">Current Workspace Name</label>
+                <label class="form-label" id="settingsWsNameLabel" data-i18n="settings_ws_name_label">Current Workspace Name</label>
                 <input type="text" id="settingsWsName" class="form-input" disabled />
               </div>
               <div class="form-group">
-                <label class="form-label">Workspace Type</label>
+                <label class="form-label" id="settingsWsTypeLabel" data-i18n="settings_ws_type_label">Workspace Type</label>
                 <input type="text" id="settingsWsType" class="form-input" disabled />
               </div>
               <div id="settingsJoinCodeBox" class="form-group" style="display: none;">
-                <label class="form-label">12-Character Business Join Code</label>
+                <label class="form-label" id="settingsJoinCodeLabel" data-i18n="settings_ws_join_code_label">12-Character Business Join Code</label>
                 <input type="text" id="settingsWsJoinCode" class="form-input" disabled style="font-family: var(--font-display); letter-spacing: 2px; font-weight: 800; color: var(--secondary);" />
               </div>
             </div>
@@ -4824,7 +4824,7 @@
             <!-- Active Devices & 2-Device Governor Hub -->
             <div style="background: var(--background); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                <h4 style="font-size: 1.1rem; color: var(--primary);">📱 Active Devices & Security Governor</h4>
+                <h4 style="font-size: 1.1rem; color: var(--primary);">📱 <span id="settingsDevicesTitle" data-i18n="settings_devices_title">Active Devices &amp; Security Governor</span></h4>
                 <button class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="loadWebDeviceSessions()">🔄 Refresh</button>
               </div>
               <p style="color: var(--text-muted); font-size: 0.8125rem; margin-bottom: 1rem;">
@@ -5318,7 +5318,7 @@
     <!-- Collapsed Pill Button -->
     <div id="hhChecklistPill" class="hh-checklist-pill" onclick="toggleGuidanceChecklist()">
       <span style="font-size: 1.1rem;">🎯</span>
-      <span>Onboarding Checklist</span>
+      <span id="onboardingDockLabel" data-i18n="onboarding_checklist_dock">Onboarding Checklist</span>
       <span id="hhChecklistPillProgress" style="background: rgba(16, 185, 129, 0.25); color: #34d399; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">50%</span>
     </div>
 
@@ -5484,17 +5484,11 @@
       bn: { heading: "আপনার টাকা। আপনার ব্যবসা।<br /><span class='emerald'>একটি স্মার্ট প্ল্যাটফর্ম।</span>", sub: "হিসাবহিরো ব্যক্তিগত অর্থ এবং ব্যবসা পরিচালনাকে একটি নিরাপদ প্ল্যাটফর্মে নিয়ে আসে।" }
     };
 
-    function changeLanguage(langCode) {
-      if (i18n[langCode]) {
-        document.getElementById('heroHeading').innerHTML = i18n[langCode].heading;
-        document.getElementById('heroSubheading').textContent = i18n[langCode].sub;
-      }
-      document.getElementById('langSelectLanding').value = langCode;
-      const dashSelect = document.getElementById('langSelectDash');
-      if (dashSelect) dashSelect.value = langCode;
-    }
-
     document.addEventListener('DOMContentLoaded', async () => {
+      const savedLang = localStorage.getItem('hisabhero_lang') || 'en';
+      if (typeof changeLanguage === 'function') {
+        changeLanguage(savedLang, false);
+      }
       const storedToken = localStorage.getItem('hh_token');
       if (storedToken) {
         currentToken = storedToken;
@@ -5531,6 +5525,10 @@
     function showDashboardView() {
       document.getElementById('landingView').style.display = 'none';
       document.getElementById('dashboardView').style.display = 'flex';
+      const savedLang = localStorage.getItem('hisabhero_lang') || 'en';
+      if (typeof changeLanguage === 'function') {
+        changeLanguage(savedLang, false);
+      }
       if (currentUser) {
         document.getElementById('dashUserName').textContent = currentUser.fullName || 'User';
         document.getElementById('dashUserEmail').textContent = currentUser.email || '';
@@ -9196,11 +9194,341 @@
       }
     };
 
-    function changeLanguage(lang) {
-      if (!siteTranslations[lang]) lang = 'en';
-      const dict = siteTranslations[lang];
+    // ─── EXTENDED VERNACULAR DASHBOARD TRANSLATIONS (8 LANGUAGES) ───
+    const DASHBOARD_TRANSLATIONS = {
+      en: {
+        nav_overview: "Overview Dashboard",
+        nav_transactions: "Transactions & Expenses",
+        nav_expense_analysis: "Expense Analysis",
+        nav_invoices: "Invoices & GST",
+        nav_khata: "Khata Book Ledger",
+        nav_cashflow: "Cash Flow Runway",
+        nav_inventory: "Inventory & Assets",
+        nav_subscriptions: "SaaS & Subscriptions",
+        nav_reports: "Executive P&L Reports",
+        nav_aichat: "AI CFO Copilot",
+        nav_upload: "Document Intelligence",
+        nav_merkle: "Merkle Audit Vault",
+        nav_team: "Team & Join Code",
+        nav_settings: "Workspace Settings",
+        top_guide: "Guide & Tour",
+        top_search: "Search",
+        top_voice: "Voice Bookkeeper",
+        top_add_tx: "+ Add Transaction",
+        top_sign_out: "Sign Out",
+        settings_theme_title: "Interface Theme & Mood Studio",
+        settings_theme_desc: "Switch your visual workspace and typography system instantly based on your mood or lighting environment.",
+        settings_lang_title: "Language & Vernacular Localization",
+        settings_lang_desc: "Select your preferred interface language. All menus, currency labels, and financial analytics will adapt instantly.",
+        settings_ws_name_label: "Current Workspace Name",
+        settings_ws_type_label: "Workspace Type",
+        settings_ws_join_code_label: "12-Character Business Join Code",
+        settings_devices_title: "Active Devices & Security Governor",
+        metric_total_inflow: "Total Inflow 🔍",
+        metric_total_outflow: "Total Outflow 🔍",
+        metric_net_margin: "Net Margin 🔍",
+        metric_cash_runway: "Cash Runway 🔍",
+        safespend_title: "🧭 Safe Daily Spend (Personal)",
+        health_gauge_title: "Health Gauge 🔍",
+        btn_upload_statement: "📄 Upload Statement",
+        view_exec: "📊 Executive View",
+        view_analyst: "📈 Analyst View",
+        view_ops: "⚙️ Operations View",
+        onboarding_checklist_dock: "Onboarding Checklist"
+      },
+      ta: {
+        nav_overview: "டாஷ்போர்டு மேலோட்டம்",
+        nav_transactions: "பரிவர்த்தனைகள் & செலவுகள்",
+        nav_expense_analysis: "செலவு பகுப்பாய்வு",
+        nav_invoices: "இன்வாய்ஸ்கள் & GST",
+        nav_khata: "காதா புத்தக லெட்ஜர்",
+        nav_cashflow: "பண புழக்கம் & ரன்வே",
+        nav_inventory: "சரக்கு இருப்பு & சொத்துகள்",
+        nav_subscriptions: "சந்தாக்கள் (SaaS)",
+        nav_reports: "P&L லாப-நஷ்ட அறிக்கைகள்",
+        nav_aichat: "AI CFO நிதி ஆலோசகர்",
+        nav_upload: "ஆவண நுண்ணறிவு & வங்கி அறிக்கை",
+        nav_merkle: "மெர்கல் தணிக்கை பெட்டகம்",
+        nav_team: "குழு & இணைப்பு குறியீடு",
+        nav_settings: "நிறுவன அமைப்புகள்",
+        top_guide: "வழிகாட்டி & சுற்றுப்பயணம்",
+        top_search: "தேடுக",
+        top_voice: "குரல் கணக்காளர்",
+        top_add_tx: "+ பரிவர்த்தனை சேர்",
+        top_sign_out: "வெளியேறு",
+        settings_theme_title: "இடைமுக தீம் மற்றும் தோற்ற அரங்கம்",
+        settings_theme_desc: "உங்கள் மனநிலை அல்லது வெளிச்ச சூழலுக்கு ஏற்ப காட்சி அமைப்பையும் எழுத்துருவையும் உடனடியாக மாற்றவும்.",
+        settings_lang_title: "மொழி மற்றும் பிராந்திய உள்ளூர்மயமாக்கல்",
+        settings_lang_desc: "உங்கள் விருப்பமான மொழியைத் தேர்ந்தெடுக்கவும். அனைத்து மெனுக்கள், நாணயக் குறிகள் மற்றும் நிதி பகுப்பாய்வுகள் உடனடியாக மாறும்.",
+        settings_ws_name_label: "தற்போதைய நிறுவனத்தின் பெயர்",
+        settings_ws_type_label: "நிறுவன வகை",
+        settings_ws_join_code_label: "12-எழுத்து வணிக இணைப்பு குறியீடு",
+        settings_devices_title: "செயலில் உள்ள சாதனங்கள் & பாதுகாப்பு மேலாளர்",
+        metric_total_inflow: "மொத்த வரவு 🔍",
+        metric_total_outflow: "மொத்த செலவு 🔍",
+        metric_net_margin: "நிகர லாபம் / இருப்பு 🔍",
+        metric_cash_runway: "பண கையிருப்பு காலம் 🔍",
+        safespend_title: "🧭 பாதுகாப்பான தினசரி செலவு",
+        health_gauge_title: "நிதி ஆரோக்கியம் 🔍",
+        btn_upload_statement: "📄 வங்கி அறிக்கை பதிவேற்றுக",
+        view_exec: "📊 நிர்வாக பார்வை",
+        view_analyst: "📈 ஆய்வாளர் பார்வை",
+        view_ops: "⚙️ செயல்பாட்டு பார்வை",
+        onboarding_checklist_dock: "தொடக்க வழிகாட்டி சரிபார்ப்பு பட்டியல்"
+      },
+      hi: {
+        nav_overview: "डैशबोर्ड अवलोकन",
+        nav_transactions: "लेन-देन और खर्च",
+        nav_expense_analysis: "खर्च विश्लेषण",
+        nav_invoices: "इनवॉइस और GST",
+        nav_khata: "खाता बही लेज़र",
+        nav_cashflow: "कैश फ्लो रनवे",
+        nav_inventory: "इन्वेंट्री और संपत्ति",
+        nav_subscriptions: "सब्सक्रिप्शन और SaaS",
+        nav_reports: "लाभ-हानि (P&L) रिपोर्ट",
+        nav_aichat: "AI CFO वित्तीय सलाहकार",
+        nav_upload: "दस्तावेज़ और बैंक स्टेटमेंट",
+        nav_merkle: "मर्कल ऑडिट वॉल्ट",
+        nav_team: "टीम और जॉइन कोड",
+        nav_settings: "कार्यस्थल सेटिंग्स",
+        top_guide: "गाइड और टूर",
+        top_search: "खोजें",
+        top_voice: "वॉइस बुककीपर",
+        top_add_tx: "+ लेन-देन जोड़ें",
+        top_sign_out: "साइन आउट",
+        settings_theme_title: "इंटरफ़ेस थीम और मूड स्टूडियो",
+        settings_theme_desc: "अपने मूड या रोशनी के आधार पर अपने दृश्य कार्यक्षेत्र और टाइपोग्राफी को तुरंत बदलें।",
+        settings_lang_title: "भाषा और क्षेत्रीय स्थानीयकरण",
+        settings_lang_desc: "अपनी पसंदीदा भाषा चुनें। सभी मेनू, मुद्रा लेबल और वित्तीय विश्लेषण तुरंत अनुकूलित हो जाएंगे।",
+        settings_ws_name_label: "वर्तमान कार्यक्षेत्र का नाम",
+        settings_ws_type_label: "कार्यक्षेत्र का प्रकार",
+        settings_ws_join_code_label: "12-अक्षरों का व्यावसायिक जॉइन कोड",
+        settings_devices_title: "सक्रिय उपकरण और सुरक्षा गवर्नर",
+        metric_total_inflow: "कुल आवक 🔍",
+        metric_total_outflow: "कुल खर्च 🔍",
+        metric_net_margin: "शुद्ध मार्जिन 🔍",
+        metric_cash_runway: "कैश रनवे 🔍",
+        safespend_title: "🧭 सुरक्षित दैनिक खर्च",
+        health_gauge_title: "वित्तीय स्वास्थ्य 🔍",
+        btn_upload_statement: "📄 बैंक स्टेटमेंट अपलोड करें",
+        view_exec: "📊 कार्यकारी दृश्य",
+        view_analyst: "📈 विश्लेषक दृश्य",
+        view_ops: "⚙️ संचालन दृश्य",
+        onboarding_checklist_dock: "ऑनबोर्डिंग चेकलिस्ट"
+      },
+      mr: {
+        nav_overview: "डॅशबोर्ड विहंगावलोकन",
+        nav_transactions: "व्यवहार आणि खर्च",
+        nav_expense_analysis: "खर्च विश्लेषण",
+        nav_invoices: "इनव्हॉइस आणि GST",
+        nav_khata: "खातावही लेजर",
+        nav_cashflow: "कॅश फ्लो रनवे",
+        nav_inventory: "साठा आणि मालमत्ता",
+        nav_subscriptions: "सदस्यता आणि SaaS",
+        nav_reports: "नफा-तोटा (P&L) अहवाल",
+        nav_aichat: "AI CFO आर्थिक सहाय्यक",
+        nav_upload: "कागदपत्रे आणि बँक स्टेटमेंट",
+        nav_merkle: "मर्कल ऑडिट व्हॉल्ट",
+        nav_team: "संघ आणि जॉइन कोड",
+        nav_settings: "कार्यस्थान सेटिंग्ज",
+        top_guide: "मार्गदर्शक आणि टूर",
+        top_search: "शोधा",
+        top_voice: "व्हॉईस बुककीपर",
+        top_add_tx: "+ व्यवहार जोडा",
+        top_sign_out: "साइन आउट",
+        settings_theme_title: "इंटरफेस थीम आणि मूड स्टुडिओ",
+        settings_theme_desc: "तुमच्या मूड किंवा प्रकाशाच्या वातावरणानुसार तुमचे दृश्य कार्यक्षेत्र आणि फॉन्ट त्वरित बदला.",
+        settings_lang_title: "भाषा आणि प्रादेशिक स्थानिकीकरण",
+        settings_lang_desc: "तुमची पसंतीची भाषा निवडा. सर्व मेनू, चलन लेबले आणि आर्थिक विश्लेषण त्वरित बदलतील.",
+        settings_ws_name_label: "सध्याच्या कार्यस्थानाचे नाव",
+        settings_ws_type_label: "कार्यस्थान प्रकार",
+        settings_ws_join_code_label: "12-अक्षरी व्यावसायिक जॉइन कोड",
+        settings_devices_title: "सक्रिय साधने आणि सुरक्षा गव्हर्नर",
+        metric_total_inflow: "एकूण जमा 🔍",
+        metric_total_outflow: "एकूण खर्च 🔍",
+        metric_net_margin: "निव्वळ नफा 🔍",
+        metric_cash_runway: "कॅश रनवे 🔍",
+        safespend_title: "🧭 सुरक्षित दैनिक खर्च",
+        health_gauge_title: "आर्थिक आरोग्य 🔍",
+        btn_upload_statement: "📄 बँक स्टेटमेंट अपलोड करा",
+        view_exec: "📊 कार्यकारी दृश्य",
+        view_analyst: "📈 विश्लेषक दृश्य",
+        view_ops: "⚙️ ऑपरेशन्स दृश्य",
+        onboarding_checklist_dock: "ऑनबोर्डिंग चेकलिस्ट"
+      },
+      gu: {
+        nav_overview: "ડેશબોર્ડ વિહંગાવલોકન",
+        nav_transactions: "વ્યવહારો અને ખર્ચ",
+        nav_expense_analysis: "ખર્ચ વિશ્લેષણ",
+        nav_invoices: "ઇનવોઇસ અને GST",
+        nav_khata: "ખાતાવહી લેજર",
+        nav_cashflow: "કેશ ફ્લો રનવે",
+        nav_inventory: "સ્ટોક અને સંપત્તિ",
+        nav_subscriptions: "સબ્સ્ક્રિપ્શન્સ અને SaaS",
+        nav_reports: "નફો-નુકસાન (P&L) અહેવાલ",
+        nav_aichat: "AI CFO નાણાકીય સલાહકાર",
+        nav_upload: "દસ્તાવેજ અને બેંક સ્ટેટમેન્ટ",
+        nav_merkle: "મર્કલ ઓડિટ વૉલ્ટ",
+        nav_team: "ટીમ અને જોઈન કોડ",
+        nav_settings: "કાર્યસ્થળ સેટિંગ્સ",
+        top_guide: "માર્ગદર્શિકા અને પ્રવાસ",
+        top_search: "શોધો",
+        top_voice: "વોઇસ બુકકીપર",
+        top_add_tx: "+ વ્યવહાર ઉમેરો",
+        top_sign_out: "સાઇન આઉટ",
+        settings_theme_title: "ઇન્ટરફેસ થીમ અને મૂડ સ્ટુડિયો",
+        settings_theme_desc: "તમારા મૂડ અથવા પ્રકાશ વાતાવરણ અનુસાર તમારી દ્રશ્ય કાર્યસ્થળ ત્વરિત બદલો.",
+        settings_lang_title: "ભાષા અને પ્રાદેશિક સ્થાનિકીકરણ",
+        settings_lang_desc: "તમારી પસંદગીની ભાષા પસંદ કરો. તમામ મેનુ, ચલણ લેબલ્સ અને નાણાકીય વિશ્લેષણ ત્વરિત અનુકૂલિત થશે.",
+        settings_ws_name_label: "વર્તમાન કાર્યસ્થળનું નામ",
+        settings_ws_type_label: "કાર્યસ્થળનો પ્રકાર",
+        settings_ws_join_code_label: "12-અક્ષરોનો વ્યાવસાયિક જોઈન કોડ",
+        settings_devices_title: "સક્રિય ઉપકરણો અને સુરક્ષા ગવર્નર",
+        metric_total_inflow: "કુલ આવક 🔍",
+        metric_total_outflow: "કુલ ખર્ચ 🔍",
+        metric_net_margin: "ચોખ્ખો નફો 🔍",
+        metric_cash_runway: "કેશ રનવે 🔍",
+        safespend_title: "🧭 સુરક્ષિત દૈનિક ખર્ચ",
+        health_gauge_title: "નાણાકીય આરોગ્ય 🔍",
+        btn_upload_statement: "📄 સ્ટેટમેન્ટ અપલોડ કરો",
+        view_exec: "📊 કાર્યકારી દ્રશ્ય",
+        view_analyst: "📈 વિશ્લેષક દ્રશ્ય",
+        view_ops: "⚙️ કામગીરી દ્રશ્ય",
+        onboarding_checklist_dock: "ઓનબોર્ડિંગ ચેકલિસ્ટ"
+      },
+      te: {
+        nav_overview: "డాష్‌బోర్డ్ అవలోకనం",
+        nav_transactions: "లావాదేవీలు & ఖర్చులు",
+        nav_expense_analysis: "ఖర్చు విశ్లేషణ",
+        nav_invoices: "ఇన్‌వాయిస్‌లు & GST",
+        nav_khata: "ఖాతా పుస్తకం లెడ్జర్",
+        nav_cashflow: "క్యాష్ ఫ్లో రన్‌వే",
+        nav_inventory: "స్టాక్ & ఆస్తులు",
+        nav_subscriptions: "సబ్‌స్క్రిప్షన్‌లు & SaaS",
+        nav_reports: "లాభ-నష్టాల (P&L) నివేదికలు",
+        nav_aichat: "AI CFO ఆర్థిక సలహాదారు",
+        nav_upload: "డాక్యుమెంట్ ఇంటెలిజెన్స్",
+        nav_merkle: "మెర్కిల్ ఆడిట్ వాల్ట్",
+        nav_team: "టీమ్ & జాయిన్ కోడ్",
+        nav_settings: "వర్క్‌స్పేస్ సెట్టింగ్‌లు",
+        top_guide: "గైడ్ & టూర్",
+        top_search: "శోధించండి",
+        top_voice: "వాయిస్ బుక్‌కీపర్",
+        top_add_tx: "+ లావాదేవీ జోడించండి",
+        top_sign_out: "సైన్ అవుట్",
+        settings_theme_title: "ఇంటర్‌ఫేస్ థీమ్ & మూడ్ స్టూడియో",
+        settings_theme_desc: "మీ మూడ్ లేదా లైటింగ్ వాతావరణం ఆధారంగా మీ వర్క్‌స్పేస్ మరియు ఫాంట్‌లను తక్షణమే మార్చండి.",
+        settings_lang_title: "భాష & స్థానిక అనువాదం",
+        settings_lang_desc: "మీకు కావలసిన భాషను ఎంచుకోండి. అన్ని మెనూలు, కరెన్సీ లేబుల్స్ మరియు ఆర్థిక విశ్లేషణలు తక్షణమే అనుగుణంగా మారతాయి.",
+        settings_ws_name_label: "ప్రస్తుత వర్క్‌స్పేస్ పేరు",
+        settings_ws_type_label: "వర్క్‌స్పేస్ రకం",
+        settings_ws_join_code_label: "12-అక్షరాల వ్యాపార జాయిన్ కోడ్",
+        settings_devices_title: "సక్రియ పరికరాలు & భద్రతా గవర్నర్",
+        metric_total_inflow: "మొత్తం రాబడి 🔍",
+        metric_total_outflow: "మొత్తం వ్యయం 🔍",
+        metric_net_margin: "నికర లాభం 🔍",
+        metric_cash_runway: "క్యాష్ రన్‌వే 🔍",
+        safespend_title: "🧭 సురక్షిత రోజువారీ ఖర్చు",
+        health_gauge_title: "ఆర్థిక ఆరోగ్యం 🔍",
+        btn_upload_statement: "📄 స్టేట్‌మెంట్ అప్‌లోడ్ చేయండి",
+        view_exec: "📊 ఎగ్జిక్యూటివ్ వీక్షణ",
+        view_analyst: "📈 విశ్లేషకుల వీక్షణ",
+        view_ops: "⚙️ ఆపరేషన్స్ వీక్షణ",
+        onboarding_checklist_dock: "ఆన్‌బోర్డింగ్ చెక్‌లిస్ట్"
+      },
+      kn: {
+        nav_overview: "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಅವಲೋಕನ",
+        nav_transactions: "ವಹಿವಾಟುಗಳು ಮತ್ತು ಖರ್ಚುಗಳು",
+        nav_expense_analysis: "ವೆಚ್ಚ ವಿಶ್ಲೇಷಣೆ",
+        nav_invoices: "ಇನ್‌ವಾಯ್ಸ್‌ಗಳು ಮತ್ತು GST",
+        nav_khata: "ಖಾತಾ ಪುಸ್ತಕ ಲೆಡ್ಜರ್",
+        nav_cashflow: "ಹಣದ ಹರಿವು ರನ್‌ವೇ",
+        nav_inventory: "ದಾಸ್ತಾನು ಮತ್ತು ಆಸ್ತಿಗಳು",
+        nav_subscriptions: "ಚಂದಾದಾರಿಕೆಗಳು ಮತ್ತು SaaS",
+        nav_reports: "ಲಾಭ-ನಷ್ಟ (P&L) ವರದಿಗಳು",
+        nav_aichat: "AI CFO ಆರ್ಥಿಕ ಸಲಹೆಗಾರ",
+        nav_upload: "ದಾಖಲೆ ಬುದ್ಧಿಮತ್ತೆ",
+        nav_merkle: "ಮರ್ಕಲ್ ಆಡಿಟ್ ವಾಲ್ಟ್",
+        nav_team: "ತಂಡ ಮತ್ತು ಸೇರ್ಪಡೆ ಕೋಡ್",
+        nav_settings: "ಕಾರ್ಯಸ್ಥಳ ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+        top_guide: "ಮಾರ್ಗದರ್ಶಿ ಮತ್ತು ಪ್ರವಾಸ",
+        top_search: "ಹುಡುಕಿ",
+        top_voice: "ಧ್ವನಿ ಲೆಕ್ಕಪತ್ರ",
+        top_add_tx: "+ ವಹಿವಾಟು ಸೇರಿಸಿ",
+        top_sign_out: "ಸೈನ್ ಔಟ್",
+        settings_theme_title: "ಇಂಟರ್ಫೇಸ್ ಥೀಮ್ ಮತ್ತು ಮೂಡ್ ಸ್ಟುಡಿಯೋ",
+        settings_theme_desc: "ನಿಮ್ಮ ಮೂಡ್ ಅಥವಾ ಬೆಳಕಿನ ವಾತಾವರಣಕ್ಕೆ ಅನುಗುಣವಾಗಿ ನಿಮ್ಮ ಕಾರ್ಯಸ್ಥಳ ಮತ್ತು ಫಾಂಟ್‌ಗಳನ್ನು ತಕ್ಷಣ ಬದಲಾಯಿಸಿ.",
+        settings_lang_title: "ಭಾಷೆ ಮತ್ತು ಪ್ರಾದೇಶಿಕ ಸ್ಥಳೀಕರಣ",
+        settings_lang_desc: "ನಿಮ್ಮ ಮೆಚ್ಚಿನ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ. ಎಲ್ಲಾ ಮೆನುಗಳು, ಕರೆನ್ಸಿ ಲೇಬಲ್‌ಗಳು ಮತ್ತು ಹಣಕಾಸು ವಿಶ್ಲೇಷಣೆ ತಕ್ಷಣ ಹೊಂದಿಕೊಳ್ಳುತ್ತವೆ.",
+        settings_ws_name_label: "ಪ್ರಸ್ತುತ ಕಾರ್ಯಸ್ಥಳದ ಹೆಸರು",
+        settings_ws_type_label: "ಕಾರ್ಯಸ್ಥಳದ ಪ್ರಕಾರ",
+        settings_ws_join_code_label: "12-ಅಕ್ಷರಗಳ ವ್ಯಾಪಾರ ಸೇರ್ಪಡೆ ಕೋಡ್",
+        settings_devices_title: "ಸಕ್ರಿಯ ಸಾಧನಗಳು ಮತ್ತು ಭದ್ರತಾ ಗವರ್ನರ್",
+        metric_total_inflow: "ಒಟ್ಟು ಒಳಹರಿವು 🔍",
+        metric_total_outflow: "ಒಟ್ಟು ವೆಚ್ಚ 🔍",
+        metric_net_margin: "ನಿವ್ವಳ ಅಂತರ 🔍",
+        metric_cash_runway: "ಹಣದ ರನ್‌ವೇ 🔍",
+        safespend_title: "🧭 ಸುರಕ್ಷಿತ ದೈನಂದಿನ ವೆಚ್ಚ",
+        health_gauge_title: "ಹಣಕಾಸು ಆರೋಗ್ಯ 🔍",
+        btn_upload_statement: "📄 ಸ್ಟೇಟ್‌ಮೆಂಟ್ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ",
+        view_exec: "📊 ಕಾರ್ಯನಿರ್ವಾಹಕ ನೋಟ",
+        view_analyst: "📈 ವಿಶ್ಲೇಷಕರ ನೋಟ",
+        view_ops: "⚙️ ಕಾರ್ಯಾಚರಣೆಗಳ ನೋಟ",
+        onboarding_checklist_dock: "ಆನ್‌ಬೋರ್ಡಿಂಗ್ ಪರಿಶೀಲನಾಪಟ್ಟಿ"
+      },
+      bn: {
+        nav_overview: "ড্যাশবোর্ড সারসংক্ষেপ",
+        nav_transactions: "লেনদেন ও ব্যয়",
+        nav_expense_analysis: "ব্যয় বিশ্লেষণ",
+        nav_invoices: "ইনভয়েস ও জিএসটি",
+        nav_khata: "খাতা বই লেজার",
+        nav_cashflow: "ক্যাশ ফ্লো রানওয়ে",
+        nav_inventory: "ইনভেন্টরি ও সম্পদ",
+        nav_subscriptions: "সাবস্ক্রিপশন ও SaaS",
+        nav_reports: "লাভ-ক্ষতি (P&L) প্রতিবেদন",
+        nav_aichat: "AI CFO আর্থিক সহায়ক",
+        nav_upload: "ডকুমেন্ট ইন্টেলিজেন্স",
+        nav_merkle: "মার্কেল অডিট ভল্ট",
+        nav_team: "টিম ও যোগদানের কোড",
+        nav_settings: "ওয়ার্কস্পেস সেটিংস",
+        top_guide: "গাইড ও সফর",
+        top_search: "অনুসন্ধান",
+        top_voice: "ভয়েস বুককিপার",
+        top_add_tx: "+ লেনদেন যোগ করুন",
+        top_sign_out: "সাইন আউট",
+        settings_theme_title: "ইন্টারফেস থিম ও মুড স্টুডিও",
+        settings_theme_desc: "আপনার মেজাজ বা আলোর পরিবেশের উপর ভিত্তি করে আপনার ওয়ার্কস্পেস এবং টাইপোগ্রাফি তাৎক্ষণিকভাবে পরিবর্তন করুন।",
+        settings_lang_title: "ভাষা ও আঞ্চলিক স্থানীয়করণ",
+        settings_lang_desc: "আপনার পছন্দের ভাষা নির্বাচন করুন। সমস্ত মেনু, মুদ্রা লেবেল এবং আর্থিক বিশ্লেষণ তাৎক্ষণিকভাবে খাপ খাইয়ে নেবে।",
+        settings_ws_name_label: "বর্তমান ওয়ার্কস্পেস নাম",
+        settings_ws_type_label: "ওয়ার্কস্পেস ধরণ",
+        settings_ws_join_code_label: "১২-অক্ষরের ব্যবসায়িক যোগদানের কোড",
+        settings_devices_title: "সক্রিয় ডিভাইস ও নিরাপত্তা নিয়ন্ত্রক",
+        metric_total_inflow: "মোট আগমন 🔍",
+        metric_total_outflow: "মোট বহির্গমন 🔍",
+        metric_net_margin: "নিট মার্জিন 🔍",
+        metric_cash_runway: "ক্যাশ রানওয়ে 🔍",
+        safespend_title: "🧭 নিরাপদ দৈনিক খরচ",
+        health_gauge_title: "আর্থিক স্বাস্থ্য 🔍",
+        btn_upload_statement: "📄 স্টেটমেন্ট আপলোড করুন",
+        view_exec: "📊 নির্বাহী দৃশ্য",
+        view_analyst: "📈 বিশ্লেষক দৃশ্য",
+        view_ops: "⚙️ অপারেশনাল দৃশ্য",
+        onboarding_checklist_dock: "অনবোর্ডিং চেকলিস্ট"
+      }
+    };
 
-      // Update all elements with data-i18n
+    // Deep merge dashboard translations into siteTranslations
+    Object.keys(DASHBOARD_TRANSLATIONS).forEach(code => {
+      if (!siteTranslations[code]) siteTranslations[code] = {};
+      Object.assign(siteTranslations[code], DASHBOARD_TRANSLATIONS[code]);
+    });
+
+    function changeLanguage(lang, notify = true) {
+      if (!siteTranslations[lang]) lang = 'en';
+      const dict = siteTranslations[lang] || siteTranslations.en;
+
+      // 1. Update all elements with data-i18n
       document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (dict[key]) {
@@ -9208,11 +9536,53 @@
         }
       });
 
-      // Synchronize landing dropdown if present
+      // 2. Direct ID-targeted updates for guaranteed robustness
+      const ID_MAP = {
+        topGuideText: dict.top_guide,
+        topSearchText: dict.top_search,
+        topVoiceText: dict.top_voice,
+        topAddTxText: dict.top_add_tx,
+        topSignOutText: dict.top_sign_out,
+        settingsThemeTitle: dict.settings_theme_title,
+        settingsThemeDesc: dict.settings_theme_desc,
+        settingsLangTitle: dict.settings_lang_title,
+        settingsLangDesc: dict.settings_lang_desc,
+        settingsWsNameLabel: dict.settings_ws_name_label,
+        settingsWsTypeLabel: dict.settings_ws_type_label,
+        settingsJoinCodeLabel: dict.settings_ws_join_code_label,
+        settingsDevicesTitle: dict.settings_devices_title,
+        metricInflowTitle: dict.metric_total_inflow,
+        metricOutflowTitle: dict.metric_total_outflow,
+        metricMarginTitle: dict.metric_net_margin,
+        metricRunwayTitle: dict.metric_cash_runway,
+        webSafeSpendTitle: dict.safespend_title,
+        dashHealthScoreTitle: dict.health_gauge_title,
+        dashUploadStatementBtn: dict.btn_upload_statement,
+        presetBtnExec: dict.view_exec,
+        presetBtnAnalyst: dict.view_analyst,
+        presetBtnOps: dict.view_ops,
+        onboardingDockLabel: dict.onboarding_checklist_dock
+      };
+      Object.keys(ID_MAP).forEach(id => {
+        if (ID_MAP[id]) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = ID_MAP[id];
+        }
+      });
+
+      // 3. Update Landing Page hero heading & sub if present
+      if (typeof i18n !== 'undefined' && i18n[lang]) {
+        const heroH = document.getElementById('heroHeading');
+        const heroS = document.getElementById('heroSubheading');
+        if (heroH) heroH.innerHTML = i18n[lang].heading;
+        if (heroS) heroS.textContent = i18n[lang].sub;
+      }
+
+      // 4. Synchronize landing dropdown if present
       const landSel = document.getElementById('langSelectLanding');
       if (landSel) landSel.value = lang;
 
-      // Update Settings Language Studio Badge & Card Highlights
+      // 5. Update Settings Language Studio Badge & Card Highlights
       const LANG_NAMES = {
         en: 'ENGLISH',
         ta: 'தமிழ் (TAMIL)',
@@ -9236,9 +9606,11 @@
           if (k === lang) {
             card.style.borderColor = '#10b981';
             card.style.borderWidth = '2px';
+            card.style.boxShadow = '0 0 15px rgba(16, 185, 129, 0.25)';
           } else {
             card.style.borderColor = 'var(--border)';
             card.style.borderWidth = '1px';
+            card.style.boxShadow = 'none';
           }
         }
         if (check) {
@@ -9246,7 +9618,25 @@
         }
       });
 
+      // 6. Persist user choice to localStorage
       localStorage.setItem('hisabhero_lang', lang);
+
+      // 7. Interactive Toast Confirmation
+      if (notify) {
+        const LANG_CHANGE_TOAST = {
+          en: '✨ Interface language updated to English',
+          ta: '✨ இடைமுக மொழி தமிழாக மாற்றப்பட்டது (Tamil)',
+          hi: '✨ इंटरफ़ेस भाषा बदलकर हिंदी (Hindi) कर दी गई',
+          mr: '✨ इंटरफेस भाषा बदलून मराठी (Marathi) झाली',
+          gu: '✨ ઈન્ટરફેસ ભાષા બદલીને ગુજરાતી (Gujarati) થઈ',
+          te: '✨ ఇంటర్‌ఫేస్ భాష తెలుగుగా (Telugu) మార్చబడింది',
+          kn: '✨ ಇಂಟರ್ಫೇಸ್ ಭಾಷೆಯನ್ನು ಕನ್ನಡಕ್ಕೆ (Kannada) ಬದಲಾಯಿಸಲಾಗಿದೆ',
+          bn: '✨ ইন্টারফেস ভাষা বাংলায় (Bengali) পরিবর্তিত হয়েছে'
+        };
+        if (typeof showToast === 'function') {
+          showToast(LANG_CHANGE_TOAST[lang] || `Language set to ${lang.toUpperCase()}`, 'success');
+        }
+      }
     }
 
     // ─── GLOBAL TOAST NOTIFICATION ENGINE ───
