@@ -526,6 +526,7 @@ export function AppNavigator({
             activeWorkspaceRole="owner"
             onNavigateToTool={(tool) => setSubTool(tool as any)}
             isStealthMode={isStealthMode}
+            onOpenTour={() => setTourVisible(true)}
           />
         );
       case 'expenses':
@@ -656,6 +657,7 @@ export function AppNavigator({
             activeWorkspaceRole={activeWorkspaceRole}
             onNavigateToTool={(tool) => setSubTool(tool as any)}
             isStealthMode={isStealthMode}
+            onOpenTour={() => setTourVisible(true)}
           />
         );
       case 'expenses':

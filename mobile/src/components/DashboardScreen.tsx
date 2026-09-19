@@ -88,6 +88,7 @@ type DashboardScreenProps = {
   user?: any;
   onNavigateToTool?: (tool: string) => void;
   isStealthMode?: boolean;
+  onOpenTour?: () => void;
 };
 
 const SUGGESTED_CATEGORIES = [
@@ -111,9 +112,11 @@ export function DashboardScreen({
   user,
   onNavigateToTool,
   isStealthMode = false,
+  onOpenTour,
 }: DashboardScreenProps) {
   const { theme, accentHex } = useTheme();
   const { t } = useTranslation();
+  const [showChecklistCard, setShowChecklistCard] = useState(true);
   const [addTxVisible, setAddTxVisible] = useState(false);
   const [reportVisible, setReportVisible] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
@@ -603,6 +606,27 @@ export function DashboardScreen({
                       {`${prefix}, ${name} 👋`}
                     </Text>
                   </View>
+                  {/* 🎓 In-App Guidance & Tour Launcher */}
+                  {onOpenTour && (
+                    <TouchableOpacity
+                      onPress={onOpenTour}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 5,
+                        backgroundColor: `${accentHex}18`,
+                        borderWidth: 1,
+                        borderColor: `${accentHex}40`,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 20,
+                        marginRight: 8,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13 }}>🎓</Text>
+                      <Text style={{ color: accentHex, fontSize: 11, fontWeight: '800' }}>Guide & Tour</Text>
+                    </TouchableOpacity>
+                  )}
                   {avatarUri ? (
                     <ImageComp source={{ uri: avatarUri }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: accentHex }} />
                   ) : (
@@ -614,6 +638,84 @@ export function DashboardScreen({
               );
             })()}
           </View>
+
+          {/* 🎯 In-App Guidance: MSME Quick-Start Checklist */}
+          {showChecklistCard && (
+            <View style={{ backgroundColor: theme.card, borderWidth: 1, borderColor: `${accentHex}40`, borderRadius: 16, padding: 14, marginBottom: 14 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 16 }}>🎯</Text>
+                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 13 }}>Quick-Start Onboarding Guide</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ backgroundColor: `${accentHex}25`, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                    <Text style={{ color: accentHex, fontSize: 10, fontWeight: '800' }}>50% COMPLETE</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowChecklistCard(false)} style={{ padding: 2 }}>
+                    <Text style={{ color: theme.textSecondary, fontSize: 14 }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Progress bar */}
+              <View style={{ height: 5, backgroundColor: theme.bg, borderRadius: 6, overflow: 'hidden', marginBottom: 12 }}>
+                <View style={{ width: '50%', height: '100%', backgroundColor: accentHex, borderRadius: 6 }} />
+              </View>
+
+              {/* 4 Steps */}
+              <View style={{ gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bg, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.cardBorder }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Text style={{ color: '#10b981', fontWeight: '800' }}>✓</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12, textDecorationLine: 'line-through' }}>1. Personal Workspace Active</Text>
+                  </View>
+                  <Text style={{ color: '#10b981', fontSize: 11, fontWeight: '700' }}>Done</Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setHealthModalVisible(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bg, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.cardBorder }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Text style={{ color: theme.textSecondary }}>○</Text>
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>2. Inspect Cash Runway & Health Score</Text>
+                  </View>
+                  <Text style={{ color: accentHex, fontSize: 11, fontWeight: '700' }}>View →</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => onNavigateToTool?.('upload')}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bg, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.cardBorder }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Text style={{ color: theme.textSecondary }}>○</Text>
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>3. Parse Multi-Bank Statement (PDF/Excel)</Text>
+                  </View>
+                  <Text style={{ color: accentHex, fontSize: 11, fontWeight: '700' }}>Upload →</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => onNavigateToTool?.('chat')}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bg, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.cardBorder }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Text style={{ color: theme.textSecondary }}>○</Text>
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>4. Ask AI CFO Copilot a Runway Question</Text>
+                  </View>
+                  <Text style={{ color: accentHex, fontSize: 11, fontWeight: '700' }}>Ask AI →</Text>
+                </TouchableOpacity>
+              </View>
+
+              {onOpenTour && (
+                <TouchableOpacity
+                  onPress={onOpenTour}
+                  style={{ marginTop: 10, backgroundColor: `${accentHex}20`, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: `${accentHex}40` }}
+                >
+                  <Text style={{ color: accentHex, fontSize: 12, fontWeight: '800' }}>Launch Interactive 5-Pillar Tour 🚀</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* ⚡ Natural Language Quick Log Bar (Website Parity Feature) */}
           <View style={{ backgroundColor: theme.card, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 16, padding: 8, paddingHorizontal: 12, marginBottom: 14, flexDirection: 'row', alignItems: 'center' }}>
