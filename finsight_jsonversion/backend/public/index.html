@@ -9514,7 +9514,8 @@
           'Automated safe daily spend and liquidity buffer',
           'Click the health gauge anytime for a forensic audit report'
         ],
-        action: () => showSection('overview')
+        preferredPosition: 'bottom',
+        action: () => { showSection('overview'); toggleHeroBotDrawer(false); }
       },
       {
         targetSelector: 'button[onclick*="openAddTxModal"]',
@@ -9526,10 +9527,11 @@
           'Auto-extracts amount, type, vendor and Indian tax category',
           'Voice bookkeeper for hands-free audio transaction logging'
         ],
-        action: () => showSection('overview')
+        preferredPosition: 'bottom',
+        action: () => { showSection('overview'); toggleHeroBotDrawer(false); }
       },
       {
-        targetSelector: '.dash-nav-item[onclick*="upload"]',
+        targetSelector: '#uploadDropzone',
         badge: '✨ STEP 3 OF 5: DOCUMENT INTELLIGENCE',
         title: '📄 Multi-Bank Statement Smart Parser',
         body: 'Drag and drop any Indian bank PDF (ICICI, HDFC, SBI, Axis) or Excel sheet for sub-second reconciliation.',
@@ -9538,10 +9540,11 @@
           'Categorizes UPI merchant strings with zero AI hallucination',
           'Extracts GST numbers, TDS 194C/J, and ITC claims'
         ],
-        action: () => showSection('upload')
+        preferredPosition: 'bottom',
+        action: () => { showSection('upload'); toggleHeroBotDrawer(false); }
       },
       {
-        targetSelector: '.dash-nav-item[onclick*="merkle"]',
+        targetSelector: '#section-merkle .data-table-card',
         badge: '✨ STEP 4 OF 5: FORENSIC INTEGRITY',
         title: '🔒 Cryptographic Merkle Audit Vault',
         body: 'Every transaction is hashed into a SHA-256 Merkle tree. Generate mathematical audit proofs for banks, investors, and tax authorities.',
@@ -9550,10 +9553,11 @@
           'One-click verification of zero post-facto backdating',
           'Underwrite loans with cryptographic certainty'
         ],
-        action: () => showSection('merkle')
+        preferredPosition: 'bottom',
+        action: () => { showSection('merkle'); toggleHeroBotDrawer(false); }
       },
       {
-        targetSelector: '#heroBotDrawerTrigger, #botDrawerTriggerBtn, .dash-nav-item[onclick*="aichat"]',
+        targetSelector: '#heroBotDrawer',
         badge: '✨ STEP 5 OF 5: 24/7 AI COPILOT',
         title: '🤖 Grounded AI CFO Copilot',
         body: 'Ask complex financial and tax questions grounded exclusively in your verified workspace ledger.',
@@ -9562,6 +9566,7 @@
           'Detect recurring SaaS leakage & optimize safe daily spend',
           'Indian tax law compliance (GST, Section 43B(h), TDS)'
         ],
+        preferredPosition: 'left',
         action: () => toggleHeroBotDrawer(true)
       }
     ];
@@ -9651,22 +9656,73 @@
             box.style.height = `${freshRect.height + 12}px`;
           }
 
-          // Position Card intelligently
+          // Position Card intelligently so it NEVER overlaps or hides the active feature
           if (card) {
             const cardWidth = 380;
-            let cardTop = freshRect.bottom + 18;
-            let cardLeft = Math.max(16, freshRect.left + (freshRect.width / 2) - (cardWidth / 2));
+            const cardHeight = card.offsetHeight || 310;
+            const margin = 20;
+            let cardTop = 0;
+            let cardLeft = 0;
 
-            // Flip above if too close to bottom
-            if (cardTop + 240 > window.innerHeight) {
-              cardTop = Math.max(80, freshRect.top - 250);
-            }
-            if (cardLeft + cardWidth > window.innerWidth - 20) {
-              cardLeft = window.innerWidth - cardWidth - 20;
+            if (step.preferredPosition === 'left' || freshRect.left > window.innerWidth / 2) {
+              // Place to the LEFT of the target (ideal for AI Drawer on the right)
+              if (freshRect.left - cardWidth - margin >= 16) {
+                cardLeft = freshRect.left - cardWidth - margin;
+                cardTop = Math.max(70, Math.min(freshRect.top + 30, window.innerHeight - cardHeight - 20));
+              } else {
+                cardLeft = Math.max(16, (window.innerWidth - cardWidth) / 2);
+                cardTop = Math.max(70, freshRect.top - cardHeight - margin);
+              }
+            } else if (step.preferredPosition === 'bottom') {
+              cardLeft = Math.max(20, Math.min(freshRect.left + (freshRect.width / 2) - (cardWidth / 2), window.innerWidth - cardWidth - 20));
+              cardTop = freshRect.bottom + margin;
+
+              // If overflowing bottom edge, try placing ABOVE target
+              if (cardTop + cardHeight > window.innerHeight - 10) {
+                const topPlacement = freshRect.top - cardHeight - margin;
+                if (topPlacement >= 60) {
+                  cardTop = topPlacement;
+                } else {
+                  // Fallback to right or left side
+                  if (freshRect.right + cardWidth + margin <= window.innerWidth - 16) {
+                    cardLeft = freshRect.right + margin;
+                    cardTop = Math.max(70, freshRect.top);
+                  } else if (freshRect.left - cardWidth - margin >= 16) {
+                    cardLeft = freshRect.left - cardWidth - margin;
+                    cardTop = Math.max(70, freshRect.top);
+                  }
+                }
+              }
+            } else {
+              cardLeft = Math.max(20, Math.min(freshRect.left + (freshRect.width / 2) - (cardWidth / 2), window.innerWidth - cardWidth - 20));
+              cardTop = freshRect.bottom + margin;
+              if (cardTop + cardHeight > window.innerHeight - 10) {
+                cardTop = Math.max(70, freshRect.top - cardHeight - margin);
+              }
             }
 
-            card.style.top = `${cardTop}px`;
-            card.style.left = `${cardLeft}px`;
+            // Absolute collision guarantee: if card still overlaps freshRect, move card away
+            const isOverlapping = !(
+              (cardLeft + cardWidth) <= freshRect.left ||
+              cardLeft >= freshRect.right ||
+              (cardTop + cardHeight) <= freshRect.top ||
+              cardTop >= freshRect.bottom
+            );
+
+            if (isOverlapping) {
+              if (freshRect.left - cardWidth - margin >= 16) {
+                cardLeft = freshRect.left - cardWidth - margin;
+              } else if (freshRect.right + cardWidth + margin <= window.innerWidth - 16) {
+                cardLeft = freshRect.right + margin;
+              } else if (freshRect.bottom + margin + cardHeight <= window.innerHeight - 10) {
+                cardTop = freshRect.bottom + margin;
+              } else if (freshRect.top - cardHeight - margin >= 60) {
+                cardTop = freshRect.top - cardHeight - margin;
+              }
+            }
+
+            card.style.top = `${Math.round(cardTop)}px`;
+            card.style.left = `${Math.round(cardLeft)}px`;
           }
         }, 180);
 
