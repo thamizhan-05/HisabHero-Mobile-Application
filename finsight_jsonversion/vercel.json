@@ -10,25 +10,6 @@
       }
     }
   ],
-  "env": {
-    "NODE_ENV": "production",
-    "GEMINI_API_KEY": "AQ.Ab8RN6LPfiQrhjvsDld4gGshBNLvyT2HIfeETHZGjueXagXc3A",
-    "MONGO_URI": "mongodb+srv://nebulonhackathon2026:manimau28@hisabhero.kies5xc.mongodb.net/hisabhero?retryWrites=true&w=majority",
-    "MONGODB_URI": "mongodb+srv://nebulonhackathon2026:manimau28@hisabhero.kies5xc.mongodb.net/hisabhero?retryWrites=true&w=majority",
-    "SUPABASE_URL": "https://lsrcyhoxxbndzhntlvay.supabase.co",
-    "SUPABASE_KEY": "sb_secret_Sr_w_Ogs_W1J-x6U8r_fow_rwwtR6py",
-    "DATABASE_URL": "postgresql://postgres:Stvr2005Selva@db.lsrcyhoxxbndzhntlvay.supabase.co:5432/postgres",
-    "GOOGLE_WEB_CLIENT_ID": "67517586498-g54j68rmr8tfhk2l5uotqjt525sc3s0q.apps.googleusercontent.com",
-    "SMTP_HOST": "smtp.gmail.com",
-    "SMTP_PORT": "465",
-    "SMTP_SECURE": "true",
-    "SMTP_USER": "hisabhero27@gmail.com",
-    "SMTP_PASS": "vosufsbqxztmuxos",
-    "SMTP_FROM": "\"HisabHero\" <hisabhero27@gmail.com>",
-    "TWILIO_ACCOUNT_SID": "ACc0b4387df1fb1f31695e167e0b7203fc",
-    "TWILIO_AUTH_TOKEN": "a3fc6550073db2ad958f0c2327116197",
-    "TWILIO_WHATSAPP_NUMBER": "whatsapp:+14155238886"
-  },
   "services": {
     "web": {
       "root": ".",

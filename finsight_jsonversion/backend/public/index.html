@@ -5803,6 +5803,7 @@
 
       try {
         const wsId = currentActiveWorkspaceId || 'personal';
+        formData.append('workspaceId', wsId);
         const res = await fetch('/api/upload/preview', {
           method: 'POST',
           headers: {

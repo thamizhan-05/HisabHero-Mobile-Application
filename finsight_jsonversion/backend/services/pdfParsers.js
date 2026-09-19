@@ -46,50 +46,100 @@ export function parseCleanAmount(val) {
   return isNaN(num) ? 0 : Math.abs(num);
 }
 
-export function extractMerchantFromNarration(narration = '', bankName = '') {
-  if (!narration) return `${bankName} Transaction`;
+export function extractMerchantAndCaption(narration = '', bankName = '') {
+  if (!narration) return { merchant: `${bankName} Transaction`, caption: '' };
   const clean = narration.trim();
 
-  // Pattern: UPI/DR/<rrn>/<MERCHANT>/... or UPI/CR/<rrn>/<MERCHANT>/...
-  if (/^UPI\/(?:DR|CR)\//i.test(clean)) {
-    const parts = clean.split('/');
-    if (parts.length >= 4 && parts[3].trim()) {
-      return parts[3].trim();
+  // Pattern: UPI/624643439226/DR/Flipkart Payme /YES/UPI
+  // or UPI/661371343856/DR/ RSM MALL LLP /YES/milk
+  if (/^UPI\//i.test(clean)) {
+    const parts = clean.split('/').map(p => p.trim());
+
+    // Case 1: UPI/<RRN>/DR or CR/<MERCHANT>/<BANK>/<CAPTION>
+    if (parts.length >= 4 && /^\d+$/.test(parts[1]) && /^(?:DR|CR)$/i.test(parts[2])) {
+      const merchant = parts[3];
+      let caption = '';
+      if (parts.length >= 6 && parts[5] && !/^(?:UPI|NA|NULL|NONE)$/i.test(parts[5])) {
+        caption = parts[5];
+      }
+      return { merchant: merchant || `${bankName} UPI`, caption };
+    }
+
+    // Case 2: UPI/DR or CR/<RRN>/<MERCHANT>/<BANK>/<CAPTION>
+    if (parts.length >= 4 && /^(?:DR|CR)$/i.test(parts[1])) {
+      const merchant = /^\d+$/.test(parts[2]) ? parts[3] : parts[2];
+      let caption = '';
+      if (parts.length >= 6 && parts[5] && !/^(?:UPI|NA|NULL|NONE)$/i.test(parts[5])) {
+        caption = parts[5];
+      } else if (parts.length >= 5 && parts[4] && !/^(?:UPI|NA|NULL|NONE)$/i.test(parts[4])) {
+        caption = parts[4];
+      }
+      return { merchant: merchant || `${bankName} UPI`, caption };
+    }
+
+    // Case 3: UPI/<RRN>/<MERCHANT>/...
+    if (parts.length >= 3 && /^\d+$/.test(parts[1])) {
+      const merchant = parts[2];
+      let caption = '';
+      if (parts.length >= 4 && parts[3] && !/^(?:UPI|NA|NULL|NONE)$/i.test(parts[3])) {
+        caption = parts[3];
+      }
+      return { merchant: merchant || `${bankName} UPI`, caption };
+    }
+
+    // Case 4: UPI/<MERCHANT>/<VPA>/<REMARK>/...
+    if (parts.length >= 2 && !/^\d+$/.test(parts[1]) && !/^(?:DR|CR)$/i.test(parts[1])) {
+      const merchant = parts[1];
+      let caption = '';
+      if (parts.length >= 4 && parts[3] && !/^(?:UPI|NA|NULL|NONE)$/i.test(parts[3])) {
+        caption = parts[3];
+      }
+      return { merchant: merchant || `${bankName} UPI`, caption };
     }
   }
 
-  // Pattern: UPI/<MERCHANT>/...
-  if (/^UPI\/([^\/]+)\//i.test(clean)) {
-    const match = clean.match(/^UPI\/([^\/]+)\//i);
-    if (match && match[1] && !/^(?:DR|CR)$/i.test(match[1])) {
-      return match[1].trim();
-    }
-  }
-
-  // Pattern: IFSC/Beneficiary e.g. YESB0PTMUPI/Sunil kumar ramkeval kahar/XXXXX/...
+  // IFSC/Beneficiary e.g. YESB0PTMUPI/Sunil kumar ramkeval kahar/XXXXX/...
   const ifscMerchant = clean.match(/^[A-Z]{4}\w+\/([^\/]+)\//i);
-  if (ifscMerchant && ifscMerchant[1]) {
-    return ifscMerchant[1].trim();
+  if (ifscMerchant && ifscMerchant[1] && !/^\d+$/.test(ifscMerchant[1])) {
+    return { merchant: ifscMerchant[1].trim(), caption: '' };
   }
 
-  // Pattern: NEFT-ICIC-IN...-ULAGAMMAL or BIL/NEFT/.../ULAGAMMAL/...
+  // BIL/ONL/<REF>/<MERCHANT>/...
+  if (/BIL\/ONL\//i.test(clean)) {
+    const parts = clean.split('/').map(p => p.trim());
+    if (parts.length >= 4 && parts[3]) {
+      return { merchant: parts[3], caption: '' };
+    }
+  }
+
+  // NEFT-ICIC-IN...-ULAGAMMAL or BIL/NEFT/.../ULAGAMMAL/...
   if (/NEFT/i.test(clean)) {
-    const neftParts = clean.split(/[-\/]/);
+    const neftParts = clean.split(/[-\/]/).map(p => p.trim());
     for (let i = neftParts.length - 1; i >= 0; i--) {
-      const part = neftParts[i].trim();
-      if (part && !/^\d+$/.test(part) && !/^(?:NEFT|ICIC|IN\d+|INDIA|OVERSEAS|BANK)$/i.test(part) && part.length > 2) {
-        return part;
+      const part = neftParts[i];
+      if (part && !/^\d+$/.test(part) && !/^(?:NEFT|ICIC|IN\d+|INDIA|OVERSEAS|BANK|BIL|BRANCH|RTGS)$/i.test(part) && part.length > 2) {
+        return { merchant: part, caption: '' };
       }
     }
   }
 
-  // Pattern: CAM/03272SRY/CASH DEP-Other/...
+  // Cash Deposit
   if (/CASH\s*DEP/i.test(clean)) {
-    return 'Cash Deposit';
+    return { merchant: 'Cash Deposit', caption: 'Cash Deposit' };
+  }
+
+  // iDirect
+  if (/iDirect/i.test(clean)) {
+    return { merchant: 'ICICI Direct', caption: 'Investments' };
   }
 
   const firstToken = clean.split(/[\/\-]/)[0].trim();
-  return firstToken || `${bankName} Narration`;
+  const safeMerchant = (firstToken && !/^\d+$/.test(firstToken)) ? firstToken : `${bankName} Narration`;
+  return { merchant: safeMerchant, caption: '' };
+}
+
+export function extractMerchantFromNarration(narration = '', bankName = '') {
+  return extractMerchantAndCaption(narration, bankName).merchant;
 }
 
 export function standardizeDate(dateStr) {
@@ -164,36 +214,140 @@ export function standardizeDate(dateStr) {
   return new Date().toISOString().split('T')[0];
 }
 
-// ─── AUTO CLASSIFIER / CATEGORIZER ───
-export function categorizeByNarration(narration = '') {
-  const text = narration.toLowerCase();
-  if (text.includes('swiggy') || text.includes('zomato') || text.includes('restaurant') || text.includes('food') || text.includes('cafe') || text.includes('mcdonald') || text.includes('hotel') || text.includes('किराणा') || text.includes('dining')) {
-    return 'Food & Dining';
+// ─── COMPREHENSIVE AUTO CLASSIFIER / CATEGORIZER (CAPTION -> MERCHANT -> GENERAL) ───
+export const STANDARD_CATEGORY_RULES = [
+  {
+    category: 'Groceries',
+    keywords: [
+      'milk', 'curd', 'dairy', 'paneer', 'butter', 'cheese', 'ghee', 'egg', 'eggs', 'bread',
+      'vegetable', 'vegetables', 'veggie', 'veggies', 'fruit', 'fruits', 'apple', 'banana',
+      'meat', 'chicken', 'fish', 'mutton', 'prawn', 'ration', 'grocery', 'groceries',
+      'supermarket', 'hypermarket', 'kirana', 'provisions', 'dmart', 'd-mart', 'zepto',
+      'blinkit', 'instamart', 'bigbasket', 'bb daily', 'dunzo', 'spencers', 'more retail',
+      'nature basket', 'reliance fresh', 'reliance smart', 'mall', 'mart'
+    ]
+  },
+  {
+    category: 'Food & Dining',
+    keywords: [
+      'food', 'dining', 'restaurant', 'cafe', 'swiggy', 'zomato', 'mcdonald', 'kfc', 'domino',
+      'pizza', 'burger', 'biryani', 'tea', 'chai', 'coffee', 'snacks', 'lunch', 'dinner',
+      'breakfast', 'bakery', 'sweets', 'mithai', 'haldiram', 'starbucks', 'subway',
+      'barbeque', 'hotel food', 'canteen', 'dhaba', 'mess'
+    ]
+  },
+  {
+    category: 'Shopping & Retail',
+    keywords: [
+      'flipkart', 'amazon', 'myntra', 'ajio', 'meesho', 'nykaa', 'tata cliq', 'retail',
+      'shopping', 'clothing', 'apparel', 'garments', 'fashion', 'footwear', 'shoes', 'dress',
+      'electronics', 'croma', 'reliance digital', 'vijay sales', 'lifestyle', 'pantaloons',
+      'zara', 'h&m', 'trends', 'max fashion', 'westside', 'decathlon', 'gift', 'store', 'bazaar'
+    ]
+  },
+  {
+    category: 'Transportation & Fuel',
+    keywords: [
+      'petrol', 'diesel', 'fuel', 'cng', 'gas station', 'indian oil', 'ioc', 'iocl', 'bpcl',
+      'hpcl', 'shell', 'nayara', 'uber', 'ola', 'rapido', 'cab', 'taxi', 'auto', 'metro',
+      'bus', 'irctc', 'railway', 'train', 'flight', 'indigo', 'air india', 'spicejet',
+      'fastag', 'toll', 'parking', 'transport'
+    ]
+  },
+  {
+    category: 'Healthcare',
+    keywords: [
+      'health', 'hospital', 'doctor', 'clinic', 'pharmacy', 'chemist', 'medicine', 'medicines',
+      'medical', 'tablet', 'tablets', 'apollo', 'pharmeasy', '1mg', 'medplus', 'netmeds',
+      'dr lal', 'pathology', 'diagnostics', 'lab', 'dental', 'dentist', 'opticals', 'eyecare'
+    ]
+  },
+  {
+    category: 'Rent & Utilities',
+    keywords: [
+      'rent', 'landlord', 'society maintenance', 'maintenance', 'electricity', 'power',
+      'bescom', 'tneb', 'mseb', 'uppcl', 'cesc', 'water bill', 'gas bill', 'cylinder',
+      'indane', 'bharat gas', 'hp gas', 'broadband', 'wifi', 'act fibernet', 'airtel',
+      'jio fiber', 'vi bill', 'recharge', 'dth', 'tata play', 'utility', 'utilities'
+    ]
+  },
+  {
+    category: 'Entertainment',
+    keywords: [
+      'movie', 'cinema', 'theatre', 'pvr', 'inox', 'cinepolis', 'bookmyshow', 'ticketnew',
+      'netflix', 'hotstar', 'disney', 'prime video', 'spotify', 'youtube', 'gaming', 'game',
+      'playstation', 'steam', 'amusement', 'concert', 'event'
+    ]
+  },
+  {
+    category: 'Investments & SIP',
+    keywords: [
+      'sip', 'mutual fund', 'zerodha', 'groww', 'upstox', 'angel one', 'kuvera', 'et money',
+      'share', 'stocks', 'equity', 'bse', 'nse', 'dividend', 'fd', 'rd', 'ppf', 'nps', 'gold',
+      'idirect', 'icici direct'
+    ]
+  },
+  {
+    category: 'Technology & SaaS',
+    keywords: [
+      'aws', 'azure', 'gcp', 'google cloud', 'github', 'gitlab', 'vercel', 'netlify',
+      'heroku', 'digitalocean', 'openai', 'chatgpt', 'notion', 'slack', 'zoho', 'canva',
+      'adobe', 'figma', 'domain', 'godaddy', 'hostinger', 'software', 'saas'
+    ]
+  },
+  {
+    category: 'Payroll & Salary',
+    keywords: [
+      'salary', 'stipend', 'payroll', 'wages', 'staff salary', 'employee', 'bonus', 'advance'
+    ]
+  },
+  {
+    category: 'Client Retainer',
+    keywords: [
+      'client payment', 'retainer', 'freelance', 'consulting', 'project fee', 'invoice payment'
+    ]
   }
-  if (text.includes('rent') || text.includes('broker') || text.includes('landlord') || text.includes('भाडे') || text.includes('maintenance')) {
-    return 'Rent & Utilities';
+];
+
+export function categorizeByNarration(narration = '', merchant = '', caption = '') {
+  // If merchant or caption not provided, extract from narration
+  if (!merchant && !caption && narration) {
+    const extracted = extractMerchantAndCaption(narration);
+    merchant = extracted.merchant;
+    caption = extracted.caption;
   }
-  if (text.includes('salary') || text.includes('payroll') || text.includes('wages') || text.includes('stipend') || text.includes('bonus')) {
-    return 'Payroll & Salary';
+
+  // 1. User caption has highest priority (e.g. user entered "milk", "petrol", "dinner")
+  if (caption && caption.trim()) {
+    const cLower = caption.toLowerCase();
+    for (const rule of STANDARD_CATEGORY_RULES) {
+      if (rule.keywords.some(k => cLower.includes(k))) {
+        return rule.category;
+      }
+    }
   }
-  if (text.includes('electricity') || text.includes('bescom') || text.includes('tneb') || text.includes('water') || text.includes('gas') || text.includes('billdesk') || text.includes('airtel') || text.includes('jio') || text.includes('broadband') || text.includes('utility')) {
-    return 'Rent & Utilities';
+
+  // 2. Merchant name (e.g. "Flipkart Payme" -> Shopping & Retail, "Swiggy" -> Food & Dining)
+  if (merchant && merchant.trim()) {
+    const mLower = merchant.toLowerCase();
+    for (const rule of STANDARD_CATEGORY_RULES) {
+      if (rule.keywords.some(k => mLower.includes(k))) {
+        return rule.category;
+      }
+    }
   }
-  if (text.includes('uber') || text.includes('ola') || text.includes('fuel') || text.includes('petrol') || text.includes('diesel') || text.includes('irctc') || text.includes('flight') || text.includes('indigo') || text.includes('travel') || text.includes('toll') || text.includes('fastag')) {
-    return 'Transportation';
+
+  // 3. Full narration string
+  if (narration && narration.trim()) {
+    const nLower = narration.toLowerCase();
+    for (const rule of STANDARD_CATEGORY_RULES) {
+      if (rule.keywords.some(k => nLower.includes(k))) {
+        return rule.category;
+      }
+    }
   }
-  if (text.includes('amazon') || text.includes('flipkart') || text.includes('myntra') || text.includes('retail') || text.includes('mart') || text.includes('store') || text.includes('shopping') || text.includes('zepto') || text.includes('blinkit') || text.includes('instamart') || text.includes('grocer')) {
-    return 'Groceries';
-  }
-  if (text.includes('google ads') || text.includes('facebook ads') || text.includes('meta') || text.includes('marketing') || text.includes('seo') || text.includes('advert')) {
-    return 'Marketing';
-  }
-  if (text.includes('aws') || text.includes('github') || text.includes('zoho') || text.includes('notion') || text.includes('slack') || text.includes('software') || text.includes('subscription') || text.includes('saas') || text.includes('digitalocean')) {
-    return 'Technology';
-  }
-  if (text.includes('consulting') || text.includes('retainer') || text.includes('client payment') || text.includes('freelance') || text.includes('sales')) {
-    return 'Consulting & Sales';
-  }
+
+  // 4. Default if cannot categorise or caption not given
   return 'General';
 }
 
