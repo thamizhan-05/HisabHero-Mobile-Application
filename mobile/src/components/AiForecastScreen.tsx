@@ -155,7 +155,7 @@ export function AiForecastScreen({
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#06111f',
+    backgroundColor: '#f8fafc',
   },
   container: {
     flex: 1,
@@ -172,15 +172,15 @@ const styles = StyleSheet.create({
   aiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(79, 140, 255, 0.1)',
-    borderColor: '#4f8cff',
+    backgroundColor: 'rgba(79, 70, 229, 0.08)',
+    borderColor: '#4f46e5',
     borderWidth: 1,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
   aiBadgeText: {
-    color: '#4f8cff',
+    color: '#4f46e5',
     fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -188,7 +188,9 @@ const styles = StyleSheet.create({
   refreshBtn: {
     padding: 8,
     borderRadius: 10,
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   centerLoading: {
     alignItems: 'center',
@@ -196,15 +198,15 @@ const styles = StyleSheet.create({
     paddingVertical: 100,
   },
   loadingText: {
-    color: '#8fc0ff',
+    color: '#64748b',
     fontSize: 12,
     marginTop: 12,
   },
   confidenceCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 16,
     marginBottom: 24,
   },
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   confidenceTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -224,12 +226,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   confidenceReason: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 11,
     lineHeight: 16,
   },
   sectionTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 12,
@@ -239,10 +241,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   forecastRowCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 16,
   },
   monthHeader: {
@@ -250,12 +252,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#06111f',
+    borderBottomColor: '#f1f5f9',
     paddingBottom: 10,
     marginBottom: 12,
   },
   monthName: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -265,10 +267,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   netBadgePositive: {
-    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
   netBadgeNegative: {
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
   netBadgeText: {
     fontSize: 12,
@@ -280,9 +282,11 @@ const styles = StyleSheet.create({
   },
   forecastCell: {
     flex: 1,
-    backgroundColor: '#06111f',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 10,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   labelRow: {
     flexDirection: 'row',
@@ -290,19 +294,19 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cellLabel: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 10,
   },
   cellVal: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 13,
     fontWeight: '700',
   },
   driversCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 16,
     gap: 10,
     marginBottom: 24,
@@ -312,28 +316,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   bullet: {
-    color: '#4f8cff',
+    color: '#4f46e5',
     fontSize: 14,
     fontWeight: 'bold',
     marginRight: 6,
     marginTop: -2,
   },
   factorText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 12,
     flex: 1,
     lineHeight: 18,
   },
   disclaimerBox: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(243, 156, 18, 0.05)',
-    borderColor: 'rgba(243, 156, 18, 0.2)',
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
     borderWidth: 1,
     borderRadius: 16,
     padding: 14,
   },
   disclaimerText: {
-    color: '#f39c12',
+    color: '#d97706',
     fontSize: 11,
     flex: 1,
     lineHeight: 16,
@@ -343,14 +347,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 13,
     textAlign: 'center',
   },
   colorGreen: {
-    color: '#2ecc71',
+    color: '#10b981',
   },
   colorRed: {
-    color: '#ff6b6b',
+    color: '#ef4444',
   },
 });

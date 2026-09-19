@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { Bell, Check, CheckCheck, AlertCircle, Briefcase, Users, TrendingUp, Info } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
+import { useTranslation } from '../theme/i18n';
 
 const BellIcon = Bell as any;
 const CheckIcon = Check as any;
@@ -32,6 +34,8 @@ const TYPE_META: Record<string, { color: string; Icon: any }> = {
 };
 
 export function NotificationsScreen({ activeWorkspaceId }: Props) {
+  const { theme, accentHex } = useTheme();
+  const { t } = useTranslation();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
@@ -79,20 +83,20 @@ export function NotificationsScreen({ activeWorkspaceId }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#60a5fa" size="large" />
-        <Text style={styles.loadingText}>Loading notifications...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator color={accentHex} size="large" />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>{t('loading') || 'Loading notifications...'}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <View style={styles.headerLeft}>
-          <BellIcon color="#60a5fa" size={22} />
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <BellIcon color={accentHex} size={22} />
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{t('notifications_title') || 'Notifications'}</Text>
           {unreadCount > 0 && (
             <View style={styles.unreadBadge}>
               <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
@@ -103,12 +107,12 @@ export function NotificationsScreen({ activeWorkspaceId }: Props) {
           <TouchableOpacity
             onPress={handleMarkAllRead}
             disabled={markingAll}
-            style={styles.markAllBtn}
+            style={[styles.markAllBtn, { backgroundColor: `${accentHex}18` }]}
             activeOpacity={0.8}
           >
             {markingAll
-              ? <ActivityIndicator color="#60a5fa" size="small" />
-              : <><CheckCheckIcon color="#60a5fa" size={15} /><Text style={styles.markAllText}>Mark all read</Text></>
+              ? <ActivityIndicator color={accentHex} size="small" />
+              : <><CheckCheckIcon color={accentHex} size={15} /><Text style={[styles.markAllText, { color: accentHex }]}>{t('mark_all_read') || 'Mark all read'}</Text></>
             }
           </TouchableOpacity>
         )}
@@ -120,9 +124,9 @@ export function NotificationsScreen({ activeWorkspaceId }: Props) {
       >
         {notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <BellIcon color="#1e3a5f" size={48} />
-            <Text style={styles.emptyTitle}>No Notifications</Text>
-            <Text style={styles.emptySubtitle}>You're all caught up! Notifications about approvals, joins, and workspace events will appear here.</Text>
+            <BellIcon color={theme.cardBorder} size={48} />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('no_notifications') || 'No Notifications'}</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>You're all caught up! Notifications about approvals, joins, and workspace events will appear here.</Text>
           </View>
         ) : notifications.map((notif, i) => {
           const meta = TYPE_META[notif.type] || TYPE_META.system;
@@ -130,18 +134,18 @@ export function NotificationsScreen({ activeWorkspaceId }: Props) {
           return (
             <View
               key={notif.id || i}
-              style={[styles.notifCard, !notif.read && styles.notifCardUnread]}
+              style={[styles.notifCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }, !notif.read && { borderColor: accentHex }]}
             >
               <View style={[styles.notifIconWrap, { backgroundColor: `${meta.color}18` }]}>
                 <IconComp color={meta.color} size={20} />
               </View>
               <View style={styles.notifContent}>
                 <View style={styles.notifTopRow}>
-                  <Text style={styles.notifTitle}>{notif.title}</Text>
-                  {!notif.read && <View style={styles.unreadDot} />}
+                  <Text style={[styles.notifTitle, { color: theme.text }]}>{notif.title}</Text>
+                  {!notif.read && <View style={[styles.unreadDot, { backgroundColor: accentHex }]} />}
                 </View>
-                <Text style={styles.notifMessage}>{notif.message}</Text>
-                <Text style={styles.notifTime}>{formatTime(notif.createdAt)}</Text>
+                <Text style={[styles.notifMessage, { color: theme.textSecondary }]}>{notif.message}</Text>
+                <Text style={[styles.notifTime, { color: theme.textMuted }]}>{formatTime(notif.createdAt)}</Text>
               </View>
             </View>
           );

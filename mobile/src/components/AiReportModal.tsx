@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   ScrollView,
   SafeAreaView,
+  Image,
 } from 'react-native';
 import { X, FileText, Sparkles, RefreshCw } from 'lucide-react-native';
 
@@ -123,7 +124,7 @@ export function AiReportModal({ visible, onClose, apiBaseUrl, authToken, financi
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleWrap}>
-              <SparklesIcon color="#4f8cff" size={20} style={{ marginRight: 8 }} />
+              <Image source={require('../../assets/logo.png')} style={{ width: 26, height: 26, borderRadius: 6, marginRight: 8 }} resizeMode="contain" />
               <Text style={styles.title}>AI Executive Report</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>

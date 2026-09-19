@@ -17,6 +17,8 @@ import {
   TrendingDown,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
+import { useTranslation } from '../theme/i18n';
 
 const ShieldAlertIcon = ShieldAlert as any;
 const PlusCircleIcon = PlusCircle as any;
@@ -38,6 +40,8 @@ export function FixedAssetsScreen({
   activeWorkspaceId = 'personal',
   onRefreshData,
 }: FixedAssetsScreenProps) {
+  const { theme, accentHex } = useTheme();
+  const { t } = useTranslation();
   const [fixedAssets, setFixedAssets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [depreciating, setDepreciating] = useState(false);
@@ -67,11 +71,11 @@ export function FixedAssetsScreen({
 
   useEffect(() => {
     fetchFixedAssets();
-  }, [activeWorkspaceId]);
+  }, []);
 
-  const handleRegisterAsset = async () => {
-    if (!assetName || !assetCost || !assetLife || !assetDate) {
-      Alert.alert('Required Fields', 'Please complete all required fields.');
+  const handleCreateAsset = async () => {
+    if (!assetName || !assetCost || !assetLife) {
+      Alert.alert('Required Fields Missing', 'Please fill out asset name, purchase cost, and useful life years');
       return;
     }
 
@@ -79,20 +83,20 @@ export function FixedAssetsScreen({
       const res = await apiClient.post('/fixed-assets', {
         name: assetName,
         category: assetCategory,
-        purchaseCost: Number(assetCost),
+        purchaseCost: Number(assetCost) || 0,
         purchaseDate: assetDate,
-        usefulLife: Number(assetLife),
+        usefulLifeYears: Number(assetLife) || 5,
+        salvageValue: 0,
       });
 
       if (res.ok) {
-        Alert.alert('Success', 'Capital asset registered.');
+        Alert.alert('Success', 'Corporate asset registered.');
         setModalVisible(false);
-        fetchFixedAssets();
-        // Clear input values
         setAssetName('');
-        setAssetCategory('other');
         setAssetCost('');
         setAssetLife('');
+        fetchFixedAssets();
+        if (onRefreshData) onRefreshData();
       } else {
         const err = await res.json();
         Alert.alert('Error', err.error || 'Failed to register asset');
@@ -103,18 +107,13 @@ export function FixedAssetsScreen({
   };
 
   const handleDepreciateAssets = async () => {
-    if (fixedAssets.length === 0) {
-      Alert.alert('No Assets', 'Register assets first to perform depreciation.');
-      return;
-    }
-
     Alert.alert(
-      'Depreciate Assets',
-      'This will calculate and log the straight-line annual depreciation for all registered fixed assets. Continue?',
+      'Run Depreciation Routine',
+      'This will compute straight-line depreciation for all registered assets and post accumulated depreciation journal entries.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Depreciate',
+          text: 'Run Depreciation',
           onPress: async () => {
             setDepreciating(true);
             try {
@@ -140,30 +139,30 @@ export function FixedAssetsScreen({
   const totalValue = fixedAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
 
   return (
-    <View style={styles.screenContainer}>
+    <View style={[styles.screenContainer, { backgroundColor: theme.bg }]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* Summary Card */}
-        <View style={styles.summaryCard}>
+        <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.summaryGrid}>
             <View style={styles.summaryCell}>
-              <Text style={styles.summaryLabel}>Total Asset Cost</Text>
-              <Text style={styles.summaryVal}>₹{totalCost.toLocaleString('en-IN')}</Text>
+              <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Total Asset Cost</Text>
+              <Text style={[styles.summaryVal, { color: theme.text }]}>₹{totalCost.toLocaleString('en-IN')}</Text>
             </View>
             <View style={styles.summaryCell}>
-              <Text style={styles.summaryLabel}>Current Value</Text>
-              <Text style={styles.summaryVal}>₹{totalValue.toLocaleString('en-IN')}</Text>
+              <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Current Value</Text>
+              <Text style={[styles.summaryVal, { color: theme.text }]}>₹{totalValue.toLocaleString('en-IN')}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.headerRow}>
-          <Text style={styles.sectionTitle}>Asset Registry</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('fixed_assets')}</Text>
           <View style={styles.actionsRow}>
             <TouchableOpacity onPress={fetchFixedAssets} style={styles.iconBtn}>
-              <RefreshCwIcon color="#8fc0ff" size={16} />
+              <RefreshCwIcon color={theme.textMuted} size={16} />
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.depreciateBtn, depreciating && styles.btnDisabled]} 
+              style={[styles.depreciateBtn, { backgroundColor: '#e67e22' }, depreciating && styles.btnDisabled]} 
               onPress={handleDepreciateAssets}
               disabled={depreciating}
             >
@@ -176,33 +175,30 @@ export function FixedAssetsScreen({
                 </>
               )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.addBtn}>
+            <TouchableOpacity onPress={() => setModalVisible(true)} style={[styles.addBtn, { backgroundColor: accentHex }]}>
               <PlusCircleIcon color="#ffffff" size={14} style={{ marginRight: 6 }} />
-              <Text style={styles.addBtnText}>Add Asset</Text>
+              <Text style={styles.addBtnText}>{t('add_contact')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {loading ? (
-          <ActivityIndicator color="#4f8cff" size="large" style={{ marginTop: 24 }} />
+          <ActivityIndicator color={accentHex} size="large" style={{ marginTop: 24 }} />
         ) : fixedAssets.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <ShieldAlertIcon color="#8fc0ff" size={32} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>No corporate assets registered</Text>
-            <Text style={styles.emptySub}>Register vehicles, machinery, and electronics to calculate depreciation pools</Text>
+          <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <ShieldAlertIcon color={theme.textMuted} size={32} style={{ marginBottom: 12 }} />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>No corporate assets registered</Text>
+            <Text style={[styles.emptySub, { color: theme.textSecondary }]}>Register vehicles, machinery, and electronics to calculate depreciation pools</Text>
           </View>
         ) : (
           <View style={styles.assetsList}>
             {fixedAssets.map(asset => {
-              const depPercentage = asset.purchaseCost > 0 
-                ? Math.round(((asset.accumulatedDepreciation || 0) / asset.purchaseCost) * 100)
-                : 0;
               return (
-                <View key={asset.id || asset._id} style={styles.assetCard}>
-                  <View style={styles.assetHeader}>
+                <View key={asset.id || asset._id} style={[styles.assetCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                  <View style={[styles.assetHeader, { borderBottomColor: theme.cardBorder }]}>
                     <View>
-                      <Text style={styles.assetName}>{asset.name}</Text>
-                      <Text style={styles.assetMeta}>
+                      <Text style={[styles.assetName, { color: theme.text }]}>{asset.name}</Text>
+                      <Text style={[styles.assetMeta, { color: accentHex }]}>
                         Category: {asset.category.toUpperCase()} • Bought: {asset.purchaseDate}
                       </Text>
                     </View>
@@ -210,23 +206,16 @@ export function FixedAssetsScreen({
 
                   <View style={styles.assetMetrics}>
                     <View style={styles.metricCell}>
-                      <Text style={styles.metricLabel}>Original Cost</Text>
-                      <Text style={styles.metricVal}>₹{asset.purchaseCost.toLocaleString('en-IN')}</Text>
+                      <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Original Cost</Text>
+                      <Text style={[styles.metricVal, { color: theme.text }]}>₹{asset.purchaseCost.toLocaleString('en-IN')}</Text>
                     </View>
                     <View style={styles.metricCell}>
-                      <Text style={styles.metricLabel}>Current Value</Text>
+                      <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Current Value</Text>
                       <Text style={[styles.metricVal, { color: '#2ecc71' }]}>
                         ₹{asset.currentValue.toLocaleString('en-IN')}
                       </Text>
                     </View>
-                    <View style={styles.metricCell}>
-                      <Text style={styles.metricLabel}>Depreciated</Text>
-                      <Text style={[styles.metricVal, { color: '#ff6b6b' }]}>
-                        {depPercentage}%
-                      </Text>
-                    </View>
                   </View>
-                  <Text style={styles.assetLifeText}>Useful Life: {asset.usefulLife} Years</Text>
                 </View>
               );
             })}
@@ -234,56 +223,74 @@ export function FixedAssetsScreen({
         )}
       </ScrollView>
 
-      {/* Modal: Add Fixed Asset */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      {/* Add Asset Modal */}
+      <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Register Corporate Asset</Text>
-            <ScrollView style={{ maxHeight: 350 }}>
-              <TextInput style={styles.input} placeholder="Asset Name (e.g. Server Rack)" placeholderTextColor="#5f88b8" value={assetName} onChangeText={setAssetName} />
-              
-              {/* Category selector */}
-              <TouchableOpacity 
-                style={styles.selectorBtn}
-                onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
-              >
-                <Text style={styles.selectorBtnText}>Category: {assetCategory.toUpperCase()}</Text>
-                <RefreshCwIcon color="#8fc0ff" size={12} />
-              </TouchableOpacity>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Register Corporate Asset</Text>
 
-              {showCategoryDropdown && (
-                <View style={styles.selectorDropdown}>
-                  {CATEGORIES.map(cat => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={styles.dropdownOption}
-                      onPress={() => {
-                        setAssetCategory(cat);
-                        setShowCategoryDropdown(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownText}>{cat.toUpperCase()}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]}
+              placeholder="Asset Name (e.g. MacBook Pro M3)"
+              placeholderTextColor={theme.textMuted}
+              value={assetName}
+              onChangeText={setAssetName}
+            />
 
-              <TextInput style={styles.input} placeholder="Purchase Cost (INR)" placeholderTextColor="#5f88b8" keyboardType="numeric" value={assetCost} onChangeText={setAssetCost} />
-              <TextInput style={styles.input} placeholder="Useful Life (Years)" placeholderTextColor="#5f88b8" keyboardType="numeric" value={assetLife} onChangeText={setAssetLife} />
-              <TextInput style={styles.input} placeholder="Purchase Date (YYYY-MM-DD)" placeholderTextColor="#5f88b8" value={assetDate} onChangeText={setAssetDate} />
-            </ScrollView>
-            
+            <TouchableOpacity 
+              style={[styles.selectorBtn, { backgroundColor: theme.bg, borderColor: theme.cardBorder }]}
+              onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
+            >
+              <Text style={[styles.selectorBtnText, { color: theme.text }]}>Category: {assetCategory.toUpperCase()}</Text>
+            </TouchableOpacity>
+
+            {showCategoryDropdown && (
+              <View style={[styles.selectorDropdown, { backgroundColor: theme.bg, borderColor: theme.cardBorder }]}>
+                {CATEGORIES.map(cat => (
+                  <TouchableOpacity 
+                    key={cat} 
+                    style={styles.dropdownOption}
+                    onPress={() => {
+                      setAssetCategory(cat);
+                      setShowCategoryDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownText, { color: theme.textSecondary }]}>{cat.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]}
+              placeholder="Purchase Cost (₹)"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="numeric"
+              value={assetCost}
+              onChangeText={setAssetCost}
+            />
+
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]}
+              placeholder="Useful Life (Years, e.g. 5)"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="numeric"
+              value={assetLife}
+              onChangeText={setAssetLife}
+            />
+
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setModalVisible(false)}>
+              <TouchableOpacity 
+                style={[styles.btn, styles.btnCancel, { borderColor: theme.cardBorder }]}
+                onPress={() => setModalVisible(false)}
+              >
                 <Text style={styles.btnCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnConfirm]} onPress={handleRegisterAsset}>
-                <Text style={styles.btnConfirmText}>Add Asset</Text>
+              <TouchableOpacity 
+                style={[styles.btn, styles.btnConfirm, { backgroundColor: accentHex }]}
+                onPress={handleCreateAsset}
+              >
+                <Text style={styles.btnConfirmText}>Register</Text>
               </TouchableOpacity>
             </View>
           </View>

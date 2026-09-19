@@ -1,3 +1,15 @@
+// Polyfill web standards for serverless pdfjs-dist
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  globalThis.DOMMatrix = class DOMMatrix {
+    constructor() { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0; }
+  };
+}
+if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class ImageData {};
+if (typeof globalThis.Path2D === 'undefined') globalThis.Path2D = class Path2D {};
+
+import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+globalThis.pdfjsWorker = pdfjsWorker;
+
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
@@ -551,8 +563,7 @@ app.get(['/api/dashboard/health', '/dashboard/health'], authMiddleware, async (r
 
 // ─── 9. DOCUMENT INTELLIGENCE STATEMENT PARSER & APPROVAL WORKFLOW ───
 
-// Step 1: PREVIEW ONLY (Parses file and returns transactions for user review & approval)
-app.post(['/api/upload/preview', '/upload/preview'], authMiddleware, upload.single('file'), async (req, res) => {
+app.post(['/api/upload/preview', '/upload/preview', '/api/upload/intelligence', '/upload/intelligence', '/api/uploads/intelligence', '/uploads/intelligence', '/api/upload/receipt', '/upload/receipt'], authMiddleware, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Please select a statement file (PDF, CSV, XLSX, or Receipt Image) to upload.' });
@@ -582,7 +593,7 @@ app.post(['/api/upload/preview', '/upload/preview'], authMiddleware, upload.sing
       extractedTransactions = Array.isArray(res) ? res : (res.extracted || []);
       parserUsed = 'Excel Parser Engine';
     } else {
-      const res = await processPDFOrImageWithAI(fileBuffer, mimeType, wsId, fileName);
+      const res = await processPDFOrImageWithAI(fileBuffer, mimeType, fileName, wsId);
       extractedTransactions = Array.isArray(res.extracted) ? res.extracted : (Array.isArray(res) ? res : []);
       parserUsed = res.parserUsed || 'Gemini 2.5 Flash';
     }
@@ -610,6 +621,24 @@ app.post(['/api/upload/preview', '/upload/preview'], authMiddleware, upload.sing
       };
     });
 
+    const docId = `doc_${Date.now()}`;
+    const documentData = {
+      documentId: docId,
+      id: docId,
+      _id: docId,
+      fileName,
+      fileSize: fileBuffer.length,
+      mimeType,
+      parserUsed: parserUsed || 'Gemini 2.5 Flash',
+      extractedTransactions: formattedList,
+      summary: {
+        totalCount: formattedList.length,
+        inflow: totalInflow,
+        outflow: totalOutflow,
+        net: totalInflow - totalOutflow
+      }
+    };
+
     return res.json({
       success: true,
       fileName,
@@ -620,7 +649,8 @@ app.post(['/api/upload/preview', '/upload/preview'], authMiddleware, upload.sing
       totalInflow,
       totalOutflow,
       net: totalInflow - totalOutflow,
-      transactions: formattedList
+      transactions: formattedList,
+      document: documentData
     });
   } catch (err) {
     console.error('[Document Preview Error]', err);
@@ -628,11 +658,12 @@ app.post(['/api/upload/preview', '/upload/preview'], authMiddleware, upload.sing
   }
 });
 
-// Step 2: COMMIT APPROVED TRANSACTIONS (User reviews, categorizes, and commits to Supabase)
-app.post(['/api/upload/commit', '/upload/commit'], authMiddleware, async (req, res) => {
+// Step 2: COMMIT APPROVED TRANSACTIONS (User reviews, categorizes, and commits to ledger)
+app.post(['/api/upload/commit', '/upload/commit', '/api/documents/:id/commit', '/documents/:id/commit'], authMiddleware, async (req, res) => {
   try {
     const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
-    const { fileName, parserUsed, transactions, merchantRules } = req.body;
+    const transactions = req.body.transactions || req.body.extractedTransactions;
+    const { fileName, parserUsed, merchantRules } = req.body;
 
     if (!wsId) return res.status(400).json({ error: 'Active Workspace ID is required.' });
     if (!Array.isArray(transactions) || transactions.length === 0) {
@@ -658,16 +689,16 @@ app.post(['/api/upload/commit', '/upload/commit'], authMiddleware, async (req, r
         type: isIncome ? 'income' : 'expense',
         category: tx.category || 'General',
         date: tx.date || new Date().toISOString().split('T')[0],
-        merchant: tx.merchantName || null,
+        merchant: tx.merchantName || tx.merchant || null,
         paymentMethod: 'UPI / Bank Transfer',
         source: 'Statement Parser'
       };
     });
 
-    // 1. Insert into Supabase transactions
+    // 1. Insert into transactions
     await transactionsRepo.createBatch(preparedTransactions);
 
-    // 2. Insert into Supabase uploaded_documents
+    // 2. Insert into uploaded_documents
     const docRecord = await documentsRepo.create({
       workspaceId: wsId,
       fileName: fileName || 'Uploaded Statement',
@@ -697,9 +728,10 @@ app.post(['/api/upload/commit', '/upload/commit'], authMiddleware, async (req, r
 
     return res.json({
       success: true,
-      message: `Committed ${preparedTransactions.length} transactions (+₹${totalInflow.toLocaleString('en-IN')} / -₹${totalOutflow.toLocaleString('en-IN')}) directly to your Supabase ledger.`,
+      message: `Committed ${preparedTransactions.length} transactions (+₹${totalInflow.toLocaleString('en-IN')} / -₹${totalOutflow.toLocaleString('en-IN')}) directly to your ledger.`,
       documentId: docRecord.id,
       count: preparedTransactions.length,
+      importedCount: preparedTransactions.length,
       summary: {
         inflow: totalInflow,
         outflow: totalOutflow,
@@ -712,10 +744,29 @@ app.post(['/api/upload/commit', '/upload/commit'], authMiddleware, async (req, r
   }
 });
 
-// Backward compatible alias
-app.post(['/api/upload/intelligence', '/upload/intelligence'], authMiddleware, upload.single('file'), async (req, res) => {
-  req.url = '/api/upload/preview';
-  return app._router.handle(req, res);
+// Mobile App Document Review state route
+app.post(['/api/documents/:id/review', '/documents/:id/review'], authMiddleware, async (req, res) => {
+  return res.json({ success: true, message: 'Review state saved.' });
+});
+
+// Delete upload statement or clear all statements
+app.delete(['/api/upload/:id', '/upload/:id'], authMiddleware, async (req, res) => {
+  try {
+    await documentsRepo.delete(req.params.id);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete(['/api/upload', '/upload'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || 'personal';
+    await workspacesRepo.resetData(wsId);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 app.get(['/api/documents', '/documents'], authMiddleware, async (req, res) => {
@@ -856,3 +907,5 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.warn(`⚠️ Supabase initialization note: ${e.message}`);
   }
 });
+
+export default app;

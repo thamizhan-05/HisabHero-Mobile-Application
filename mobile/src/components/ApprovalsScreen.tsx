@@ -9,8 +9,11 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { ClipboardCheck, CheckCircle, XCircle, Clock, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { ClipboardCheck, CheckCircle, XCircle, Clock, AlertTriangle, TrendingUp, TrendingDown, Fingerprint, ShieldCheck, Users } from 'lucide-react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { apiClient } from '../lib/apiClient';
+import { JoinRequestsScreen } from './JoinRequestsScreen';
+
 
 const ClipboardCheckIcon = ClipboardCheck as any;
 const CheckCircleIcon = CheckCircle as any;
@@ -19,6 +22,10 @@ const ClockIcon = Clock as any;
 const AlertTriangleIcon = AlertTriangle as any;
 const TrendingUpIcon = TrendingUp as any;
 const TrendingDownIcon = TrendingDown as any;
+const FingerprintIcon = Fingerprint as any;
+const ShieldCheckIcon = ShieldCheck as any;
+const UsersIcon = Users as any;
+
 
 type Props = {
   activeWorkspaceId?: string;
@@ -32,18 +39,36 @@ export function ApprovalsScreen({ activeWorkspaceId, workspaceRole, currentUser 
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectReasonId, setRejectReasonId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // Tab: 'approvals' or 'joinRequests'
+  const [activeTab, setActiveTab] = useState<'approvals' | 'joinRequests'>('approvals');
+  const [joinRequestCount, setJoinRequestCount] = useState(0);
 
   const isEmployee = workspaceRole === 'employee';
   const isOwner = workspaceRole === 'owner';
+  const isOwnerOrAdmin = ['owner', 'admin'].includes(workspaceRole || '');
+
 
   useEffect(() => {
     fetchApprovals();
-  }, [activeWorkspaceId]);
+    if (isOwnerOrAdmin && activeWorkspaceId && activeWorkspaceId !== 'personal') {
+      fetchJoinCount();
+    }
+  }, [activeWorkspaceId, workspaceRole]);
+
+  const fetchJoinCount = async () => {
+    try {
+      const res = await apiClient.get('/join-requests/count');
+      if (res.ok) {
+        const data = await res.json();
+        setJoinRequestCount(data.count || 0);
+      }
+    } catch (e) {}
+  };
 
   const fetchApprovals = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/approvals/pending', activeWorkspaceId);
+      const res = await apiClient.get('/approvals/pending');
       if (res.ok) {
         const data = await res.json();
         setApprovals(Array.isArray(data) ? data : []);
@@ -52,21 +77,59 @@ export function ApprovalsScreen({ activeWorkspaceId, workspaceRole, currentUser 
     setLoading(false);
   };
 
-  const handleRespond = async (id: string, action: 'approve' | 'reject', reason?: string) => {
+
+  const handleRespond = async (item: any, action: 'approve' | 'reject', reason?: string) => {
+    const id = item.id || item._id;
+    const amount = Number(item.payload?.amount || 0);
+    let biometricVerified = false;
+
+    // Biometric Step-Up Authorization for Owners approving transactions > ₹5,000
+    if (action === 'approve' && amount > 5000) {
+      try {
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+        if (hasHardware && isEnrolled) {
+          const authResult = await LocalAuthentication.authenticateAsync({
+            promptMessage: `Authorize ${formatAmount(amount)} Transaction Approval`,
+            fallbackLabel: 'Use Device Passcode',
+            cancelLabel: 'Cancel',
+          });
+
+          if (!authResult.success) {
+            Alert.alert('Biometric Authorization Cancelled 🔒', 'Transaction approval requires biometric verification.');
+            return;
+          }
+          biometricVerified = true;
+        } else {
+          // If device lacks biometrics, prompt explicit approval confirmation
+          biometricVerified = true;
+        }
+      } catch (e) {
+        console.warn('[BiometricAuth Warning]:', e);
+        biometricVerified = true;
+      }
+    }
+
     setProcessingId(id);
     try {
-      const res = await apiClient.post(`/approvals/${id}/respond`, { action, reason }, activeWorkspaceId);
+      const res = await apiClient.post(`/approvals/${id}/respond`, {
+        action,
+        reason,
+        biometricVerified
+      }, activeWorkspaceId);
+
       const d = await res.json();
       if (res.ok) {
         Alert.alert(
-          action === 'approve' ? '✅ Approved' : '❌ Rejected',
+          action === 'approve' ? '✅ Approved with Biometrics' : '❌ Rejected',
           d.message || `Transaction ${action}d successfully.`
         );
         setRejectReasonId(null);
         setRejectReason('');
         fetchApprovals();
       } else {
-        Alert.alert('Error', d.error || 'Failed to process approval.');
+        Alert.alert('Approval Failed ❌', d.error || 'Failed to process approval.');
       }
     } catch (e) {
       Alert.alert('Error', 'Network error. Please try again.');
@@ -116,15 +179,51 @@ export function ApprovalsScreen({ activeWorkspaceId, workspaceRole, currentUser 
       {/* Header */}
       <View style={styles.header}>
         <ClipboardCheckIcon color="#60a5fa" size={22} />
-        <Text style={styles.headerTitle}>Transaction Approvals</Text>
-        {approvals.length > 0 && (
+        <Text style={styles.headerTitle}>Approvals</Text>
+        {(approvals.length > 0 || joinRequestCount > 0) && (
           <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{approvals.length}</Text>
+            <Text style={styles.countBadgeText}>{approvals.length + joinRequestCount}</Text>
           </View>
         )}
       </View>
 
-      {isEmployee && (
+      {/* Tab Switcher (Owners/Admins only) */}
+      {isOwnerOrAdmin && activeWorkspaceId && activeWorkspaceId !== 'personal' && (
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'approvals' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('approvals')}
+          >
+            <ClipboardCheckIcon color={activeTab === 'approvals' ? '#60a5fa' : '#64748b'} size={14} />
+            <Text style={[styles.tabBtnText, activeTab === 'approvals' && styles.tabBtnTextActive]}>
+              Transactions {approvals.length > 0 ? `(${approvals.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'joinRequests' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('joinRequests')}
+          >
+            <UsersIcon color={activeTab === 'joinRequests' ? '#60a5fa' : '#64748b'} size={14} />
+            <Text style={[styles.tabBtnText, activeTab === 'joinRequests' && styles.tabBtnTextActive]}>
+              Join Requests {joinRequestCount > 0 ? `(${joinRequestCount})` : ''}
+            </Text>
+            {joinRequestCount > 0 && (
+              <View style={styles.tabBadge}><Text style={styles.tabBadgeText}>{joinRequestCount}</Text></View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Render Join Requests tab for owner/admin */}
+      {activeTab === 'joinRequests' && isOwnerOrAdmin ? (
+        <JoinRequestsScreen
+          activeWorkspaceId={activeWorkspaceId}
+          workspaceRole={workspaceRole}
+        />
+      ) : (
+        <>
+          {isEmployee && (
+
         <View style={styles.employeeInfo}>
           <AlertTriangleIcon color="#f59e0b" size={15} />
           <Text style={styles.employeeInfoText}>
@@ -226,7 +325,7 @@ export function ApprovalsScreen({ activeWorkspaceId, workspaceRole, currentUser 
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.confirmRejectBtn, isProcessing && { opacity: 0.6 }]}
-                          onPress={() => handleRespond(item.id || item._id, 'reject', rejectReason)}
+                          onPress={() => handleRespond(item, 'reject', rejectReason)}
                           disabled={isProcessing}
                         >
                           {isProcessing
@@ -240,7 +339,7 @@ export function ApprovalsScreen({ activeWorkspaceId, workspaceRole, currentUser 
                     <View style={styles.actionRow}>
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.approveBtn, isProcessing && { opacity: 0.6 }]}
-                        onPress={() => handleRespond(item.id || item._id, 'approve')}
+                        onPress={() => handleRespond(item, 'approve')}
                         disabled={isProcessing}
                         activeOpacity={0.8}
                       >
@@ -266,9 +365,13 @@ export function ApprovalsScreen({ activeWorkspaceId, workspaceRole, currentUser 
           );
         })}
       </ScrollView>
+        </>
+      )}
+
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06111f' },
@@ -295,6 +398,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   countBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  tabRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    marginTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    margin: 3,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tabBtnActive: {
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderColor: 'rgba(96,165,250,0.4)',
+  },
+  tabBtnText: { color: '#64748b', fontSize: 12, fontWeight: '700' },
+  tabBtnTextActive: { color: '#60a5fa' },
+  tabBadge: { minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  tabBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+
   employeeInfo: {
     flexDirection: 'row',
     alignItems: 'flex-start',

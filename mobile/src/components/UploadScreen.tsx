@@ -11,6 +11,7 @@ import {
   Alert,
   TextInput,
   Image,
+  Platform,
 } from 'react-native';
 import {
   UploadCloud,
@@ -21,8 +22,17 @@ import {
   ChevronDown,
   Camera,
   Image as ImageIcon,
+  Sparkles,
+  ShieldAlert,
+  Check,
+  X,
+  Edit2,
+  ArrowDownRight,
+  ArrowUpRight,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
+import { useTranslation } from '../theme/i18n';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -34,6 +44,13 @@ const CheckCircleIcon = CheckCircle as any;
 const ChevronDownIcon = ChevronDown as any;
 const CameraIcon = Camera as any;
 const ImageIconComponent = ImageIcon as any;
+const SparklesIcon = Sparkles as any;
+const ShieldAlertIcon = ShieldAlert as any;
+const CheckIcon = Check as any;
+const XIcon = X as any;
+const Edit2Icon = Edit2 as any;
+const ArrowDownRightIcon = ArrowDownRight as any;
+const ArrowUpRightIcon = ArrowUpRight as any;
 
 import { BankReconciliationScreen } from './BankReconciliationScreen';
 
@@ -58,6 +75,8 @@ export function UploadScreen({
   activeWorkspaceId = 'personal',
   activeWorkspaceRole = 'owner',
 }: UploadScreenProps) {
+  const { theme, accentHex } = useTheme();
+  const { t } = useTranslation();
   const [activeSubTab, setActiveSubTab] = useState<SubTabType>('statement');
   
   // Statement Upload States
@@ -86,11 +105,17 @@ export function UploadScreen({
   const CATEGORIES = ['Rent', 'Payroll', 'Utilities', 'Marketing', 'Travel', 'Office', 'Food', 'Other'];
   const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
 
-  // Document Picker for CSV / PDF Statements
+  // Document Intelligence Pipeline States
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [activeDocument, setActiveDocument] = useState<any>(null);
+  const [processingStep, setProcessingStep] = useState<'uploading' | 'analyzing' | 'extracting' | 'validating' | 'ready'>('uploading');
+  const [committing, setCommitting] = useState(false);
+
+  // Document Picker for CSV / PDF / Image Financial Documents
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'application/pdf'],
+        type: ['text/csv', 'application/pdf', 'image/*'],
         copyToCacheDirectory: true,
       });
 
@@ -99,78 +124,133 @@ export function UploadScreen({
       }
 
       const fileAsset = result.assets[0];
-      
-      // Basic validation (No size limit restriction as requested)
-
-      uploadFile(fileAsset);
+      uploadDocumentIntelligence(fileAsset);
     } catch (err) {
       console.error('Error picking document:', err);
       Alert.alert('Error', 'Failed to select document.');
     }
   };
 
-  // Perform statement upload
-  const uploadFile = async (fileAsset: any, mappingParams?: Record<string, string>) => {
+  // Perform Document Intelligence upload & analysis
+  const uploadDocumentIntelligence = async (fileAsset: any) => {
     setUploading(true);
+    setProcessingStep('uploading');
 
     try {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: fileAsset.uri,
-        name: fileAsset.name,
-        type: fileAsset.mimeType || (fileAsset.name.endsWith('.pdf') ? 'application/pdf' : 'text/csv'),
-      } as any);
+      setTimeout(() => setProcessingStep('analyzing'), 600);
+      setTimeout(() => setProcessingStep('extracting'), 1400);
+      setTimeout(() => setProcessingStep('validating'), 2400);
 
-      let endpoint = '/upload';
-      if (mappingParams) {
-        const queryParams = new URLSearchParams();
-        queryParams.append('mappingConfirmed', 'true');
-        Object.entries(mappingParams).forEach(([k, v]) => {
-          if (v) queryParams.append(k, v);
-        });
-        endpoint += `?${queryParams.toString()}`;
+      const formData = new FormData();
+      const fileName = fileAsset.name || fileAsset.fileName || 'statement.pdf';
+
+      if (Platform.OS === 'web') {
+        if (fileAsset.file) {
+          formData.append('file', fileAsset.file);
+        } else if (fileAsset.uri && (fileAsset.uri.startsWith('blob:') || fileAsset.uri.startsWith('data:'))) {
+          const blob = await fetch(fileAsset.uri).then((r) => r.blob());
+          formData.append('file', blob, fileName);
+        } else {
+          formData.append('file', {
+            uri: fileAsset.uri,
+            name: fileName,
+            type: fileAsset.mimeType || 'application/pdf',
+          } as any);
+        }
+      } else {
+        formData.append('file', {
+          uri: fileAsset.uri,
+          name: fileName,
+          type: fileAsset.mimeType || 'application/octet-stream',
+        } as any);
       }
 
-      const res = await apiClient.upload(endpoint, formData);
+      const res = await apiClient.upload('/upload/intelligence', formData);
       const data = await res.json().catch(() => ({}));
 
-      // CSV Column Mapping Required (HTTP 422)
-      if (res.status === 422 && data.needsMapping) {
-        setMappingState({
-          headers: data.headers || [],
-          detectedMapping: data.detectedMapping || {},
-          fileAsset,
-        });
-        
-        const initialMapping: Record<string, string> = {};
-        const fields = ['date', 'description', 'category', 'amount', 'type', 'debit', 'credit'];
-        fields.forEach(f => {
-          initialMapping[f] = data.detectedMapping?.[f] || '';
-        });
-        
-        setSelectedMapping(initialMapping);
-        setMappingVisible(true);
-        setUploading(false);
-        return;
-      }
-
       if (!res.ok) {
-        throw new Error(data.error || 'Upload failed');
+        throw new Error(data.error || 'Document Intelligence processing failed');
       }
 
-      Alert.alert(
-        'Upload Success',
-        `Imported ${data.imported} rows successfully${data.skipped > 0 ? `, ${data.skipped} skipped` : ''}.`
-      );
-      
-      setMappingVisible(false);
-      setMappingState(null);
-      onRefreshData();
+      const rawExtracted = data.document?.extractedTransactions || data.transactions || [];
+      const formattedDoc = {
+        documentId: data.document?.documentId || data.documentId || `doc_${Date.now()}`,
+        fileName: data.document?.fileName || data.fileName || fileName,
+        parserUsed: data.document?.parserUsed || data.parserUsed || 'Statement Parser',
+        extractedTransactions: rawExtracted.map((t: any, idx: number) => ({
+          ...t,
+          approved: t.approved !== false && !t.isDuplicate,
+          tempId: t.tempId || `tmp_${Date.now()}_${idx}`,
+        }))
+      };
+
+      setProcessingStep('ready');
+      setActiveDocument(formattedDoc);
+      setReviewModalVisible(true);
     } catch (err: any) {
       console.error(err);
-      Alert.alert('Upload Error', err.message || 'Server encountered an error during upload.');
+      Alert.alert('Processing Failed ❌', err.message || 'Server encountered an error during document analysis.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Toggle transaction approval
+  const handleToggleRowApprove = (index: number) => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    const updated = [...activeDocument.extractedTransactions];
+    updated[index].approved = !updated[index].approved;
+    setActiveDocument({ ...activeDocument, extractedTransactions: updated });
+  };
+
+  // Update transaction field
+  const handleUpdateRowField = (index: number, field: string, value: any) => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    const updated = [...activeDocument.extractedTransactions];
+    updated[index][field] = value;
+    updated[index].userEdited = true;
+    setActiveDocument({ ...activeDocument, extractedTransactions: updated });
+  };
+
+  // Approve all high confidence rows
+  const handleApproveHighConfidence = () => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    const updated = activeDocument.extractedTransactions.map((t: any) => ({
+      ...t,
+      approved: (t.confidenceScore === undefined || t.confidenceScore >= 0.85) && !t.isDuplicate
+    }));
+    setActiveDocument({ ...activeDocument, extractedTransactions: updated });
+  };
+
+  // Save Approved Transactions to Ledger
+  const handleCommitDocument = async () => {
+    if (!activeDocument) return;
+    setCommitting(true);
+    try {
+      const approvedTxs = (activeDocument.extractedTransactions || []).filter((t: any) => t.approved !== false);
+      const res = await apiClient.post('/upload/commit', {
+        fileName: activeDocument.fileName || 'Uploaded Statement',
+        parserUsed: activeDocument.parserUsed || 'Statement Parser',
+        transactions: approvedTxs.length > 0 ? approvedTxs : activeDocument.extractedTransactions,
+        merchantRules: []
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        Alert.alert(
+          'Import Complete 🎉',
+          `${data.importedCount || data.count || approvedTxs.length} verified transactions saved to your ledger! Financial dashboards and cash flow metrics have been updated.`
+        );
+        setReviewModalVisible(false);
+        setActiveDocument(null);
+        onRefreshData();
+      } else {
+        Alert.alert('Import Error', data.error || 'Failed to commit transactions.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to connect to backend.');
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -187,7 +267,7 @@ export function UploadScreen({
       return;
     }
 
-    uploadFile(mappingState.fileAsset, selectedMapping);
+    uploadDocumentIntelligence(mappingState.fileAsset);
   };
 
   // Delete statement import
@@ -297,11 +377,28 @@ export function UploadScreen({
 
     try {
       const formData = new FormData();
-      formData.append('file', {
-        uri: selectedImage.uri,
-        name: selectedImage.fileName || 'receipt.jpg',
-        type: selectedImage.mimeType || 'image/jpeg',
-      } as any);
+      const fileName = selectedImage.fileName || 'receipt.jpg';
+
+      if (Platform.OS === 'web') {
+        if (selectedImage.file) {
+          formData.append('file', selectedImage.file);
+        } else if (selectedImage.uri && (selectedImage.uri.startsWith('blob:') || selectedImage.uri.startsWith('data:'))) {
+          const blob = await fetch(selectedImage.uri).then((r) => r.blob());
+          formData.append('file', blob, fileName);
+        } else {
+          formData.append('file', {
+            uri: selectedImage.uri,
+            name: fileName,
+            type: selectedImage.mimeType || 'image/jpeg',
+          } as any);
+        }
+      } else {
+        formData.append('file', {
+          uri: selectedImage.uri,
+          name: fileName,
+          type: selectedImage.mimeType || 'image/jpeg',
+        } as any);
+      }
 
       const res = await apiClient.upload('/upload/receipt', formData);
       const data = await res.json().catch(() => ({}));
@@ -363,33 +460,33 @@ export function UploadScreen({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Segmented Sub Tabs */}
-      <View style={styles.subTabBar}>
+      <View style={[styles.subTabBar, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
         <TouchableOpacity
-          style={[styles.subTab, activeSubTab === 'statement' && styles.subTabActive]}
+          style={[styles.subTab, activeSubTab === 'statement' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
           onPress={() => setActiveSubTab('statement')}
         >
-          <Text style={[styles.subTabText, activeSubTab === 'statement' && styles.subTabTextActive]}>
+          <Text style={[styles.subTabText, { color: activeSubTab === 'statement' ? theme.text : theme.textSecondary }]}>
             Statements Import
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.subTab, activeSubTab === 'ocr' && styles.subTabActive]}
+          style={[styles.subTab, activeSubTab === 'ocr' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
           onPress={() => setActiveSubTab('ocr')}
         >
-          <Text style={[styles.subTabText, activeSubTab === 'ocr' && styles.subTabTextActive]}>
+          <Text style={[styles.subTabText, { color: activeSubTab === 'ocr' ? theme.text : theme.textSecondary }]}>
             Receipt OCR
           </Text>
         </TouchableOpacity>
 
         {activeWorkspaceId !== 'personal' && ['owner', 'partner', 'accountant'].includes(activeWorkspaceRole || '') && (
           <TouchableOpacity
-            style={[styles.subTab, activeSubTab === 'reconcile' && styles.subTabActive]}
+            style={[styles.subTab, activeSubTab === 'reconcile' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
             onPress={() => setActiveSubTab('reconcile')}
           >
-            <Text style={[styles.subTabText, activeSubTab === 'reconcile' && styles.subTabTextActive]}>
+            <Text style={[styles.subTabText, { color: activeSubTab === 'reconcile' ? theme.text : theme.textSecondary }]}>
               Reconciliation
             </Text>
           </TouchableOpacity>
@@ -408,27 +505,27 @@ export function UploadScreen({
         {activeSubTab === 'statement' ? (
           <>
             {/* Import Statement */}
-            <View style={styles.uploadCard}>
-              <Text style={styles.cardTitle}>Import Statements</Text>
-              <Text style={styles.cardDesc}>
+            <View style={[styles.uploadCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Import Statements</Text>
+              <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
                 Upload your bank statements in .csv or .pdf format. PDF statements will be processed automatically using Gemini AI.
               </Text>
 
               <TouchableOpacity
-                style={[styles.uploadBox, uploading && styles.uploadBoxDisabled]}
+                style={[styles.uploadBox, { backgroundColor: theme.subtleCard || theme.bg, borderColor: theme.cardBorder }, uploading && styles.uploadBoxDisabled]}
                 onPress={handlePickDocument}
                 disabled={uploading}
               >
                 {uploading ? (
                   <View style={styles.loadingCenter}>
-                    <ActivityIndicator color="#4f8cff" size="large" />
-                    <Text style={styles.uploadProgressText}>Uploading & parsing file...</Text>
+                    <ActivityIndicator color={accentHex} size="large" />
+                    <Text style={[styles.uploadProgressText, { color: accentHex }]}>Uploading & parsing file...</Text>
                   </View>
                 ) : (
                   <>
-                    <UploadCloudIcon color="#4f8cff" size={48} style={{ marginBottom: 12 }} />
-                    <Text style={styles.uploadBoxText}>Tap to pick CSV or PDF Statement</Text>
-                    <Text style={styles.uploadBoxSubtext}>Max size: 10MB</Text>
+                    <UploadCloudIcon color={accentHex} size={48} style={{ marginBottom: 12 }} />
+                    <Text style={[styles.uploadBoxText, { color: theme.text }]}>Tap to pick CSV or PDF Statement</Text>
+                    <Text style={[styles.uploadBoxSubtext, { color: theme.textMuted }]}>Max size: 10MB</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -453,10 +550,10 @@ export function UploadScreen({
 
             {/* History List */}
             <View style={styles.historyContainer}>
-              <Text style={styles.sectionTitle}>Import History</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Import History</Text>
               
               {loadingHistory ? (
-                <ActivityIndicator color="#4f8cff" size="small" style={{ marginTop: 20 }} />
+                <ActivityIndicator color={accentHex} size="small" style={{ marginTop: 20 }} />
               ) : uploads.length > 0 ? (
                 <View style={{ marginBottom: 12 }}>
                   {uploads.map((item) => {
@@ -470,16 +567,16 @@ export function UploadScreen({
                       : 'Unknown';
 
                     return (
-                      <View key={uploadId} style={styles.historyRow}>
-                        <View style={styles.fileIconBox}>
-                          <FileTextIcon color="#4f8cff" size={18} />
+                      <View key={uploadId} style={[styles.historyRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                        <View style={[styles.fileIconBox, { backgroundColor: theme.subtleCard || theme.bg }]}>
+                          <FileTextIcon color={accentHex} size={18} />
                         </View>
 
                         <View style={styles.fileDetails}>
-                          <Text style={styles.fileName} numberOfLines={1}>
+                          <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
                             {item.filename || 'bank_statement.csv'}
                           </Text>
-                          <Text style={styles.fileMeta}>
+                          <Text style={[styles.fileMeta, { color: theme.textMuted }]}>
                             {item.rowCount} rows · {dateStr}
                           </Text>
                         </View>
@@ -500,49 +597,48 @@ export function UploadScreen({
                   })}
                 </View>
               ) : (
-                <View style={styles.emptyHistory}>
-                  <AlertCircleIcon color="#a6bedf" size={24} style={{ marginBottom: 8 }} />
-                  <Text style={styles.emptyHistoryText}>No statement imports recorded.</Text>
+                <View style={[styles.emptyHistory, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                  <AlertCircleIcon color={theme.textMuted} size={24} style={{ marginBottom: 8 }} />
+                  <Text style={[styles.emptyHistoryText, { color: theme.textMuted }]}>No statement imports recorded.</Text>
                 </View>
               )}
             </View>
           </>
         ) : (
           <View style={styles.ocrContainer}>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Multilingual Receipt Scanner</Text>
-              <Text style={styles.cardSubtitle}>
-                Supports English, Hindi (हिन्दी), and Marathi (मराठी) receipts. Devanagari digits (०–९) are automatically normalized.
+            <View style={[styles.reviewCard, { backgroundColor: theme.card, borderColor: theme.cardBorder, padding: 16, marginTop: 0 }]}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Multilingual Receipt Scanner</Text>
+              <Text style={[styles.cardDesc, { color: theme.textSecondary, marginBottom: 16 }]}>
+                Scan it. We'll handle the Hisab. 📸✨ Supports English, Hindi (हिन्दी), and Marathi (मराठी) receipts.
               </Text>
 
               {/* Action Buttons */}
-              <View style={styles.ocrActionsRow}>
-                <TouchableOpacity style={styles.ocrActionBtn} onPress={handlePickCamera}>
-                  <CameraIcon color="#ffffff" size={20} />
-                  <Text style={styles.ocrActionBtnText}>Take Photo</Text>
+              <View style={styles.photoActions}>
+                <TouchableOpacity style={[styles.photoBtn, { backgroundColor: accentHex }]} onPress={handleCaptureReceipt}>
+                  <CameraIcon color="#ffffff" size={20} style={{ marginRight: 6 }} />
+                  <Text style={styles.photoBtnText}>Take Photo</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.ocrActionBtn, styles.ocrGalleryBtn]} onPress={handlePickGallery}>
-                  <ImageIcon color="#ffffff" size={20} />
-                  <Text style={styles.ocrActionBtnText}>Choose Gallery</Text>
+                <TouchableOpacity style={[styles.photoBtn, styles.galleryBtn, { backgroundColor: theme.card, borderColor: theme.cardBorder }]} onPress={handlePickReceiptFromLibrary}>
+                  <ImageIconComponent color={accentHex} size={20} style={{ marginRight: 6 }} />
+                  <Text style={[styles.galleryBtnText, { color: accentHex }]}>Choose Gallery</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Selected Image Preview */}
               {selectedImage && (
-                <View style={styles.previewContainer}>
+                <View style={[styles.previewBox, { backgroundColor: theme.subtleCard || theme.bg, borderColor: theme.cardBorder }]}>
                   <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} resizeMode="contain" />
                   
                   {!ocrResult && !scanning && (
-                    <TouchableOpacity style={styles.scanBtn} onPress={handleScanReceipt}>
-                      <SparklesIcon color="#ffffff" size={18} />
+                    <TouchableOpacity style={[styles.scanBtn, { backgroundColor: accentHex }]} onPress={handleScanReceipt}>
                       <Text style={styles.scanBtnText}>Scan with AI OCR</Text>
                     </TouchableOpacity>
                   )}
 
                   {scanning && (
-                    <View style={styles.scanningBox}>
-                      <ActivityIndicator color="#4f8cff" size="small" />
+                    <View style={styles.scanningOverlay}>
+                      <ActivityIndicator color={accentHex} size="small" />
                       <Text style={styles.scanningText}>Analyzing Multilingual Receipt...</Text>
                     </View>
                   )}
@@ -559,10 +655,10 @@ export function UploadScreen({
 
             {/* OCR Extracted Result Review */}
             {ocrResult && (
-              <View style={styles.reviewCard}>
+              <View style={[styles.reviewCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={styles.reviewTitle}>Review Extracted Details</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#8fc0ff', backgroundColor: '#0f2942', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                  <Text style={[styles.reviewTitle, { color: theme.text }]}>Review Extracted Details</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: accentHex, backgroundColor: accentHex + '18', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
                     🌐 {ocrResult.detectedLanguage}
                   </Text>
                 </View>
@@ -575,66 +671,66 @@ export function UploadScreen({
                   </View>
                 )}
 
-                <Text style={styles.reviewSubtitle}>Extracted values normalized to standard digits. Edit any field below.</Text>
+                <Text style={[styles.reviewSubtitle, { color: theme.textSecondary }]}>Extracted values normalized to standard digits. Edit any field below.</Text>
 
                 <View style={styles.reviewField}>
-                  <Text style={styles.fieldLabel}>Merchant / Shop Name</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Merchant / Shop Name</Text>
                   <TextInput
-                    style={styles.fieldInput}
+                    style={[styles.fieldInput, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }]}
                     value={ocrResult.description}
                     onChangeText={(t) => setOcrResult({ ...ocrResult, description: t })}
                     placeholder="Merchant name"
-                    placeholderTextColor="#5f88b8"
+                    placeholderTextColor={theme.textMuted}
                   />
                 </View>
 
                 <View style={styles.reviewField}>
-                  <Text style={styles.fieldLabel}>Total Amount (₹)</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Total Amount (₹)</Text>
                   <TextInput
-                    style={styles.fieldInput}
+                    style={[styles.fieldInput, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }]}
                     value={ocrResult.amount}
                     onChangeText={(t) => setOcrResult({ ...ocrResult, amount: t })}
                     keyboardType="numeric"
                     placeholder="0.00"
-                    placeholderTextColor="#5f88b8"
+                    placeholderTextColor={theme.textMuted}
                   />
                 </View>
 
                 {ocrResult.gstNumber !== '' && (
                   <View style={styles.reviewField}>
-                    <Text style={styles.fieldLabel}>GSTIN / Tax ID</Text>
+                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>GSTIN / Tax ID</Text>
                     <TextInput
-                      style={styles.fieldInput}
+                      style={[styles.fieldInput, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }]}
                       value={ocrResult.gstNumber}
                       onChangeText={(t) => setOcrResult({ ...ocrResult, gstNumber: t })}
                       placeholder="GSTIN"
-                      placeholderTextColor="#5f88b8"
+                      placeholderTextColor={theme.textMuted}
                     />
                   </View>
                 )}
 
                 <View style={styles.reviewField}>
-                  <Text style={styles.fieldLabel}>Category</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Category</Text>
                   <TouchableOpacity
-                    style={styles.dropdownTrigger}
+                    style={[styles.dropdownTrigger, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
                     onPress={() => setCategoryDropdownVisible(!categoryDropdownVisible)}
                   >
-                    <Text style={styles.dropdownValue}>{ocrResult.category}</Text>
-                    <ChevronDownIcon color="#a6bedf" size={18} />
+                    <Text style={[styles.dropdownValue, { color: theme.text }]}>{ocrResult.category}</Text>
+                    <ChevronDownIcon color={theme.textMuted} size={18} />
                   </TouchableOpacity>
 
                   {categoryDropdownVisible && (
-                    <View style={styles.catDropdownList}>
+                    <View style={[styles.catDropdownList, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                       {CATEGORIES.map((cat, idx) => (
                         <TouchableOpacity
                           key={idx}
-                          style={styles.catOption}
+                          style={[styles.catOption, { borderBottomColor: theme.cardBorder }]}
                           onPress={() => {
                             setOcrResult({ ...ocrResult, category: cat });
                             setCategoryDropdownVisible(false);
                           }}
                         >
-                          <Text style={styles.catOptionText}>{cat}</Text>
+                          <Text style={[styles.catOptionText, { color: theme.text }]}>{cat}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -642,13 +738,13 @@ export function UploadScreen({
                 </View>
 
                 <View style={styles.reviewField}>
-                  <Text style={styles.fieldLabel}>Date</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Date</Text>
                   <TextInput
-                    style={styles.fieldInput}
+                    style={[styles.fieldInput, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }]}
                     value={ocrResult.date}
                     onChangeText={(t) => setOcrResult({ ...ocrResult, date: t })}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#5f88b8"
+                    placeholderTextColor={theme.textMuted}
                   />
                 </View>
 
@@ -680,9 +776,9 @@ export function UploadScreen({
           onRequestClose={() => setMappingVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.mappingCard}>
-              <Text style={styles.mappingTitle}>Map CSV Columns</Text>
-              <Text style={styles.mappingDesc}>
+            <View style={[styles.mappingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.mappingTitle, { color: theme.text }]}>Map CSV Columns</Text>
+              <Text style={[styles.mappingDesc, { color: theme.textSecondary }]}>
                 We couldn't auto-detect your CSV format. Please match our fields with your CSV columns:
               </Text>
 
@@ -696,26 +792,26 @@ export function UploadScreen({
                     : '(Required)';
 
                   return (
-                    <View key={field} style={styles.mappingRow}>
+                    <View key={field} style={[styles.mappingRow, { borderBottomColor: theme.cardBorder }]}>
                       <View style={styles.mappingFieldLabelCol}>
-                        <Text style={styles.mappingFieldLabel}>{label}</Text>
-                        <Text style={styles.mappingFieldSub}>{subLabel}</Text>
+                        <Text style={[styles.mappingFieldLabel, { color: theme.text }]}>{label}</Text>
+                        <Text style={[styles.mappingFieldSub, { color: theme.textMuted }]}>{subLabel}</Text>
                       </View>
 
                       <TouchableOpacity
-                        style={styles.selectBox}
+                        style={[styles.selectBox, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
                         onPress={() => setActiveDropdownField(activeDropdownField === field ? null : field)}
                       >
-                        <Text style={styles.selectBoxText} numberOfLines={1}>
+                        <Text style={[styles.selectBoxText, { color: theme.text }]} numberOfLines={1}>
                           {selectedMapping[field] || 'Choose Column...'}
                         </Text>
-                        <ChevronDownIcon color="#a6bedf" size={16} />
+                        <ChevronDownIcon color={theme.textMuted} size={16} />
                       </TouchableOpacity>
 
                       {activeDropdownField === field && (
-                        <View style={styles.dropdownOptions}>
+                        <View style={[styles.dropdownOptions, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                           <TouchableOpacity
-                            style={styles.dropdownOption}
+                            style={[styles.dropdownOption, { borderBottomColor: theme.cardBorder }]}
                             onPress={() => {
                               setSelectedMapping({ ...selectedMapping, [field]: '' });
                               setActiveDropdownField(null);
@@ -727,13 +823,13 @@ export function UploadScreen({
                           {mappingState.headers.map((h, hIdx) => (
                             <TouchableOpacity
                               key={hIdx}
-                              style={styles.dropdownOption}
+                              style={[styles.dropdownOption, { borderBottomColor: theme.cardBorder }]}
                               onPress={() => {
                                 setSelectedMapping({ ...selectedMapping, [field]: h });
                                 setActiveDropdownField(null);
                               }}
                             >
-                              <Text style={styles.dropdownOptionText}>{h}</Text>
+                              <Text style={[styles.dropdownOptionText, { color: theme.text }]}>{h}</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -745,22 +841,180 @@ export function UploadScreen({
 
               <View style={styles.mappingActions}>
                 <TouchableOpacity
-                  style={[styles.mapBtn, styles.cancelMapBtn]}
+                  style={[styles.mapBtn, styles.cancelMapBtn, { borderColor: theme.cardBorder }]}
                   onPress={() => {
                     setMappingVisible(false);
                     setMappingState(null);
                   }}
                 >
-                  <Text style={styles.cancelMapBtnText}>Cancel</Text>
+                  <Text style={[styles.cancelMapBtnText, { color: theme.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.mapBtn, styles.submitMapBtn]}
+                  style={[styles.mapBtn, styles.submitMapBtn, { backgroundColor: accentHex }]}
                   onPress={handleSubmitMapping}
                 >
                   <Text style={styles.submitMapBtnText}>Confirm Columns</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Document Intelligence Review Modal */}
+      {activeDocument && (
+        <Modal
+          visible={reviewModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setReviewModalVisible(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: theme.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', padding: 18, borderTopWidth: 2, borderColor: accentHex }}>
+              
+              {/* Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <View>
+                  <Text style={{ color: theme.text, fontSize: 18, fontWeight: '800' }}>Document Intelligence Review</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}>{activeDocument.fileName} · {activeDocument.documentType?.toUpperCase()}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setReviewModalVisible(false)} style={{ padding: 6, backgroundColor: theme.card, borderRadius: 12 }}>
+                  <XIcon color={theme.textSecondary} size={20} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Summary Stats Grid */}
+              <View style={{ backgroundColor: theme.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.cardBorder, marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <View>
+                    <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: '700' }}>TOTAL DETECTED</Text>
+                    <Text style={{ color: theme.text, fontSize: 18, fontWeight: '800', marginTop: 2 }}>{activeDocument.summary?.totalCount || 0}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: '#2ecc71', fontSize: 11, fontWeight: '700' }}>HIGH CONFIDENCE</Text>
+                    <Text style={{ color: '#2ecc71', fontSize: 18, fontWeight: '800', marginTop: 2 }}>{activeDocument.summary?.highConfidenceCount || 0}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: '#f39c12', fontSize: 11, fontWeight: '700' }}>NEEDS REVIEW</Text>
+                    <Text style={{ color: '#f39c12', fontSize: 18, fontWeight: '800', marginTop: 2 }}>{activeDocument.summary?.reviewCount || 0}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: '#e74c3c', fontSize: 11, fontWeight: '700' }}>DUPLICATES</Text>
+                    <Text style={{ color: '#e74c3c', fontSize: 18, fontWeight: '800', marginTop: 2 }}>{activeDocument.summary?.duplicateCount || 0}</Text>
+                  </View>
+                </View>
+
+                <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#2ecc71', fontSize: 12, fontWeight: '700' }}>Inflow: ₹{(activeDocument.summary?.inflow || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={{ color: '#ff6b6b', fontSize: 12, fontWeight: '700' }}>Outflow: ₹{(activeDocument.summary?.outflow || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={{ color: accentHex, fontSize: 12, fontWeight: '800' }}>Net: ₹{(activeDocument.summary?.netCashFlow || 0).toLocaleString('en-IN')}</Text>
+                </View>
+              </View>
+
+              {/* Action Toolbar */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ color: theme.text, fontSize: 14, fontWeight: '800' }}>Extracted Transactions ({activeDocument.extractedTransactions?.filter((t: any) => t.approved !== false).length || 0} approved)</Text>
+                <TouchableOpacity onPress={handleApproveHighConfidence} style={{ backgroundColor: accentHex + '20', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: accentHex }}>
+                  <Text style={{ color: accentHex, fontSize: 11, fontWeight: '700' }}>Approve High Confidence ✓</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Transactions List */}
+              <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+                {activeDocument.extractedTransactions?.map((item: any, idx: number) => {
+                  const isApproved = item.approved !== false;
+                  const isHighConf = item.confidenceScore >= 0.90 && !item.needsReview;
+                  return (
+                    <View key={item.tempId || idx} style={{ backgroundColor: theme.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: isApproved ? (item.isDuplicate ? '#e74c3c' : theme.cardBorder) : '#444', marginBottom: 10, opacity: isApproved ? 1 : 0.5 }}>
+                      
+                      {/* Row Top Meta */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <TouchableOpacity onPress={() => handleToggleRowApprove(idx)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ width: 20, height: 20, borderRadius: 6, backgroundColor: isApproved ? accentHex : 'transparent', borderWidth: 1.5, borderColor: isApproved ? accentHex : theme.textMuted, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                            {isApproved && <CheckIcon color="#fff" size={14} />}
+                          </View>
+                          <Text style={{ color: theme.text, fontSize: 12, fontWeight: '800' }}>Row #{idx + 1}</Text>
+                        </TouchableOpacity>
+
+                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                          {item.isDuplicate && (
+                            <View style={{ backgroundColor: '#e74c3c20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#e74c3c' }}>
+                              <Text style={{ color: '#e74c3c', fontSize: 10, fontWeight: '800' }}>Possible Duplicate</Text>
+                            </View>
+                          )}
+                          <View style={{ backgroundColor: isHighConf ? '#2ecc7120' : '#f39c1220', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: isHighConf ? '#2ecc71' : '#f39c12' }}>
+                            <Text style={{ color: isHighConf ? '#2ecc71' : '#f39c12', fontSize: 10, fontWeight: '800' }}>
+                              {Math.round(item.confidenceScore * 100)}% {isHighConf ? '✓' : '⚠ Review'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Row Inputs */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+                        <TextInput
+                          style={{ flex: 1, backgroundColor: theme.inputBg, borderWidth: 1, borderColor: theme.inputBorder, borderRadius: 8, paddingHorizontal: 10, height: 36, color: theme.text, fontSize: 12 }}
+                          value={item.description}
+                          onChangeText={(v) => handleUpdateRowField(idx, 'description', v)}
+                          placeholder="Description / Merchant"
+                          placeholderTextColor={theme.textMuted}
+                        />
+                        <TextInput
+                          style={{ width: 100, backgroundColor: theme.inputBg, borderWidth: 1, borderColor: theme.inputBorder, borderRadius: 8, paddingHorizontal: 10, height: 36, color: item.type === 'income' ? '#2ecc71' : '#ff6b6b', fontSize: 12, fontWeight: '800' }}
+                          value={String(item.amount)}
+                          onChangeText={(v) => handleUpdateRowField(idx, 'amount', parseFloat(v) || 0)}
+                          keyboardType="numeric"
+                          placeholder="Amount"
+                          placeholderTextColor={theme.textMuted}
+                        />
+                      </View>
+
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <TextInput
+                          style={{ width: 110, backgroundColor: theme.inputBg, borderWidth: 1, borderColor: theme.inputBorder, borderRadius: 8, paddingHorizontal: 10, height: 32, color: theme.textSecondary, fontSize: 11 }}
+                          value={item.date}
+                          onChangeText={(v) => handleUpdateRowField(idx, 'date', v)}
+                          placeholder="YYYY-MM-DD"
+                          placeholderTextColor={theme.textMuted}
+                        />
+
+                        <TouchableOpacity
+                          onPress={() => handleUpdateRowField(idx, 'type', item.type === 'income' ? 'expense' : 'income')}
+                          style={{ backgroundColor: item.type === 'income' ? '#2ecc7120' : '#ff6b6b20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: item.type === 'income' ? '#2ecc71' : '#ff6b6b' }}
+                        >
+                          <Text style={{ color: item.type === 'income' ? '#2ecc71' : '#ff6b6b', fontSize: 11, fontWeight: '800' }}>
+                            {item.type.toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Commit Actions */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity onPress={() => setReviewModalVisible(false)} style={{ flex: 1, height: 48, borderRadius: 14, borderWidth: 1, borderColor: theme.cardBorder, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleCommitDocument}
+                  disabled={committing}
+                  style={{ flex: 2, height: 48, borderRadius: 14, backgroundColor: accentHex, justifyContent: 'center', alignItems: 'center' }}
+                >
+                  {committing ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>
+                      Save Approved to MongoDB ({activeDocument.extractedTransactions?.filter((t: any) => t.approved !== false).length || 0})
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
             </View>
           </View>
         </Modal>
@@ -772,13 +1026,10 @@ export function UploadScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#06111f',
   },
   subTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#0b1d38',
     borderBottomWidth: 1,
-    borderBottomColor: '#15345f',
     height: 48,
   },
   subTab: {
@@ -788,15 +1039,12 @@ const styles = StyleSheet.create({
   },
   subTabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: '#4f8cff',
   },
   subTabText: {
-    color: '#8fc0ff',
     fontSize: 13,
     fontWeight: '600',
   },
   subTabTextActive: {
-    color: '#ffffff',
     fontWeight: '700',
   },
   scrollContent: {
@@ -805,46 +1053,38 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   uploadCard: {
-    backgroundColor: '#0b1d38',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
     padding: 20,
     marginBottom: 20,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
   },
   cardDesc: {
     fontSize: 12,
-    color: '#a6bedf',
     marginTop: 6,
     lineHeight: 18,
     marginBottom: 16,
   },
   uploadBox: {
     borderWidth: 1.5,
-    borderColor: '#15345f',
     borderStyle: 'dashed',
     borderRadius: 14,
     height: 140,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#06111f',
     marginBottom: 16,
   },
   uploadBoxDisabled: {
     opacity: 0.6,
   },
   uploadBoxText: {
-    color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
   },
   uploadBoxSubtext: {
-    color: '#8fc0ff',
     fontSize: 11,
     marginTop: 4,
   },
@@ -852,7 +1092,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   uploadProgressText: {
-    color: '#8fc0ff',
     fontSize: 12,
     marginTop: 10,
   },
@@ -863,10 +1102,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,107,107,0.2)',
+    borderColor: 'rgba(239,68,68,0.2)',
   },
   clearBtnText: {
-    color: '#ff6b6b',
+    color: '#ef4444',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -876,36 +1115,29 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
     marginBottom: 12,
   },
   emptyHistory: {
-    backgroundColor: '#0b1d38',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
     padding: 30,
     alignItems: 'center',
   },
   emptyHistoryText: {
-    color: '#a6bedf',
     fontSize: 13,
   },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0b1d38',
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#15345f',
   },
   fileIconBox: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#06111f',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -914,12 +1146,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fileName: {
-    color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
   },
   fileMeta: {
-    color: '#8fc0ff',
     fontSize: 11,
     marginTop: 2,
   },
@@ -928,29 +1158,25 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(3,8,16,0.85)',
+    backgroundColor: 'rgba(15,23,42,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   mappingCard: {
-    backgroundColor: '#0b1d38',
     borderRadius: 24,
     width: '100%',
     maxWidth: 400,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#15345f',
   },
   mappingTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
     marginBottom: 8,
   },
   mappingDesc: {
     fontSize: 12,
-    color: '#a6bedf',
     lineHeight: 18,
     marginBottom: 16,
   },
@@ -959,7 +1185,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     borderBottomWidth: 1,
-    borderBottomColor: '#06111f',
     paddingVertical: 12,
     position: 'relative',
     zIndex: 1,
@@ -968,12 +1193,10 @@ const styles = StyleSheet.create({
     flex: 0.9,
   },
   mappingFieldLabel: {
-    color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
   },
   mappingFieldSub: {
-    color: '#8fc0ff',
     fontSize: 10,
     marginTop: 2,
   },
@@ -982,15 +1205,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 40,
   },
   selectBoxText: {
-    color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
     flex: 1,
@@ -1002,9 +1222,7 @@ const styles = StyleSheet.create({
     right: 0,
     width: 180,
     maxHeight: 180,
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#4f8cff',
     borderRadius: 10,
     zIndex: 100,
     elevation: 6,
@@ -1013,7 +1231,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#15345f',
   },
   dropdownOptionTextSkip: {
     color: '#ff6b6b',
@@ -1021,7 +1238,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dropdownOptionText: {
-    color: '#c3d6f3',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -1039,10 +1255,8 @@ const styles = StyleSheet.create({
   },
   cancelMapBtn: {
     borderWidth: 1,
-    borderColor: '#15345f',
   },
   cancelMapBtnText: {
-    color: '#a6bedf',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1067,7 +1281,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#4f8cff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1077,19 +1290,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   galleryBtn: {
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
   },
   galleryBtnText: {
-    color: '#4f8cff',
     fontWeight: '700',
     fontSize: 14,
   },
   previewBox: {
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 16,
     padding: 12,
     alignItems: 'center',
@@ -1102,7 +1310,6 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   scanBtn: {
-    backgroundColor: '#4f8cff',
     width: '100%',
     paddingVertical: 14,
     borderRadius: 12,
@@ -1151,21 +1358,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reviewCard: {
-    backgroundColor: '#0b1d38',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
     padding: 20,
     marginTop: 20,
   },
   reviewTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
   },
   reviewSubtitle: {
     fontSize: 11,
-    color: '#a6bedf',
     marginTop: 2,
     marginBottom: 16,
   },
@@ -1174,16 +1377,12 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 12,
-    color: '#8fc0ff',
     fontWeight: '600',
     marginBottom: 6,
   },
   fieldInput: {
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 10,
-    color: '#ffffff',
     fontSize: 14,
     paddingHorizontal: 12,
     height: 44,
@@ -1192,22 +1391,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
   },
   dropdownValue: {
-    color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
   },
   catDropdownList: {
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 10,
     marginTop: 4,
     overflow: 'hidden',
@@ -1216,15 +1410,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#15345f',
   },
   catOptionText: {
-    color: '#c3d6f3',
     fontSize: 13,
     fontWeight: '500',
   },
   saveOcrBtn: {
-    backgroundColor: '#2ecc71',
+    backgroundColor: '#10b981',
     height: 48,
     borderRadius: 12,
     alignItems: 'center',

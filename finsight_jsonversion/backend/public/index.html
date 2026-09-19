@@ -4101,7 +4101,7 @@
 
               <!-- Action Buttons -->
               <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <button type="button" class="btn btn-outline" style="color: #94a3b8; border-color: rgba(255, 255, 255, 0.15); font-weight: 700; padding: 0.6rem 1.1rem; font-size: 0.8125rem;" onclick="cancelStatementReview()">
+                <button type="button" id="discardStatementReviewBtn" class="btn btn-outline" style="color: #fda4af; border-color: rgba(244, 63, 94, 0.35); background: rgba(244, 63, 94, 0.1); font-weight: 700; padding: 0.6rem 1.1rem; font-size: 0.8125rem; cursor: pointer; transition: all 0.2s;" onclick="cancelStatementReview()">
                   ✕ Discard
                 </button>
                 <button type="button" id="commitToSupabaseBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 800; padding: 0.65rem 1.6rem; font-size: 0.875rem; box-shadow: 0 4px 25px rgba(16, 185, 129, 0.4); border-radius: 12px;" onclick="commitApprovedTransactions()">
@@ -5734,6 +5734,7 @@
     let pendingBatchMerchant = '';
     let pendingBatchCategory = '';
     let pendingMerchantRules = [];
+    let customEditingTempId = null;
 
     const AVAILABLE_CATEGORIES = [
       'General',
@@ -5890,10 +5891,52 @@
         const rowClass = isSelected ? '' : 'review-row-deselected';
         const merchantDisplay = tx.merchantName || tx.description || 'Transaction';
 
-        const categoryOptions = AVAILABLE_CATEGORIES.map(cat => {
-          const selectedAttr = (tx.category || 'General').toLowerCase() === cat.toLowerCase() ? 'selected' : '';
-          return `<option value="${escapeHtml(cat)}" ${selectedAttr}>${escapeHtml(cat)}</option>`;
-        }).join('');
+        // Ensure current tx.category is present in AVAILABLE_CATEGORIES
+        if (tx.category && !AVAILABLE_CATEGORIES.some(c => c.toLowerCase() === tx.category.toLowerCase())) {
+          AVAILABLE_CATEGORIES.push(tx.category);
+        }
+
+        const isEditingCustom = customEditingTempId === tx.tempId;
+
+        let categoryCellHtml = '';
+        if (isEditingCustom) {
+          categoryCellHtml = `
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <input 
+                type="text" 
+                id="customCategoryInput_${tx.tempId}" 
+                class="category-custom-input" 
+                placeholder="Type category..." 
+                value="${escapeHtml(tx.category && tx.category !== 'General' ? tx.category : '')}"
+                style="background: rgba(15, 23, 42, 0.95); border: 1.5px solid #38bdf8; color: #f8fafc; border-radius: 8px; padding: 4px 8px; font-size: 0.8125rem; font-weight: 700; width: 130px; outline: none; box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);"
+                onkeydown="if(event.key === 'Enter') { event.preventDefault(); saveCustomCategory('${tx.tempId}'); } else if(event.key === 'Escape') { event.preventDefault(); cancelCustomCategory('${tx.tempId}'); }"
+              />
+              <button type="button" onclick="saveCustomCategory('${tx.tempId}')" style="background: #10b981; border: none; color: #ffffff; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem;" title="Save Category">
+                ✓
+              </button>
+              <button type="button" onclick="cancelCustomCategory('${tx.tempId}')" style="background: rgba(244, 63, 94, 0.2); border: 1px solid rgba(244, 63, 94, 0.4); color: #fda4af; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;" title="Cancel">
+                ✕
+              </button>
+            </div>
+          `;
+        } else {
+          const categoryOptions = AVAILABLE_CATEGORIES.map(cat => {
+            const selectedAttr = (tx.category || 'General').toLowerCase() === cat.toLowerCase() ? 'selected' : '';
+            return `<option value="${escapeHtml(cat)}" ${selectedAttr}>${escapeHtml(cat)}</option>`;
+          }).join('');
+
+          categoryCellHtml = `
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <select class="category-select-styled" onchange="handleCategorySelectChange('${tx.tempId}', this.value)">
+                ${categoryOptions}
+                <option value="__WRITE_CUSTOM__" style="color: #38bdf8; font-weight: 800; background: #0f172a;">✍️ + Write Custom Category...</option>
+              </select>
+              <button type="button" onclick="startWritingCustomCategory('${tx.tempId}')" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; border-radius: 6px; width: 24px; height: 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" title="Write Custom Category">
+                ✏️
+              </button>
+            </div>
+          `;
+        }
 
         return `
           <tr id="reviewRow_${tx.tempId}" class="${rowClass}" style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: all 0.2s;">
@@ -5917,9 +5960,7 @@
               </span>
             </td>
             <td>
-              <select class="category-select-styled" onchange="handleCategoryChange('${tx.tempId}', this.value)">
-                ${categoryOptions}
-              </select>
+              ${categoryCellHtml}
             </td>
             <td style="text-align: right;">
               <button type="button" onclick="deleteReviewRow('${tx.tempId}')" style="background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; transition: all 0.2s;" title="Remove this item">
@@ -5929,6 +5970,62 @@
           </tr>
         `;
       }).join('');
+
+      if (customEditingTempId) {
+        setTimeout(() => {
+          const input = document.getElementById(`customCategoryInput_${customEditingTempId}`);
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        }, 50);
+      }
+    }
+
+    function handleCategorySelectChange(tempId, value) {
+      if (value === '__WRITE_CUSTOM__') {
+        startWritingCustomCategory(tempId);
+        return;
+      }
+      handleCategoryChange(tempId, value);
+    }
+
+    function startWritingCustomCategory(tempId) {
+      customEditingTempId = tempId;
+      renderStatementApprovalTable();
+    }
+
+    function cancelCustomCategory(tempId) {
+      customEditingTempId = null;
+      renderStatementApprovalTable();
+    }
+
+    function saveCustomCategory(tempId) {
+      const input = document.getElementById(`customCategoryInput_${tempId}`);
+      if (!input) {
+        customEditingTempId = null;
+        renderStatementApprovalTable();
+        return;
+      }
+      const rawVal = input.value.trim();
+      if (rawVal) {
+        if (!AVAILABLE_CATEGORIES.some(c => c.toLowerCase() === rawVal.toLowerCase())) {
+          AVAILABLE_CATEGORIES.push(rawVal);
+        }
+        const canonicalCat = AVAILABLE_CATEGORIES.find(c => c.toLowerCase() === rawVal.toLowerCase()) || rawVal;
+        
+        const tx = currentExtractedTransactions.find(t => t.tempId === tempId);
+        if (tx) {
+          tx.category = canonicalCat;
+        }
+        customEditingTempId = null;
+        renderStatementApprovalTable();
+        handleCategoryChange(tempId, canonicalCat);
+        showToast(`✓ Category "${canonicalCat}" saved and assigned!`, 'success');
+      } else {
+        customEditingTempId = null;
+        renderStatementApprovalTable();
+      }
     }
 
     function toggleReviewRow(tempId, isChecked) {
@@ -6052,19 +6149,45 @@
     }
 
     function cancelStatementReview() {
-      if (confirm('Are you sure you want to discard this statement extraction? No transactions will be saved.')) {
-        currentExtractedTransactions = [];
-        pendingMerchantRules = [];
-        document.getElementById('statementApprovalStudio').style.display = 'none';
-        document.getElementById('uploadInitialZone').style.display = 'block';
-        clearSelectedFile();
+      currentExtractedTransactions = [];
+      pendingMerchantRules = [];
+      pendingBatchMerchant = '';
+      pendingBatchCategory = '';
+      currentReviewFileName = '';
+      currentReviewParser = '';
+      customEditingTempId = null;
+
+      const studio = document.getElementById('statementApprovalStudio');
+      if (studio) studio.style.display = 'none';
+
+      const uploadZone = document.getElementById('uploadInitialZone');
+      if (uploadZone) uploadZone.style.display = 'block';
+
+      dismissBatchCategoryPrompt();
+      clearSelectedFile();
+
+      const tbody = document.getElementById('statementReviewTbody');
+      if (tbody) tbody.innerHTML = '';
+
+      const commitBtn = document.getElementById('commitToSupabaseBtn');
+      if (commitBtn) {
+        commitBtn.disabled = false;
+        commitBtn.innerHTML = '🚀 Approve &amp; Save (<span id="approvedCountBadge">0</span>) Transactions →';
       }
+
+      const docUploadBtn = document.getElementById('docUploadBtn');
+      if (docUploadBtn) {
+        docUploadBtn.disabled = false;
+        docUploadBtn.textContent = '🚀 Extract Statement Transactions →';
+      }
+
+      showToast('Statement discarded. You can upload a new statement.', 'info');
     }
 
     async function commitApprovedTransactions() {
       const approved = currentExtractedTransactions.filter(t => t.selected !== false);
       if (approved.length === 0) {
-        alert('Please check at least 1 transaction to save to your ledger.');
+        showToast('Please check at least 1 transaction to save to your ledger.', 'warning');
         return;
       }
 
@@ -6094,29 +6217,45 @@
         const data = await res.json();
 
         if (res.ok && data.success) {
-          showToast(`🎉 Transactions added to your ledger successfully!`, 'success');
+          showToast(`🎉 ${approved.length} transactions added to your ledger successfully!`, 'success');
           
           currentExtractedTransactions = [];
           pendingMerchantRules = [];
-          document.getElementById('statementApprovalStudio').style.display = 'none';
-          document.getElementById('uploadInitialZone').style.display = 'block';
-          clearSelectedFile();
+          customEditingTempId = null;
 
-          // Refresh documents and live ledger
-          await loadUploadedDocuments();
-          await loadWorkspaceData();
-        } else {
-          alert('Failed to commit transactions: ' + (data.error || 'Server error'));
+          const studio = document.getElementById('statementApprovalStudio');
+          if (studio) studio.style.display = 'none';
+
+          const uploadZone = document.getElementById('uploadInitialZone');
+          if (uploadZone) uploadZone.style.display = 'block';
+
+          clearSelectedFile();
+          dismissBatchCategoryPrompt();
+
           if (commitBtn) {
             commitBtn.disabled = false;
-            commitBtn.textContent = `🚀 Approve & Save (${approved.length}) Transactions →`;
+            commitBtn.innerHTML = '🚀 Approve &amp; Save (<span id="approvedCountBadge">0</span>) Transactions →';
+          }
+
+          // Refresh documents and live ledger
+          try {
+            await loadUploadedDocuments();
+            await loadWorkspaceData();
+          } catch (e) {
+            console.warn('Refresh after commit warning:', e);
+          }
+        } else {
+          showToast('Failed to commit transactions: ' + (data.error || 'Server error'), 'error');
+          if (commitBtn) {
+            commitBtn.disabled = false;
+            commitBtn.innerHTML = `🚀 Approve &amp; Save (<span id="approvedCountBadge">${approved.length}</span>) Transactions →`;
           }
         }
       } catch (err) {
-        alert('Network error while committing: ' + err.message);
+        showToast('Network error while committing: ' + err.message, 'error');
         if (commitBtn) {
           commitBtn.disabled = false;
-          commitBtn.textContent = `🚀 Approve & Save (${approved.length}) Transactions →`;
+          commitBtn.innerHTML = `🚀 Approve &amp; Save (<span id="approvedCountBadge">${approved.length}</span>) Transactions →`;
         }
       }
     }

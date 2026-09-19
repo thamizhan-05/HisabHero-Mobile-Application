@@ -48,7 +48,11 @@ async function request(endpoint: string, options: any = {}) {
   };
 
   try {
-    const fullUrl = `${baseUrl}${endpoint}`;
+    let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    if (cleanEndpoint.startsWith('/api/')) {
+      cleanEndpoint = cleanEndpoint.substring(4);
+    }
+    const fullUrl = `${baseUrl}${cleanEndpoint}`;
     console.log(`[API Client] ${config.method || 'GET'} ${fullUrl}`);
     
     const response = await fetch(fullUrl, config);
@@ -74,9 +78,12 @@ async function request(endpoint: string, options: any = {}) {
   }
 }
 
+export const apiFetch = request;
+
 export const apiClient = {
   get: (endpoint: string, options = {}) => request(endpoint, { ...options, method: 'GET' }),
   post: (endpoint: string, body?: any, options = {}) => request(endpoint, { ...options, method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: (endpoint: string, body?: any, options = {}) => request(endpoint, { ...options, method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: (endpoint: string, options = {}) => request(endpoint, { ...options, method: 'DELETE' }),
   patch: (endpoint: string, body?: any, options = {}) => request(endpoint, { ...options, method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   upload: (endpoint: string, formData: FormData, options: any = {}) => request(endpoint, { timeout: 300000, ...options, method: 'POST', body: formData, headers: { 'Content-Type': 'multipart/form-data' } }),

@@ -1,3 +1,6 @@
+import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+globalThis.pdfjsWorker = pdfjsWorker;
+
 import { GoogleGenAI } from '@google/genai';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
@@ -52,32 +55,36 @@ export function normalizeDate(dateStr) {
     }
   }
 
-  // 2. Matches Named Month (e.g. "16 Jan 2026", "Jan 16, 2026", "16-Feb-2026")
+  // 2. Matches Named Month (e.g. "30 Aug 2026", "16 Jan 2026", "Jan 16, 2026", "16-Feb-2026", "19-Sep-26")
   const monthMap = {
     jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
     jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
   };
-  const namedMatch = cleaned.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})?/) || cleaned.match(/(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-]?(\d{2,4})?/);
-  if (namedMatch) {
-    let dayStr, monthName, yearStr;
-    if (isNaN(parseInt(namedMatch[1], 10))) {
-      monthName = namedMatch[1];
-      dayStr = namedMatch[2];
-      yearStr = namedMatch[3] || String(new Date().getFullYear());
-    } else {
-      dayStr = namedMatch[1];
-      monthName = namedMatch[2];
-      yearStr = namedMatch[3] || String(new Date().getFullYear());
-    }
+
+  const dayFirstNamed = cleaned.match(/(?:^|\b)(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-](\d{2,4})\b/);
+  if (dayFirstNamed) {
+    const [, dayStr, monthName, yearStr] = dayFirstNamed;
     const mKey = monthName.toLowerCase().slice(0, 3);
     const mo = monthMap[mKey] || '01';
-    let y = yearStr;
-    if (y.length === 2) y = '20' + y;
+    let y = yearStr.length === 2 ? '20' + yearStr : yearStr;
     const d = parseInt(dayStr, 10);
     if (d >= 1 && d <= 31) {
       return `${y}-${mo}-${String(d).padStart(2, '0')}`;
     }
   }
+
+  const monthFirstNamed = cleaned.match(/(?:^|\b)([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{2,4}))?\b/);
+  if (monthFirstNamed) {
+    const [, monthName, dayStr, yearStr] = monthFirstNamed;
+    const mKey = monthName.toLowerCase().slice(0, 3);
+    const mo = monthMap[mKey] || '01';
+    let y = (yearStr && yearStr.length === 2) ? '20' + yearStr : (yearStr || String(new Date().getFullYear()));
+    const d = parseInt(dayStr, 10);
+    if (d >= 1 && d <= 31) {
+      return `${y}-${mo}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
 
   // 3. Matches DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   const indianFormat = cleaned.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
@@ -348,11 +355,31 @@ export function parseGenericReceiptLocally(text = '', originalName = '') {
  * High-Speed Multi-Source Document Ingestion (Native Local Code First -> Graceful Gemini Vision OCR Fallback)
  */
 export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName, workspaceId = null) {
+  // Defensive swap if originalName is a workspace ID and workspaceId is a filename
+  if (typeof originalName === 'string' && typeof workspaceId === 'string') {
+    if (/\.(pdf|csv|xlsx|xls|png|jpg|jpeg|webp)$/i.test(workspaceId) && !/\.(pdf|csv|xlsx|xls|png|jpg|jpeg|webp)$/i.test(originalName)) {
+      const temp = originalName;
+      originalName = workspaceId;
+      workspaceId = temp;
+    }
+  }
+
   let extractedText = '';
-  const isPdf = mimeType === 'application/pdf' || (originalName && originalName.toLowerCase().endsWith('.pdf'));
+  // Check PDF magic bytes (%PDF) or MIME type or filename extension
+  const isPdf = (fileBuffer && fileBuffer.length >= 4 && fileBuffer.slice(0, 4).toString() === '%PDF') ||
+                mimeType === 'application/pdf' ||
+                (originalName && originalName.toLowerCase().endsWith('.pdf'));
 
   if (isPdf) {
     try {
+      if (typeof globalThis.DOMMatrix === 'undefined') {
+        globalThis.DOMMatrix = class DOMMatrix {
+          constructor() { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0; }
+        };
+      }
+      if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class ImageData {};
+      if (typeof globalThis.Path2D === 'undefined') globalThis.Path2D = class Path2D {};
+
       const { createRequire } = await import('module');
       const require = createRequire(import.meta.url);
       const pdf = require('pdf-parse');

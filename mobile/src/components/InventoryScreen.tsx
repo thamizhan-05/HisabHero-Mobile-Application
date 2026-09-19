@@ -22,6 +22,7 @@ import {
   CheckCircle,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
 
 const PackageIcon = Package as any;
 const FileTextIcon = FileText as any;
@@ -46,6 +47,7 @@ export function InventoryScreen({
   activeWorkspaceId = 'personal',
   onRefreshData,
 }: InventoryScreenProps) {
+  const { theme, accentHex } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState<'stock' | 'po'>('stock');
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
@@ -284,23 +286,23 @@ export function InventoryScreen({
   return (
     <View style={styles.screenContainer}>
       {/* Subtab selection header */}
-      <View style={styles.subTabBar}>
+      <View style={[styles.subTabBar, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <TouchableOpacity
-          style={[styles.subTab, activeSubTab === 'stock' && styles.subTabActive]}
+          style={[styles.subTab, activeSubTab === 'stock' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
           onPress={() => setActiveSubTab('stock')}
         >
-          <PackageIcon color={activeSubTab === 'stock' ? '#4f8cff' : '#8fc0ff'} size={18} style={{ marginRight: 6 }} />
-          <Text style={[styles.subTabText, activeSubTab === 'stock' && styles.subTabTextActive]}>
+          <PackageIcon color={activeSubTab === 'stock' ? accentHex : theme.textMuted} size={18} style={{ marginRight: 6 }} />
+          <Text style={[styles.subTabText, { color: activeSubTab === 'stock' ? accentHex : theme.textSecondary }]}>
             Stock Manager
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.subTab, activeSubTab === 'po' && styles.subTabActive]}
+          style={[styles.subTab, activeSubTab === 'po' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
           onPress={() => setActiveSubTab('po')}
         >
-          <ClipboardIcon color={activeSubTab === 'po' ? '#4f8cff' : '#8fc0ff'} size={18} style={{ marginRight: 6 }} />
-          <Text style={[styles.subTabText, activeSubTab === 'po' && styles.subTabTextActive]}>
+          <ClipboardIcon color={activeSubTab === 'po' ? accentHex : theme.textMuted} size={18} style={{ marginRight: 6 }} />
+          <Text style={[styles.subTabText, { color: activeSubTab === 'po' ? accentHex : theme.textSecondary }]}>
             Purchase Orders
           </Text>
         </TouchableOpacity>
@@ -323,12 +325,12 @@ export function InventoryScreen({
             )}
 
             <View style={styles.headerRow}>
-              <Text style={styles.sectionTitle}>Inventory Products</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Inventory Products</Text>
               <View style={styles.actionsRow}>
-                <TouchableOpacity onPress={fetchInventory} style={styles.iconBtn}>
-                  <RefreshCwIcon color="#8fc0ff" size={16} />
+                <TouchableOpacity onPress={fetchInventory} style={[styles.iconBtn, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                  <RefreshCwIcon color={accentHex} size={16} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setItemModalVisible(true)} style={styles.addBtn}>
+                <TouchableOpacity onPress={() => setItemModalVisible(true)} style={[styles.addBtn, { backgroundColor: accentHex }]}>
                   <PlusCircleIcon color="#ffffff" size={16} style={{ marginRight: 6 }} />
                   <Text style={styles.addBtnText}>New Product</Text>
                 </TouchableOpacity>
@@ -336,49 +338,49 @@ export function InventoryScreen({
             </View>
 
             {loadingItems ? (
-              <ActivityIndicator color="#4f8cff" size="large" style={{ marginTop: 24 }} />
+              <ActivityIndicator color={accentHex} size="large" style={{ marginTop: 24 }} />
             ) : inventoryItems.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <PackageIcon color="#8fc0ff" size={32} style={{ marginBottom: 12 }} />
-                <Text style={styles.emptyTitle}>No products registered</Text>
-                <Text style={styles.emptySub}>Register products to manage stock & pricing schedules</Text>
+              <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                <PackageIcon color={accentHex} size={32} style={{ marginBottom: 12 }} />
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>No products registered</Text>
+                <Text style={[styles.emptySub, { color: theme.textSecondary }]}>Register products to manage stock & pricing schedules</Text>
               </View>
             ) : (
               <View style={styles.itemsList}>
                 {inventoryItems.map(item => {
                   const isLowStock = item.stockQuantity <= item.reorderLevel;
                   return (
-                    <View key={item.id || item._id} style={styles.itemCard}>
-                      <View style={styles.itemHeader}>
+                    <View key={item.id || item._id} style={[styles.itemCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                      <View style={[styles.itemHeader, { borderBottomColor: theme.cardBorder }]}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.itemName}>{item.name}</Text>
-                          <Text style={styles.itemSku}>SKU: {item.sku} • Category: {item.category}</Text>
+                          <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
+                          <Text style={[styles.itemSku, { color: theme.textSecondary }]}>SKU: {item.sku} • Category: {item.category}</Text>
                         </View>
                         <TouchableOpacity
-                          style={styles.adjustBtn}
+                          style={[styles.adjustBtn, { backgroundColor: `${accentHex}15`, borderColor: accentHex }]}
                           onPress={() => {
                             setSelectedAdjustItem(item);
                             setAdjustModalVisible(true);
                           }}
                         >
-                          <Text style={styles.adjustBtnText}>Adjust Stock</Text>
+                          <Text style={[styles.adjustBtnText, { color: accentHex }]}>Adjust Stock</Text>
                         </TouchableOpacity>
                       </View>
 
                       <View style={styles.itemMetrics}>
                         <View style={styles.metricCell}>
-                          <Text style={styles.metricLabel}>Stock level</Text>
+                          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Stock level</Text>
                           <Text style={[styles.metricVal, isLowStock ? styles.colorRed : styles.colorGreen]}>
                             {item.stockQuantity} {isLowStock && '⚠️'}
                           </Text>
                         </View>
                         <View style={styles.metricCell}>
-                          <Text style={styles.metricLabel}>Purchase Price</Text>
-                          <Text style={styles.metricVal}>₹{item.purchasePrice.toLocaleString('en-IN')}</Text>
+                          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Purchase Price</Text>
+                          <Text style={[styles.metricVal, { color: theme.text }]}>₹{item.purchasePrice.toLocaleString('en-IN')}</Text>
                         </View>
                         <View style={styles.metricCell}>
-                          <Text style={styles.metricLabel}>Selling Price</Text>
-                          <Text style={styles.metricVal}>₹{item.sellingPrice.toLocaleString('en-IN')}</Text>
+                          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Selling Price</Text>
+                          <Text style={[styles.metricVal, { color: theme.text }]}>₹{item.sellingPrice.toLocaleString('en-IN')}</Text>
                         </View>
                       </View>
                     </View>
@@ -391,12 +393,12 @@ export function InventoryScreen({
           <>
             {/* Purchase orders */}
             <View style={styles.headerRow}>
-              <Text style={styles.sectionTitle}>Supplier Purchase Orders</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Supplier Purchase Orders</Text>
               <View style={styles.actionsRow}>
-                <TouchableOpacity onPress={fetchPurchaseOrders} style={styles.iconBtn}>
-                  <RefreshCwIcon color="#8fc0ff" size={16} />
+                <TouchableOpacity onPress={fetchPurchaseOrders} style={[styles.iconBtn, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                  <RefreshCwIcon color={accentHex} size={16} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setPoModalVisible(true)} style={styles.addBtn}>
+                <TouchableOpacity onPress={() => setPoModalVisible(true)} style={[styles.addBtn, { backgroundColor: accentHex }]}>
                   <PlusCircleIcon color="#ffffff" size={16} style={{ marginRight: 6 }} />
                   <Text style={styles.addBtnText}>Create PO</Text>
                 </TouchableOpacity>
@@ -404,12 +406,12 @@ export function InventoryScreen({
             </View>
 
             {loadingPOs ? (
-              <ActivityIndicator color="#4f8cff" size="large" style={{ marginTop: 24 }} />
+              <ActivityIndicator color={accentHex} size="large" style={{ marginTop: 24 }} />
             ) : purchaseOrders.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <ClipboardIcon color="#8fc0ff" size={32} style={{ marginBottom: 12 }} />
-                <Text style={styles.emptyTitle}>No purchase orders found</Text>
-                <Text style={styles.emptySub}>Create orders to stock up your business inventory</Text>
+              <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                <ClipboardIcon color={accentHex} size={32} style={{ marginBottom: 12 }} />
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>No purchase orders found</Text>
+                <Text style={[styles.emptySub, { color: theme.textSecondary }]}>Create orders to stock up your business inventory</Text>
               </View>
             ) : (
               <View style={styles.poList}>
@@ -422,11 +424,11 @@ export function InventoryScreen({
                     cancelled: '#e74c3c'
                   };
                   return (
-                    <View key={po.id || po._id} style={styles.poCard}>
-                      <View style={styles.poHeader}>
+                    <View key={po.id || po._id} style={[styles.poCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                      <View style={[styles.poHeader, { borderBottomColor: theme.cardBorder }]}>
                         <View>
-                          <Text style={styles.poNumber}>{po.poNumber}</Text>
-                          <Text style={styles.poDate}>Ordered: {po.orderDate}</Text>
+                          <Text style={[styles.poNumber, { color: theme.text }]}>{po.poNumber}</Text>
+                          <Text style={[styles.poDate, { color: theme.textSecondary }]}>Ordered: {po.orderDate}</Text>
                         </View>
                         <View style={[styles.statusBadge, { backgroundColor: statusColors[po.status] + '15', borderColor: statusColors[po.status] }]}>
                           <Text style={[styles.statusBadgeText, { color: statusColors[po.status] }]}>
@@ -438,19 +440,19 @@ export function InventoryScreen({
                       <View style={styles.poItemsGrid}>
                         {po.items.map((line: any, lIdx: number) => (
                           <View key={lIdx} style={styles.poItemRow}>
-                            <Text style={styles.poItemName} numberOfLines={1}>{line.name}</Text>
-                            <Text style={styles.poItemQty}>
+                            <Text style={[styles.poItemName, { color: theme.text }]} numberOfLines={1}>{line.name}</Text>
+                            <Text style={[styles.poItemQty, { color: accentHex }]}>
                               Qty: {line.receivedQuantity || 0}/{line.quantity}
                             </Text>
                           </View>
                         ))}
                       </View>
 
-                      <View style={styles.poFooter}>
-                        <Text style={styles.poTotal}>Total: ₹{po.total.toLocaleString('en-IN')}</Text>
+                      <View style={[styles.poFooter, { borderTopColor: theme.cardBorder }]}>
+                        <Text style={[styles.poTotal, { color: theme.text }]}>Total: ₹{po.total.toLocaleString('en-IN')}</Text>
                         {po.status !== 'received' && po.status !== 'cancelled' && (
                           <TouchableOpacity
-                            style={styles.receiveBtn}
+                            style={[styles.receiveBtn, { backgroundColor: accentHex }]}
                             onPress={() => {
                               setSelectedReceivePO(po);
                               const initialIncrements: Record<string, string> = {};
@@ -482,22 +484,22 @@ export function InventoryScreen({
         onRequestClose={() => setItemModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Register New Product</Text>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Register New Product</Text>
             <ScrollView style={{ maxHeight: 400 }}>
-              <TextInput style={styles.input} placeholder="Product Name" placeholderTextColor="#5f88b8" value={newItemName} onChangeText={setNewItemName} />
-              <TextInput style={styles.input} placeholder="SKU Number (Unique)" placeholderTextColor="#5f88b8" value={newItemSku} onChangeText={setNewItemSku} />
-              <TextInput style={styles.input} placeholder="Category" placeholderTextColor="#5f88b8" value={newItemCategory} onChangeText={setNewItemCategory} />
-              <TextInput style={styles.input} placeholder="Purchase Price (Cost)" placeholderTextColor="#5f88b8" keyboardType="numeric" value={newItemPurchasePrice} onChangeText={setNewItemPurchasePrice} />
-              <TextInput style={styles.input} placeholder="Selling Price (MSRP)" placeholderTextColor="#5f88b8" keyboardType="numeric" value={newItemSellingPrice} onChangeText={setNewItemSellingPrice} />
-              <TextInput style={styles.input} placeholder="Starting Stock" placeholderTextColor="#5f88b8" keyboardType="numeric" value={newItemStock} onChangeText={setNewItemStock} />
-              <TextInput style={styles.input} placeholder="Reorder Alert Threshold" placeholderTextColor="#5f88b8" keyboardType="numeric" value={newItemReorder} onChangeText={setNewItemReorder} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="Product Name" placeholderTextColor={theme.textSecondary} value={newItemName} onChangeText={setNewItemName} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="SKU Number (Unique)" placeholderTextColor={theme.textSecondary} value={newItemSku} onChangeText={setNewItemSku} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="Category" placeholderTextColor={theme.textSecondary} value={newItemCategory} onChangeText={setNewItemCategory} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="Purchase Price (Cost)" placeholderTextColor={theme.textSecondary} keyboardType="numeric" value={newItemPurchasePrice} onChangeText={setNewItemPurchasePrice} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="Selling Price (MSRP)" placeholderTextColor={theme.textSecondary} keyboardType="numeric" value={newItemSellingPrice} onChangeText={setNewItemSellingPrice} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="Starting Stock" placeholderTextColor={theme.textSecondary} keyboardType="numeric" value={newItemStock} onChangeText={setNewItemStock} />
+              <TextInput style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]} placeholder="Reorder Alert Threshold" placeholderTextColor={theme.textSecondary} keyboardType="numeric" value={newItemReorder} onChangeText={setNewItemReorder} />
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setItemModalVisible(false)}>
-                <Text style={styles.btnCancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.btn, { backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1 }]} onPress={() => setItemModalVisible(false)}>
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnConfirm]} onPress={handleCreateItem}>
+              <TouchableOpacity style={[styles.btn, { backgroundColor: accentHex }]} onPress={handleCreateItem}>
                 <Text style={styles.btnConfirmText}>Add Product</Text>
               </TouchableOpacity>
             </View>
@@ -513,32 +515,32 @@ export function InventoryScreen({
         onRequestClose={() => setAdjustModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Adjust Stock Level</Text>
-            <Text style={styles.modalSub}>{selectedAdjustItem?.name}</Text>
-            <Text style={styles.modalSub}>Current Quantity: {selectedAdjustItem?.stockQuantity}</Text>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Adjust Stock Level</Text>
+            <Text style={[styles.modalSub, { color: theme.textSecondary }]}>{selectedAdjustItem?.name}</Text>
+            <Text style={[styles.modalSub, { color: theme.textSecondary }]}>Current Quantity: {selectedAdjustItem?.stockQuantity}</Text>
             
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]}
               placeholder="Quantity increment (+ to add, - to subtract)"
-              placeholderTextColor="#5f88b8"
+              placeholderTextColor={theme.textSecondary}
               keyboardType="numeric"
               value={adjustQty}
               onChangeText={setAdjustQty}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.cardBorder, color: theme.text }]}
               placeholder="Reason for adjustment"
-              placeholderTextColor="#5f88b8"
+              placeholderTextColor={theme.textSecondary}
               value={adjustReason}
               onChangeText={setAdjustReason}
             />
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setAdjustModalVisible(false)}>
-                <Text style={styles.btnCancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.btn, { backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1 }]} onPress={() => setAdjustModalVisible(false)}>
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnConfirm]} onPress={handleAdjustStock}>
+              <TouchableOpacity style={[styles.btn, { backgroundColor: accentHex }]} onPress={handleAdjustStock}>
                 <Text style={styles.btnConfirmText}>Adjust</Text>
               </TouchableOpacity>
             </View>

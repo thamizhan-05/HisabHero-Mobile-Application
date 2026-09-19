@@ -14,6 +14,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrendingDown, PieChart, Wallet, Edit3, X, Check, DollarSign, ShieldAlert } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
+import { useTranslation } from '../theme/i18n';
 
 const TrendingDownIcon = TrendingDown as any;
 const PieChartIcon = PieChart as any;
@@ -46,6 +48,8 @@ export function ExpensesScreen({
   activeWorkspaceRole = 'owner',
   onRefreshData
 }: ExpensesScreenProps) {
+  const { theme, accentHex } = useTheme();
+  const { t } = useTranslation();
   const [activeSubTab, setActiveSubTab] = useState<ExpenseSubTab>('analysis');
   
   // Approvals workflow states
@@ -279,9 +283,9 @@ export function ExpensesScreen({
     }, 1000);
 
     return (
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Monthly Expense Trend</Text>
-        <Text style={styles.chartSubtitle}>Historical spending trend (last 12 months)</Text>
+      <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+        <Text style={[styles.chartTitle, { color: theme.text }]}>Monthly Expense Trend</Text>
+        <Text style={[styles.chartSubtitle, { color: theme.textSecondary }]}>Historical spending trend (last 12 months)</Text>
 
         <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
           <View style={styles.trendChartWrap}>
@@ -290,13 +294,13 @@ export function ExpensesScreen({
                 const ratio = Math.max(0.04, Math.min(1, (item.total || 0) / maxTrendVal));
                 return (
                   <View key={index} style={styles.trendCol}>
-                    <Text style={styles.trendValText}>
+                    <Text style={[styles.trendValText, { color: theme.textSecondary }]}>
                       {item.total >= 1000 ? `₹${Math.round(item.total / 1000)}k` : `₹${item.total}`}
                     </Text>
-                    <View style={styles.trendBarOuter}>
-                      <View style={[styles.trendBarInner, { height: `${ratio * 100}%` }]} />
+                    <View style={[styles.trendBarOuter, { backgroundColor: theme.bg }]}>
+                      <View style={[styles.trendBarInner, { height: `${ratio * 100}%`, backgroundColor: accentHex }]} />
                     </View>
-                    <Text style={styles.trendLabel}>{item.month}</Text>
+                    <Text style={[styles.trendLabel, { color: theme.textMuted }]}>{item.month}</Text>
                   </View>
                 );
               })}
@@ -308,65 +312,85 @@ export function ExpensesScreen({
   };
 
   return (
-    <View style={styles.screenContainer}>
+    <View style={[styles.screenContainer, { backgroundColor: theme.bg }]}>
       {/* Subtab navigation */}
-      <View style={styles.subTabBar}>
+      <View style={[styles.subTabBar, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <TouchableOpacity
-          style={[styles.subTab, activeSubTab === 'analysis' && styles.subTabActive]}
+          style={[styles.subTab, activeSubTab === 'analysis' && { backgroundColor: theme.bg, borderColor: accentHex }]}
           onPress={() => setActiveSubTab('analysis')}
         >
-          <PieChartIcon color={activeSubTab === 'analysis' ? '#4f8cff' : '#8fc0ff'} size={18} style={{ marginRight: 6 }} />
-          <Text style={[styles.subTabText, activeSubTab === 'analysis' && styles.subTabTextActive]}>
-            Category Analysis
+          <PieChartIcon color={activeSubTab === 'analysis' ? accentHex : theme.textMuted} size={18} style={{ marginRight: 6 }} />
+          <Text style={[styles.subTabText, { color: activeSubTab === 'analysis' ? accentHex : theme.textMuted }]}>
+            {t('category_analysis')}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.subTab, activeSubTab === 'budgets' && styles.subTabActive]}
+          style={[styles.subTab, activeSubTab === 'budgets' && { backgroundColor: theme.bg, borderColor: accentHex }]}
           onPress={() => setActiveSubTab('budgets')}
         >
-          <WalletIcon color={activeSubTab === 'budgets' ? '#4f8cff' : '#8fc0ff'} size={18} style={{ marginRight: 6 }} />
-          <Text style={[styles.subTabText, activeSubTab === 'budgets' && styles.subTabTextActive]}>
-            Monthly Budgets
+          <WalletIcon color={activeSubTab === 'budgets' ? accentHex : theme.textMuted} size={18} style={{ marginRight: 6 }} />
+          <Text style={[styles.subTabText, { color: activeSubTab === 'budgets' ? accentHex : theme.textMuted }]}>
+            {t('monthly_budgets')}
           </Text>
         </TouchableOpacity>
 
-        {activeWorkspaceId !== 'personal' && ['owner', 'partner', 'accountant'].includes(activeWorkspaceRole || '') && (
+        {activeWorkspaceId !== 'personal' && (
           <TouchableOpacity
-            style={[styles.subTab, activeSubTab === 'approvals' && styles.subTabActive]}
+            style={[styles.subTab, activeSubTab === 'approvals' && { backgroundColor: theme.bg, borderColor: accentHex }]}
             onPress={() => setActiveSubTab('approvals')}
           >
-            <CheckIcon color={activeSubTab === 'approvals' ? '#4f8cff' : '#8fc0ff'} size={18} style={{ marginRight: 6 }} />
-            <Text style={[styles.subTabText, activeSubTab === 'approvals' && styles.subTabTextActive]}>
-              Approvals
+            <CheckIcon color={activeSubTab === 'approvals' ? accentHex : theme.textMuted} size={18} style={{ marginRight: 6 }} />
+            <Text style={[styles.subTabText, { color: activeSubTab === 'approvals' ? accentHex : theme.textMuted }]}>
+              {t('approvals')}
             </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
         {loading || budgetsLoading ? (
           <View style={styles.centerLoading}>
-            <ActivityIndicator color="#4f8cff" size="large" />
-            <Text style={styles.loadingText}>Fetching insights...</Text>
+            <ActivityIndicator color={accentHex} size="large" />
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Fetching insights...</Text>
           </View>
         ) : activeSubTab === 'analysis' ? (
           <>
-            {/* Header stat */}
-            <View style={styles.headerCard}>
-              <View style={styles.headerIconBox}>
-                <TrendingDownIcon color="#ff6b6b" size={24} />
+            {/* Glowing Donut / Total Outflow Header             {/* Glowing Donut / Total Outflow Header */}
+            <View style={[styles.donutOverviewCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <View style={styles.donutRingWrapper}>
+                <View style={[styles.donutRingCenter, { backgroundColor: theme.bg }]}>
+                  <Text style={{ color: theme.textSecondary, fontSize: 10, fontWeight: '700' }}>Total Monthly Outflow</Text>
+                  <Text style={[styles.donutTotalAmount, { color: theme.text }]}>₹{totalExpense.toLocaleString('en-IN')}</Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.headerLabel}>Total Outflow</Text>
-                <Text style={styles.headerValue}>₹{totalExpense.toLocaleString('en-IN')}</Text>
-              </View>
+
+              {/* Dynamic Category Legend Pills from Live Transactions */}
+              {categories.length > 0 ? (
+                <View style={styles.legendGrid}>
+                  {categories.slice(0, 4).map((cat, idx) => {
+                    const percent = totalExpense > 0 ? Math.round((cat.value / totalExpense) * 100) : 0;
+                    const palette = ['#38bdf8', '#10b981', '#8b5cf6', '#f59e0b'];
+                    const color = cat.color || palette[idx % palette.length];
+                    return (
+                      <View key={cat.name || idx} style={[styles.legendPill, { backgroundColor: `${color}15`, borderColor: `${color}40` }]}>
+                        <View style={[styles.legendDot, { backgroundColor: color }]} />
+                        <Text style={{ color: theme.text, fontSize: 11, fontWeight: '700' }}>{cat.name} {percent}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 12 }}>
+                  No categorized expenses recorded this month.
+                </Text>
+              )}
             </View>
 
             {/* Category breakdown list */}
-            <Text style={styles.sectionTitle}>Expense by Category</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Category Breakdown & Tracking</Text>
             {categories.length > 0 ? (
-              <View style={styles.categoriesCard}>
+              <View style={[styles.categoriesCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                 {categories.map((cat, index) => {
                   const percent = totalExpense > 0 ? ((cat.value / totalExpense) * 100).toFixed(0) : '0';
                   const barColor = cat.color || `hsl(${index * 55}, 70%, 50%)`;
@@ -376,16 +400,16 @@ export function ExpensesScreen({
                       <View style={styles.catInfoRow}>
                         <View style={styles.catLabelGroup}>
                           <View style={[styles.catColorIndicator, { backgroundColor: barColor }]} />
-                          <Text style={styles.catName}>{cat.name}</Text>
+                          <Text style={[styles.catName, { color: theme.text }]}>{cat.name}</Text>
                         </View>
                         <View style={styles.catValGroup}>
-                          <Text style={styles.catValue}>₹{cat.value.toLocaleString('en-IN')}</Text>
-                          <Text style={styles.catPercent}>{percent}%</Text>
+                          <Text style={[styles.catValue, { color: theme.text }]}>₹{cat.value.toLocaleString('en-IN')}</Text>
+                          <Text style={[styles.catPercent, { color: theme.textMuted }]}>{percent}%</Text>
                         </View>
                       </View>
 
                       {/* Horizontal Progress Bar */}
-                      <View style={styles.progressBg}>
+                      <View style={[styles.progressBg, { backgroundColor: theme.bg }]}>
                         <View style={[
                           styles.progressFill, 
                           { width: `${percent}%` as DimensionValue, backgroundColor: barColor }
@@ -396,10 +420,10 @@ export function ExpensesScreen({
                 })}
               </View>
             ) : (
-              <View style={styles.emptyCategories}>
-                <PieChartIcon color="#a6bedf" size={32} style={{ marginBottom: 10 }} />
-                <Text style={styles.emptyText}>No categorized expenses found.</Text>
-                <Text style={styles.emptySubtext}>Upload a statement or add transactions manually.</Text>
+              <View style={[styles.emptyCategories, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                <PieChartIcon color={theme.textMuted} size={32} style={{ marginBottom: 10 }} />
+                <Text style={[styles.emptyText, { color: theme.text }]}>No categorized expenses found.</Text>
+                <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>Upload a statement or add transactions manually.</Text>
               </View>
             )}
 
@@ -407,15 +431,15 @@ export function ExpensesScreen({
             {renderTrendChart()}
           </>
         ) : activeSubTab === 'budgets' ? (
-          /* Monthly Budgets Screen Content */
+          /* Monthly Budgets Screen Content with Cohesive Dark Theme */
           <>
-            <View style={styles.budgetHelpBox}>
-              <Text style={styles.budgetHelpText}>
+            <View style={[styles.budgetHelpBox, { backgroundColor: theme.isDark ? '#0b2038' : '#eff6ff', borderColor: theme.isDark ? '#153e6b' : '#bfdbfe' }]}>
+              <Text style={[styles.budgetHelpText, { color: theme.isDark ? '#93c5fd' : '#1e40af' }]}>
                 💡 Set monthly budget limits for each category to keep track of spending. We'll warn you if you cross 80% or exceed your caps.
               </Text>
             </View>
 
-            <Text style={styles.sectionTitle}>Category Budgets & Usage</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Category Budgets & Usage</Text>
             
             <View style={styles.budgetsContainer}>
               {CATEGORIES.map((catName) => {
@@ -434,30 +458,30 @@ export function ExpensesScreen({
                 const percentUsed = Math.round(ratio * 100);
 
                 let statusColor = '#2ecc71'; // green on-track
-                let statusBg = 'rgba(46,204,113,0.1)';
+                let statusBg = 'rgba(46,204,113,0.15)';
                 let statusLabel = 'On Track';
                 
                 if (budgetLimit === 0) {
-                  statusColor = '#8fc0ff';
-                  statusBg = '#06111f';
+                  statusColor = theme.textMuted;
+                  statusBg = theme.bg;
                   statusLabel = 'Not Set';
                 } else if (ratio >= 1.0) {
                   statusColor = '#ff6b6b'; // red exceeded
-                  statusBg = 'rgba(255,107,107,0.1)';
+                  statusBg = 'rgba(255,107,107,0.15)';
                   statusLabel = 'Exceeded';
                 } else if (ratio >= 0.8) {
                   statusColor = '#f39c12'; // yellow warning
-                  statusBg = 'rgba(243,156,18,0.1)';
+                  statusBg = 'rgba(243,156,18,0.15)';
                   statusLabel = 'Warning';
                 }
 
                 return (
-                  <View key={catName} style={styles.budgetRowCard}>
+                  <View key={catName} style={[styles.budgetRowCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                     <View style={styles.budgetHeader}>
                       <View style={{ flex: 1, marginRight: 8 }}>
-                        <Text style={styles.budgetCatName}>{catName}</Text>
-                        <Text style={styles.budgetSpendMeta}>
-                          Spent: <Text style={styles.boldText}>₹{currentSpend.toLocaleString('en-IN')}</Text> of ₹{budgetLimit.toLocaleString('en-IN')}
+                        <Text style={[styles.budgetCatName, { color: theme.text }]}>{catName}</Text>
+                        <Text style={[styles.budgetSpendMeta, { color: theme.textSecondary }]}>
+                          Spent: <Text style={[styles.boldText, { color: theme.text }]}>₹{currentSpend.toLocaleString('en-IN')}</Text> of ₹{budgetLimit.toLocaleString('en-IN')}
                         </Text>
                       </View>
 
@@ -466,17 +490,17 @@ export function ExpensesScreen({
                           <Text style={[styles.statusBadgeText, { color: statusColor }]}>{statusLabel}</Text>
                         </View>
 
-                        <TouchableOpacity style={styles.editBudgetBtn} onPress={() => openEditBudget(catName)}>
-                          <Edit3Icon color="#4f8cff" size={14} />
+                        <TouchableOpacity style={[styles.editBudgetBtn, { backgroundColor: theme.bg, borderColor: theme.cardBorder }]} onPress={() => openEditBudget(catName)}>
+                          <Edit3Icon color={accentHex} size={14} />
                         </TouchableOpacity>
                       </View>
                     </View>
 
                     {/* Progress Fill Bar */}
                     {budgetLimit > 0 && (
-                      <View style={styles.progressBg}>
+                      <View style={[styles.progressBg, { backgroundColor: theme.bg }]}>
                         <View style={[
-                          styles.progressFill,
+                          styles.progressFill, 
                           {
                             width: `${Math.min(100, percentUsed)}%` as DimensionValue,
                             backgroundColor: statusColor
@@ -487,8 +511,8 @@ export function ExpensesScreen({
 
                     {budgetLimit > 0 && (
                       <View style={styles.budgetFooterRow}>
-                        <Text style={styles.budgetPercentText}>{percentUsed}% used</Text>
-                        <Text style={styles.budgetRemText}>
+                        <Text style={[styles.budgetPercentText, { color: accentHex }]}>{percentUsed}% used</Text>
+                        <Text style={[styles.budgetRemText, { color: theme.text }]}>
                           {ratio >= 1.0 
                             ? `Over by ₹${Math.abs(currentSpend - budgetLimit).toLocaleString('en-IN')}`
                             : `₹${(budgetLimit - currentSpend).toLocaleString('en-IN')} left`}
@@ -525,7 +549,7 @@ export function ExpensesScreen({
             </View>
 
             {approvalsLoading ? (
-              <ActivityIndicator color="#4f8cff" size="large" style={{ marginTop: 40 }} />
+              <ActivityIndicator color={accentHex} size="large" style={{ marginTop: 40 }} />
             ) : approvalTab === 'pending' ? (
               pendingClaims.length > 0 ? (
                 pendingClaims.map(claim => (
@@ -590,39 +614,39 @@ export function ExpensesScreen({
         onRequestClose={() => setBudgetModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set Budget Limit</Text>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Set Budget Limit</Text>
               <TouchableOpacity onPress={() => setBudgetModalVisible(false)} style={styles.modalCloseBtn}>
-                <XIcon color="#a6bedf" size={20} />
+                <XIcon color={theme.textMuted} size={20} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSub}>Category: <Text style={styles.boldText}>{editCategory}</Text></Text>
+            <Text style={[styles.modalSub, { color: theme.textSecondary }]}>Category: <Text style={[styles.boldText, { color: theme.text }]}>{editCategory}</Text></Text>
 
-            <View style={styles.inputWrap}>
-              <Text style={styles.inputPrefix}>₹</Text>
+            <View style={[styles.inputWrap, { backgroundColor: theme.bg, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.inputPrefix, { color: accentHex }]}>₹</Text>
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { color: theme.text }]}
                 value={editLimit}
                 onChangeText={setEditLimit}
                 keyboardType="numeric"
                 placeholder="0"
-                placeholderTextColor="#5f88b8"
+                placeholderTextColor={theme.textMuted}
                 autoFocus={true}
               />
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
+                style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.cardBorder }]}
                 onPress={() => setBudgetModalVisible(false)}
               >
-                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                <Text style={[styles.modalBtnCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnSave]}
+                style={[styles.modalBtn, { backgroundColor: accentHex }]}
                 onPress={handleSaveBudget}
               >
                 <CheckIcon color="#ffffff" size={16} style={{ marginRight: 6 }} />
@@ -641,33 +665,33 @@ export function ExpensesScreen({
         onRequestClose={() => setRejectModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reject Expense Claim</Text>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Expense Claim</Text>
               <TouchableOpacity onPress={() => setRejectModalVisible(false)} style={styles.modalCloseBtn}>
-                <XIcon color="#a6bedf" size={20} />
+                <XIcon color={theme.textMuted} size={20} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSub}>Provide rejection comments / feedback:</Text>
+            <Text style={[styles.modalSub, { color: theme.textSecondary }]}>Provide rejection comments / feedback:</Text>
 
-            <View style={styles.inputWrap}>
+            <View style={[styles.inputWrap, { backgroundColor: theme.bg, borderColor: theme.cardBorder }]}>
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { color: theme.text }]}
                 value={rejectionNotes}
                 onChangeText={setRejectionNotes}
                 placeholder="Reason for rejection..."
-                placeholderTextColor="#5f88b8"
+                placeholderTextColor={theme.textMuted}
                 autoFocus={true}
               />
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
+                style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.cardBorder }]}
                 onPress={() => setRejectModalVisible(false)}
               >
-                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                <Text style={[styles.modalBtnCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -688,36 +712,39 @@ export function ExpensesScreen({
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#06111f',
+    backgroundColor: '#f8fafc',
   },
   subTabBar: {
     flexDirection: 'row',
     height: 48,
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 6,
   },
   subTab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   subTabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: '#4f8cff',
+    borderBottomColor: '#4f46e5',
   },
   subTabText: {
-    color: '#8fc0ff',
-    fontSize: 13,
+    color: '#64748b',
+    fontSize: 12,
     fontWeight: '600',
   },
   subTabTextActive: {
-    color: '#ffffff',
+    color: '#4f46e5',
     fontWeight: '700',
   },
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -730,36 +757,77 @@ const styles = StyleSheet.create({
     paddingVertical: 80,
   },
   loadingText: {
-    color: '#8fc0ff',
+    color: '#64748b',
     fontSize: 15,
     marginTop: 12,
   },
-  headerCard: {
-    backgroundColor: '#0b1d38',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#15345f',
-    padding: 20,
-    flexDirection: 'row',
+  donutOverviewCard: {
+    borderRadius: 22,
+    borderWidth: 1.5,
+    padding: 18,
     alignItems: 'center',
-    marginBottom: 24,
-    gap: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  headerIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+  donutRingWrapper: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 8,
+    borderColor: '#38bdf8',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#38bdf8',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  donutRingCenter: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+  },
+  donutTotalAmount: {
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 3,
+    letterSpacing: -0.3,
+  },
+  legendGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  legendPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  legendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
   },
   headerLabel: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 13,
     fontWeight: '600',
   },
   headerValue: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 24,
     fontWeight: '800',
     marginTop: 2,
@@ -767,14 +835,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0f172a',
     marginBottom: 14,
   },
   categoriesCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 16,
     marginBottom: 24,
   },
@@ -790,6 +858,8 @@ const styles = StyleSheet.create({
   catLabelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
   },
   catColorIndicator: {
     width: 10,
@@ -798,9 +868,10 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   catName: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
+    flexShrink: 1,
   },
   catValGroup: {
     flexDirection: 'row',
@@ -808,15 +879,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   catValue: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 13,
     fontWeight: '700',
   },
   catPercent: {
-    color: '#8fc0ff',
+    color: '#4f46e5',
     fontSize: 11,
     fontWeight: '600',
-    backgroundColor: '#06111f',
+    backgroundColor: '#f1f5f9',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -825,7 +896,7 @@ const styles = StyleSheet.create({
   },
   progressBg: {
     height: 6,
-    backgroundColor: '#06111f',
+    backgroundColor: '#f1f5f9',
     borderRadius: 3,
     overflow: 'hidden',
     marginTop: 8,
@@ -835,41 +906,41 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   emptyCategories: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
   },
   emptyText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '600',
   },
   emptySubtext: {
-    color: '#8fc0ff',
+    color: '#64748b',
     fontSize: 12,
     marginTop: 6,
     textAlign: 'center',
   },
   chartCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 16,
     marginBottom: 20,
   },
   chartTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '700',
   },
   chartSubtitle: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 11,
     marginTop: 2,
     marginBottom: 16,
@@ -889,14 +960,14 @@ const styles = StyleSheet.create({
     width: 32,
   },
   trendValText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 8,
     marginBottom: 4,
   },
   trendBarOuter: {
     width: 10,
     height: 70,
-    backgroundColor: '#06111f',
+    backgroundColor: '#f1f5f9',
     borderRadius: 5,
     justifyContent: 'flex-end',
     overflow: 'hidden',
@@ -904,34 +975,35 @@ const styles = StyleSheet.create({
   },
   trendBarInner: {
     width: '100%',
-    backgroundColor: '#ff6b6b',
+    backgroundColor: '#ef4444',
     borderRadius: 5,
   },
   trendLabel: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 9,
     fontWeight: '600',
   },
   budgetHelpBox: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#eff6ff',
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#bfdbfe',
     borderRadius: 14,
     padding: 14,
     marginBottom: 20,
   },
   budgetHelpText: {
-    color: '#8fc0ff',
+    color: '#1e40af',
     fontSize: 12,
     lineHeight: 18,
+    fontWeight: '500',
   },
   budgetsContainer: {
     gap: 12,
   },
   budgetRowCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     borderRadius: 16,
     padding: 16,
   },
@@ -942,18 +1014,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   budgetCatName: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '800',
   },
   budgetSpendMeta: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 11,
     marginTop: 2,
   },
   boldText: {
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#0f172a',
   },
   rightHeaderWrap: {
     flexDirection: 'row',
@@ -974,9 +1046,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: '#06111f',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -986,27 +1058,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   budgetPercentText: {
-    color: '#8fc0ff',
+    color: '#4f46e5',
     fontSize: 10,
     fontWeight: '600',
   },
   budgetRemText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 10,
     fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(3,8,16,0.85)',
+    backgroundColor: 'rgba(15,23,42,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     width: '100%',
     maxWidth: 360,
     padding: 24,
@@ -1020,36 +1092,36 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0f172a',
   },
   modalCloseBtn: {
     padding: 4,
   },
   modalSub: {
     fontSize: 13,
-    color: '#a6bedf',
+    color: '#64748b',
     marginBottom: 16,
   },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#06111f',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 50,
     marginBottom: 20,
   },
   inputPrefix: {
-    color: '#4f8cff',
+    color: '#4f46e5',
     fontSize: 18,
     fontWeight: '700',
     marginRight: 6,
   },
   modalInput: {
     flex: 1,
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1067,15 +1139,15 @@ const styles = StyleSheet.create({
   },
   modalBtnCancel: {
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
   },
   modalBtnCancelText: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontWeight: '600',
     fontSize: 13,
   },
   modalBtnSave: {
-    backgroundColor: '#4f8cff',
+    backgroundColor: '#4f46e5',
   },
   modalBtnSaveText: {
     color: '#ffffff',
@@ -1088,10 +1160,10 @@ const styles = StyleSheet.create({
   },
   toggleGroup: {
     flexDirection: 'row',
-    backgroundColor: '#06111f',
+    backgroundColor: '#f1f5f9',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 2,
     flex: 1,
   },
@@ -1103,10 +1175,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   toggleActive: {
-    backgroundColor: '#4f8cff',
+    backgroundColor: '#4f46e5',
   },
   toggleText: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -1115,10 +1187,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   claimCard: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 14,
     marginBottom: 12,
   },
@@ -1129,17 +1201,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   claimDesc: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
   },
   claimSub: {
-    color: '#8fc0ff',
+    color: '#64748b',
     fontSize: 11,
     marginTop: 2,
   },
   claimAmount: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '800',
   },
@@ -1148,27 +1220,27 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: '#06111f',
+    borderTopColor: '#f1f5f9',
     paddingTop: 10,
   },
   rejectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderColor: '#ff6b6b',
+    borderColor: '#ef4444',
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   rejectBtnText: {
-    color: '#ff6b6b',
+    color: '#ef4444',
     fontSize: 11,
     fontWeight: '700',
   },
   approveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4f8cff',
+    backgroundColor: '#4f46e5',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -1182,7 +1254,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2e7d32',
+    backgroundColor: '#10b981',
     height: 36,
     borderRadius: 8,
     marginTop: 6,
@@ -1193,17 +1265,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   emptyClaims: {
-    backgroundColor: '#0b1d38',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#e2e8f0',
     padding: 30,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
   },
   emptyClaimsText: {
-    color: '#a6bedf',
+    color: '#64748b',
     fontSize: 12,
     textAlign: 'center',
   },

@@ -13,9 +13,10 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
-import { X, TrendingDown, TrendingUp, Calendar, Tag, FileText, ShoppingBag, CreditCard, Percent } from 'lucide-react-native';
+import { X, TrendingDown, TrendingUp, Calendar, Tag, FileText, ShoppingBag, CreditCard, Percent, Sparkles, Wand2 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
 import { signTransactionPayload } from '../lib/cryptoUtils';
+import { parseNLPQuickLog } from '../lib/financialEngine';
 
 const XIcon = X as any;
 const TrendingDownIcon = TrendingDown as any;
@@ -26,6 +27,8 @@ const FileTextIcon = FileText as any;
 const ShoppingBagIcon = ShoppingBag as any;
 const CreditCardIcon = CreditCard as any;
 const PercentIcon = Percent as any;
+const SparklesIcon = Sparkles as any;
+const Wand2Icon = Wand2 as any;
 
 type AddTransactionModalProps = {
   visible: boolean;
@@ -39,7 +42,7 @@ type AddTransactionModalProps = {
 const TODAY = new Date().toISOString().split('T')[0];
 
 const SUGGESTED_CATEGORIES = [
-  'Rent', 'Payroll', 'Utilities', 'Marketing', 'Sales', 'Consulting', 'Software', 'Travel', 'Office', 'Other'
+  'Rent', 'Payroll', 'Utilities', 'Marketing', 'Sales', 'Consulting', 'Software', 'Travel', 'Office', 'Food', 'Other'
 ];
 
 export function AddTransactionModal({ 
@@ -50,6 +53,7 @@ export function AddTransactionModal({
   authToken,
   editTransaction = null
 }: AddTransactionModalProps) {
+  const [nlpInput, setNlpInput] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [date, setDate] = useState(TODAY);
   const [description, setDescription] = useState('');
@@ -82,6 +86,7 @@ export function AddTransactionModal({
   }, [visible, editTransaction]);
 
   const resetForm = () => {
+    setNlpInput('');
     setType('expense');
     setDate(TODAY);
     setDescription('');
@@ -96,6 +101,19 @@ export function AddTransactionModal({
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+
+  // NLP Quick Log Auto-Fill Handler
+  const handleApplyNLP = () => {
+    if (!nlpInput.trim()) return;
+    const parsed = parseNLPQuickLog(nlpInput);
+    if (parsed.amount) setAmount(String(parsed.amount));
+    if (parsed.type) setType(parsed.type);
+    if (parsed.category) setCategory(parsed.category);
+    if (parsed.description) setDescription(parsed.description);
+    if (parsed.date) setDate(parsed.date);
+    if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod);
+    setNlpInput('');
   };
 
   const handleSubmit = async () => {
@@ -122,13 +140,11 @@ export function AddTransactionModal({
           type,
         });
       } catch (signErr: any) {
-        // If user explicitly cancelled biometric prompt, block the transaction
         if (signErr.message?.toLowerCase().includes('aborted') || signErr.message?.toLowerCase().includes('biometric authentication failed')) {
           setErrorMsg('Biometric authentication was cancelled. Please try again.');
           setLoading(false);
           return;
         }
-        // Otherwise (no hardware, module unavailable etc.) silently proceed without signature
         console.warn('Biometric signing skipped:', signErr.message);
         signatureData = null;
       }
@@ -201,6 +217,33 @@ export function AddTransactionModal({
                 {errorMsg && (
                   <View style={styles.errorBox}>
                     <Text style={styles.errorText}>{errorMsg}</Text>
+                  </View>
+                )}
+
+                {/* NLP Quick Log Bar (Flow B) */}
+                {!isEdit && (
+                  <View style={styles.nlpBox}>
+                    <View style={styles.nlpHeader}>
+                      <SparklesIcon size={14} color="#0284c7" style={{ marginRight: 6 }} />
+                      <Text style={styles.nlpLabel}>NLP Quick Log (Natural Language)</Text>
+                    </View>
+                    <View style={styles.nlpInputRow}>
+                      <TextInput
+                        style={styles.nlpTextInput}
+                        placeholder='e.g. "Paid 450 for Swiggy food yesterday"'
+                        placeholderTextColor="#64748b"
+                        value={nlpInput}
+                        onChangeText={setNlpInput}
+                      />
+                      <TouchableOpacity
+                        style={[styles.nlpParseBtn, !nlpInput.trim() && { opacity: 0.5 }]}
+                        onPress={handleApplyNLP}
+                        disabled={!nlpInput.trim()}
+                      >
+                        <Wand2Icon size={14} color="#ffffff" style={{ marginRight: 4 }} />
+                        <Text style={styles.nlpParseBtnText}>Auto-Fill</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
@@ -429,6 +472,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  nlpBox: {
+    backgroundColor: '#0c1a2e',
+    borderWidth: 1,
+    borderColor: '#0284c7',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  nlpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nlpLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#38bdf8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  nlpInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nlpTextInput: {
+    flex: 1,
+    backgroundColor: '#06111f',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    color: '#ffffff',
+    fontSize: 13,
+  },
+  nlpParseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+  },
+  nlpParseBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   sectionLabel: {
     fontSize: 11,

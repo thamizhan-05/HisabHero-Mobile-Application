@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,9 @@ import {
 import { Send, Sparkles, User } from 'lucide-react-native';
 
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
+import { parseVoiceFinancialPrompt } from '../services/voiceBookkeeperService';
+import { useTranslation } from '../theme/i18n';
 
 const SendIcon = Send as any;
 const SparklesIcon = Sparkles as any;
@@ -35,10 +39,12 @@ type AiChatScreenProps = {
 };
 
 export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChatScreenProps) {
+  const { theme, accentHex } = useTheme();
+  const { t, language } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
-      text: "Hello! I'm HisabHero AI, your dedicated financial assistant. Ask me questions like:\n\n• What is my current cash runway?\n• How is my business financial health?\n• What are my top expense categories?",
+      text: t('ai_welcome') || "Hello! I'm HisabHero AI, your dedicated financial assistant. Ask me questions like:\n\n• What is my current cash runway?\n• How is my business financial health?\n• What are my top expense categories?",
       sender: 'bot',
       timestamp: new Date(),
     },
@@ -90,6 +96,7 @@ export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChat
 
       const res = await apiClient.post('/ai/chat', {
         message: userMessageText,
+        language: language,
         context: ctx,
       });
 
@@ -126,7 +133,7 @@ export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChat
     const lines = text.split('\n');
     return lines.map((line, lIdx) => {
       let content = line.trim();
-      let style: any = isBot ? styles.botText : styles.userText;
+      let style: any = isBot ? [styles.botText, { color: theme.text }] : [styles.userText, { color: '#ffffff' }];
       let isBullet = false;
 
       if (!content) return <View key={lIdx} style={{ height: 6 }} />;
@@ -147,7 +154,7 @@ export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChat
       });
 
       return (
-        <View key={lIdx} style={[styles.textLine, isBullet && styles.bulletLine]}>
+        <View key={lIdx} style={[styles.textLine, isBullet && (styles as any).bulletLine]}>
           {isBullet && <Text style={styles.bulletDot}>•</Text>}
           <Text style={style}>{formattedLine}</Text>
         </View>
@@ -156,107 +163,135 @@ export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChat
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1 }}>
-            {/* Header info */}
-            <View style={styles.chatHeader}>
-              <SparklesIcon color="#4f8cff" size={18} style={{ marginRight: 8 }} />
-              <Text style={styles.chatHeaderTitle}>AI Financial Advisor</Text>
+        <View style={{ flex: 1 }}>
+          {/* Header info */}
+          <View style={[styles.chatHeader, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>HisabHero</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: '600' }}>AI CFO Assistant</Text>
             </View>
-
-            {/* Message List */}
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => {
-                const isBot = item.sender === 'bot';
-                return (
-                  <View style={[styles.messageRow, isBot ? styles.rowLeft : styles.rowRight]}>
-                    {isBot && (
-                      <View style={styles.avatarBox}>
-                        <SparklesIcon color="#ffffff" size={14} />
-                      </View>
-                    )}
-                    <View style={[styles.bubble, isBot ? styles.bubbleBot : styles.bubbleUser]}>
-                      {renderMessageText(item.text, isBot)}
-                      <Text style={[styles.timestamp, isBot ? styles.timeBot : styles.timeUser]}>
-                        {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                    {!isBot && (
-                      <View style={styles.userAvatarBox}>
-                        <UserIcon color="#ffffff" size={14} />
-                      </View>
-                    )}
-                  </View>
-                );
-              }}
-              ListFooterComponent={
-                loading ? (
-                  <View style={styles.typingIndicatorRow}>
-                    <View style={styles.avatarBox}>
-                      <SparklesIcon color="#ffffff" size={14} />
-                    </View>
-                    <View style={styles.typingBubble}>
-                      <ActivityIndicator size="small" color="#4f8cff" />
-                    </View>
-                  </View>
-                ) : null
-              }
-            />
-
-            {/* Input Bar */}
-            <View style={styles.inputBar}>
-              <TextInput
-                style={styles.input}
-                value={inputText}
-                onChangeText={setInputText}
-                placeholder="Ask HisabHero AI..."
-                placeholderTextColor="#5f88b8"
-                onSubmitEditing={handleSend}
-                returnKeyType="send"
-              />
-              <TouchableOpacity
-                style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
-                onPress={handleSend}
-                disabled={!inputText.trim()}
-              >
-                <SendIcon color="#ffffff" size={18} />
-              </TouchableOpacity>
+            <View style={[styles.activeCtxBadge, { backgroundColor: '#0284c718', borderColor: '#0284c740' }]}>
+              <SparklesIcon color="#38bdf8" size={11} style={{ marginRight: 4 }} />
+              <Text style={styles.activeCtxBadgeText}>Active Financial Context</Text>
             </View>
           </View>
-        </TouchableWithoutFeedback>
+
+          {/* Message List */}
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={true}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            renderItem={({ item }) => {
+              const isBot = item.sender === 'bot';
+              return (
+                <View style={[styles.messageRow, isBot ? styles.rowLeft : styles.rowRight]}>
+                  <View style={[styles.bubble, isBot ? [styles.bubbleBot, { backgroundColor: theme.card, borderColor: theme.cardBorder }] : [styles.bubbleUser, { backgroundColor: '#1e293b', borderColor: '#334155' }]]}>
+                    {renderMessageText(item.text, isBot)}
+                    <Text style={[styles.timestamp, { color: theme.textMuted }]}>
+                      {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }}
+            ListFooterComponent={
+              loading ? (
+                <View style={styles.typingIndicatorRow}>
+                  <View style={[styles.typingBubble, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                    <ActivityIndicator size="small" color="#38bdf8" />
+                  </View>
+                </View>
+              ) : null
+            }
+          />
+
+          {/* Suggested Prompts Chips */}
+          <View style={{ paddingVertical: 6 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+              {[
+                "Analyze Tax Savings",
+                "Vendor Price Spikes",
+                "Generate P&L Report",
+                "How is my cash runway looking?",
+                "Show monthly budget health"
+              ].map((prompt, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  activeOpacity={0.7}
+                  style={[styles.promptChip, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+                  onPress={() => {
+                    setInputText(prompt);
+                  }}
+                >
+                  <Text style={[styles.promptChipText, { color: theme.text }]}>{prompt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Glowing Input Bar */}
+          <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: '#38bdf840' }]}>
+            <TextInput
+              style={[styles.input, { color: theme.text, backgroundColor: 'transparent' }]}
+              placeholder={t('ai_input_placeholder') || 'Ask AI CFO anything...'}
+              placeholderTextColor={theme.textMuted}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline={false}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, { backgroundColor: '#06b6d4' }, (!inputText.trim() || loading) && styles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={!inputText.trim() || loading}
+            >
+              <SendIcon color="#ffffff" size={17} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#06111f',
   },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#15345f',
-    backgroundColor: '#0b1d38',
   },
   chatHeaderTitle: {
-    color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  activeCtxBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  activeCtxBadgeText: {
+    color: '#38bdf8',
+    fontSize: 10,
     fontWeight: '700',
   },
   listContent: {
@@ -276,22 +311,18 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   avatarBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1c4f9d',
-    borderWidth: 1,
-    borderColor: '#7fb2ff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
     marginBottom: 4,
   },
   userAvatarBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#4f8cff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
@@ -303,17 +334,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   bubbleBot: {
-    backgroundColor: '#0b1d38',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderBottomLeftRadius: 4,
   },
   bubbleUser: {
-    backgroundColor: '#1c4f9d',
     borderBottomRightRadius: 4,
   },
   botText: {
-    color: '#c3d6f3',
     fontSize: 14,
     lineHeight: 20,
   },
@@ -325,32 +352,31 @@ const styles = StyleSheet.create({
   textLine: {
     marginBottom: 2,
   },
-  bulletLine: {
+  bulletRow: {
     flexDirection: 'row',
-    paddingLeft: 6,
     alignItems: 'flex-start',
+    marginBottom: 4,
   },
   bulletDot: {
-    color: '#4f8cff',
-    marginRight: 6,
     fontSize: 14,
-    lineHeight: 18,
+    marginRight: 6,
+    marginTop: 2,
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   bold: {
     fontWeight: '700',
-    color: '#ffffff',
   },
   timestamp: {
-    fontSize: 9,
-    marginTop: 6,
-    textAlign: 'right',
+    fontSize: 10,
+    marginTop: 4,
+    alignSelf: 'flex-end',
   },
-  timeBot: {
-    color: '#8fc0ff',
-  },
-  timeUser: {
-    color: '#a6bedf',
-  },
+  timeBot: {},
+  timeUser: {},
   typingIndicatorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -358,50 +384,48 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   typingBubble: {
-    backgroundColor: '#0b1d38',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 18,
     borderBottomLeftRadius: 4,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  inputBar: {
+  promptChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  promptChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: '#15345f',
-    backgroundColor: '#0b1d38',
   },
   input: {
     flex: 1,
-    backgroundColor: '#06111f',
     borderWidth: 1,
-    borderColor: '#15345f',
     borderRadius: 24,
     paddingHorizontal: 16,
-    height: 48,
-    color: '#ffffff',
+    paddingVertical: 10,
+    minHeight: 44,
+    maxHeight: 100,
     fontSize: 14,
     marginRight: 10,
   },
-  sendBtn: {
+  sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#4f8cff',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
-    shadowColor: '#4f8cff',
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 4 },
   },
   sendBtnDisabled: {
-    backgroundColor: '#2b509d',
-    elevation: 0,
-    shadowOpacity: 0,
+    opacity: 0.5,
   },
 });

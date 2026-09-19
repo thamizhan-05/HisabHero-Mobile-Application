@@ -1,6 +1,30 @@
+// Polyfill web standards for serverless pdfjs-dist
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  globalThis.DOMMatrix = class DOMMatrix {
+    constructor() { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0; }
+  };
+}
+if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class ImageData {};
+if (typeof globalThis.Path2D === 'undefined') globalThis.Path2D = class Path2D {};
+
+import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+globalThis.pdfjsWorker = pdfjsWorker;
+
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+
+let CachedPDFParse = null;
+async function getPDFParse() {
+  if (!CachedPDFParse) {
+    try {
+      const mod = await import('pdf-parse');
+      CachedPDFParse = mod.PDFParse || mod.default?.PDFParse || mod.default;
+    } catch (e) {
+      console.warn('[PDFParse Load Warning]:', e.message);
+    }
+  }
+  return CachedPDFParse;
+}
 
 // Comprehensive Vernacular Indian Numerals Mapping (Hindi, Marathi, Gujarati, Tamil, Telugu, etc.)
 const INDIAN_VERNACULAR_DIGITS = {
@@ -22,6 +46,52 @@ export function parseCleanAmount(val) {
   return isNaN(num) ? 0 : Math.abs(num);
 }
 
+export function extractMerchantFromNarration(narration = '', bankName = '') {
+  if (!narration) return `${bankName} Transaction`;
+  const clean = narration.trim();
+
+  // Pattern: UPI/DR/<rrn>/<MERCHANT>/... or UPI/CR/<rrn>/<MERCHANT>/...
+  if (/^UPI\/(?:DR|CR)\//i.test(clean)) {
+    const parts = clean.split('/');
+    if (parts.length >= 4 && parts[3].trim()) {
+      return parts[3].trim();
+    }
+  }
+
+  // Pattern: UPI/<MERCHANT>/...
+  if (/^UPI\/([^\/]+)\//i.test(clean)) {
+    const match = clean.match(/^UPI\/([^\/]+)\//i);
+    if (match && match[1] && !/^(?:DR|CR)$/i.test(match[1])) {
+      return match[1].trim();
+    }
+  }
+
+  // Pattern: IFSC/Beneficiary e.g. YESB0PTMUPI/Sunil kumar ramkeval kahar/XXXXX/...
+  const ifscMerchant = clean.match(/^[A-Z]{4}\w+\/([^\/]+)\//i);
+  if (ifscMerchant && ifscMerchant[1]) {
+    return ifscMerchant[1].trim();
+  }
+
+  // Pattern: NEFT-ICIC-IN...-ULAGAMMAL or BIL/NEFT/.../ULAGAMMAL/...
+  if (/NEFT/i.test(clean)) {
+    const neftParts = clean.split(/[-\/]/);
+    for (let i = neftParts.length - 1; i >= 0; i--) {
+      const part = neftParts[i].trim();
+      if (part && !/^\d+$/.test(part) && !/^(?:NEFT|ICIC|IN\d+|INDIA|OVERSEAS|BANK)$/i.test(part) && part.length > 2) {
+        return part;
+      }
+    }
+  }
+
+  // Pattern: CAM/03272SRY/CASH DEP-Other/...
+  if (/CASH\s*DEP/i.test(clean)) {
+    return 'Cash Deposit';
+  }
+
+  const firstToken = clean.split(/[\/\-]/)[0].trim();
+  return firstToken || `${bankName} Narration`;
+}
+
 export function standardizeDate(dateStr) {
   if (!dateStr) return new Date().toISOString().split('T')[0];
   const cleaned = normalizeDevanagari(String(dateStr)).trim();
@@ -37,32 +107,36 @@ export function standardizeDate(dateStr) {
     }
   }
 
-  // 2. Named Months: "Jan 16, 2026" or "16 Jan 2026" or "16-Jan-2026"
+  // 2. Named Months: "30 Aug 2026", "30-Aug-2026", "Aug 30, 2026", "30-Aug-26", "19-Sep-26"
   const monthMap = {
     jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
     jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
   };
-  const namedMatch = cleaned.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})?/) || cleaned.match(/(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-]?(\d{2,4})?/);
-  if (namedMatch) {
-    let dayStr, monthName, yearStr;
-    if (isNaN(parseInt(namedMatch[1], 10))) {
-      monthName = namedMatch[1];
-      dayStr = namedMatch[2];
-      yearStr = namedMatch[3] || String(new Date().getFullYear());
-    } else {
-      dayStr = namedMatch[1];
-      monthName = namedMatch[2];
-      yearStr = namedMatch[3] || String(new Date().getFullYear());
-    }
+
+  const dayFirstNamed = cleaned.match(/(?:^|\b)(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-](\d{2,4})\b/);
+  if (dayFirstNamed) {
+    const [, dayStr, monthName, yearStr] = dayFirstNamed;
     const mKey = monthName.toLowerCase().slice(0, 3);
     const mo = monthMap[mKey] || '01';
-    let y = yearStr;
-    if (y.length === 2) y = '20' + y;
+    let y = yearStr.length === 2 ? '20' + yearStr : yearStr;
     const d = parseInt(dayStr, 10);
     if (d >= 1 && d <= 31) {
       return `${y}-${mo}-${String(d).padStart(2, '0')}`;
     }
   }
+
+  const monthFirstNamed = cleaned.match(/(?:^|\b)([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{2,4}))?\b/);
+  if (monthFirstNamed) {
+    const [, monthName, dayStr, yearStr] = monthFirstNamed;
+    const mKey = monthName.toLowerCase().slice(0, 3);
+    const mo = monthMap[mKey] || '01';
+    let y = (yearStr && yearStr.length === 2) ? '20' + yearStr : (yearStr || String(new Date().getFullYear()));
+    const d = parseInt(dayStr, 10);
+    if (d >= 1 && d <= 31) {
+      return `${y}-${mo}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
 
   // 3. DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   const dmy = cleaned.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
@@ -276,18 +350,214 @@ export const parseHdfcStatement = createStandardTableParser(
 );
 
 // ─── 2. STATE BANK OF INDIA (SBI) ───
-export const parseSbiStatement = createStandardTableParser(
-  'State Bank of India',
-  /(\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([A-Za-z0-9\/]+)?\s+([\d,]+\.\d{2})?\s+([\d,]+\.\d{2})?\s+([\d,]+\.\d{2})/,
-  1, 2, 3, 4, 5, 6
-);
+export function parseSbiStatement(text) {
+  const transactions = [];
+  const lines = text.split(/\r?\n/);
+  let idCounter = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || isSummaryOrNonTransactionLine('', '', line)) continue;
+    if (/^Your\s+(?:Opening|Closing)\s+Balance/i.test(line)) continue;
+    if (/^(?:Date\s+Transaction|TRANSACTION|SAVING|Relationship|Customer|Welcome|Account|Branch|Page\s*\d+|--\s*\d+\s+of\s+\d+\s*--)/i.test(line)) continue;
+
+    // Pattern 1: Standard SBI table row:
+    // Date Narration [Ref] Credit Debit Balance
+    // 01-02-26 UPI/DR/603220940637/ROYAL SW/YESB/q808440253/UPI - 0 70.00 5305.14
+    // 01-02-26 UPI/CR/437036914218/MUNUSAMY/SBIN/7678224964/Haris - 1500.00 0 6805.14
+    const sbiTableRegex = /^(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4})\s+(.+?)\s+(?:(-|--|[A-Za-z0-9\/]+)\s+)?([\d,]+(?:\.\d{2})?|-)\s+([\d,]+(?:\.\d{2})?|-)\s+([\d,]+(?:\.\d{2})?)$/i;
+    let match = line.match(sbiTableRegex);
+
+    if (match) {
+      const [, dateStr, desc, refNo, creditStr, debitStr, balStr] = match;
+      const credit = parseCleanAmount(creditStr);
+      const debit = parseCleanAmount(debitStr);
+      const balance = parseCleanAmount(balStr);
+
+      if (credit === 0 && debit === 0) continue;
+
+      let type = 'expense';
+      let amount = debit;
+      if (credit > 0 && debit === 0) {
+        type = 'income';
+        amount = credit;
+      } else if (debit > 0 && credit === 0) {
+        type = 'expense';
+        amount = debit;
+      } else if (/\bUPI\/CR\b/i.test(desc) || /\bCR\b/i.test(desc)) {
+        type = 'income';
+        amount = credit || debit;
+      } else {
+        type = 'expense';
+        amount = debit || credit;
+      }
+
+      transactions.push({
+        tempId: `sbi-${Date.now()}-${idCounter++}`,
+        date: standardizeDate(dateStr),
+        description: desc.trim(),
+        merchantName: extractMerchantFromNarration(desc, 'State Bank of India'),
+        category: categorizeByNarration(desc),
+        type,
+        amount,
+        debit: type === 'expense' ? amount : 0,
+        credit: type === 'income' ? amount : 0,
+        balance,
+        referenceNumber: refNo && refNo !== '-' && refNo !== '--' ? refNo.trim() : undefined,
+        confidenceScore: 0.99,
+        bankName: 'State Bank of India',
+        approved: true
+      });
+      continue;
+    }
+
+    // Pattern 2: Multi-line / alternative SBI row starting with date
+    const datePrefixMatch = line.match(/^(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4})/);
+    if (datePrefixMatch) {
+      const numbers = [...line.matchAll(/([\d,]+\.\d{2})/g)].map(m => m[1]);
+      if (numbers.length >= 2) {
+        const balStr = numbers[numbers.length - 1];
+        const prevNumStr = numbers[numbers.length - 2];
+        const balance = parseCleanAmount(balStr);
+        const amount = parseCleanAmount(prevNumStr);
+        const isCr = /\bUPI\/CR\b/i.test(line) || /\bCR\b/i.test(line);
+        const type = isCr ? 'income' : 'expense';
+
+        transactions.push({
+          tempId: `sbi-${Date.now()}-${idCounter++}`,
+          date: standardizeDate(datePrefixMatch[1]),
+          description: line,
+          merchantName: extractMerchantFromNarration(line, 'State Bank of India'),
+          category: categorizeByNarration(line),
+          type,
+          amount,
+          debit: type === 'expense' ? amount : 0,
+          credit: type === 'income' ? amount : 0,
+          balance,
+          confidenceScore: 0.95,
+          bankName: 'State Bank of India',
+          approved: true
+        });
+      }
+    }
+  }
+
+  return filterOutSummaryRows(transactions);
+}
 
 // ─── 3. ICICI BANK ───
-export const parseIciciStatement = createStandardTableParser(
-  'ICICI Bank',
-  /(\d{2}-\d{2}-\d{4}|\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([A-Za-z0-9]+)?\s+([\d,]+\.\d{2}|0(?:\.00)?)\s+([\d,]+\.\d{2}|0(?:\.00)?)\s+([\d,]+\.\d{2})/,
-  1, 2, 3, 5, 4, 6
-);
+export function parseIciciStatement(text) {
+  const transactions = [];
+  const lines = text.split(/\r?\n/);
+  let idCounter = 1;
+
+  // Preprocess lines: Group multi-line entries that start with (serial + date) or date
+  const groupedEntries = [];
+  let currentEntry = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+    if (/^(?:Statement of Transactions|Your Base Branch|Sincerely|Team ICICI|This is a system|Never share|www\.icici|Please call|Legends for|Page\s*\d+|--\s*\d+\s+of\s+\d+\s*--)/i.test(trimmed)) continue;
+    if (/^(?:RCHG|DTAX|BPAY|IDTX|BBPS|INFT|BIL|ONL|NEFT|PAVC|PAC|LNPY|CCWD|PAYC|IMPS|VAT|INF|EBA|SMO|VPS|TOP|BCTT|UCCBRN|LCCBRN|N chg|MMT|T Chg|SGB)\s*[-:]/i.test(trimmed)) continue;
+    if (/^(?:S No\.|Transaction Date|Cheque Number|Transaction Remarks|Withdrawal Amount|Deposit Amount|Balance)/i.test(trimmed)) continue;
+
+    // Check if line starts a new transaction: e.g. "1 10.09.2026" or "10.09.2026"
+    const isNewTxn = /^(?:\d+\s+)?\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}/.test(trimmed);
+    if (isNewTxn) {
+      if (currentEntry) groupedEntries.push(currentEntry);
+      currentEntry = trimmed;
+    } else if (currentEntry) {
+      currentEntry += ' ' + trimmed;
+    }
+  }
+  if (currentEntry) groupedEntries.push(currentEntry);
+
+  let prevBalance = null;
+
+  for (const entry of groupedEntries) {
+    const match = entry.match(/^(?:(\d+)\s+)?(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\s+(.+)$/);
+    if (!match) continue;
+
+    const [, sNo, dateStr, rest] = match;
+    const amountMatches = [...rest.matchAll(/([\d,]+\.\d{2})/g)];
+    if (amountMatches.length === 0) continue;
+
+    const balanceStr = amountMatches[amountMatches.length - 1][1];
+    const balance = parseCleanAmount(balanceStr);
+
+    let amount = 0;
+    let type = 'expense';
+    let debit = 0;
+    let credit = 0;
+    let desc = rest;
+
+    if (amountMatches.length >= 3) {
+      const withdrawalStr = amountMatches[amountMatches.length - 3][1];
+      const depositStr = amountMatches[amountMatches.length - 2][1];
+      debit = parseCleanAmount(withdrawalStr);
+      credit = parseCleanAmount(depositStr);
+
+      if (credit > 0 && debit === 0) {
+        type = 'income';
+        amount = credit;
+      } else {
+        type = 'expense';
+        amount = debit;
+      }
+      desc = rest.replace(withdrawalStr, '').replace(depositStr, '').replace(balanceStr, '').trim();
+    } else if (amountMatches.length >= 2) {
+      const amtStr = amountMatches[amountMatches.length - 2][1];
+      amount = parseCleanAmount(amtStr);
+      desc = rest.slice(0, rest.lastIndexOf(amtStr)).trim();
+
+      if (prevBalance !== null) {
+        const diff = balance - prevBalance;
+        if (Math.abs(diff - amount) < 0.05) {
+          type = 'income';
+        } else if (Math.abs(diff + amount) < 0.05) {
+          type = 'expense';
+        }
+      }
+
+      if (/\b(?:Credit\s*trxn|Payment\s*fr|received|refund|cashback|CR)\b/i.test(desc)) {
+        type = 'income';
+      } else if (/\b(?:Bil\s*Payment|Payment\s*to|withdrawn|debit|DR|iDirect)\b/i.test(desc)) {
+        type = 'expense';
+      }
+
+      if (type === 'income') {
+        credit = amount;
+      } else {
+        debit = amount;
+      }
+    } else {
+      continue;
+    }
+
+    prevBalance = balance;
+
+    transactions.push({
+      tempId: `icici-${Date.now()}-${idCounter++}`,
+      date: standardizeDate(dateStr),
+      description: desc.trim(),
+      merchantName: extractMerchantFromNarration(desc, 'ICICI Bank'),
+      category: categorizeByNarration(desc),
+      type,
+      amount,
+      debit: type === 'expense' ? amount : 0,
+      credit: type === 'income' ? amount : 0,
+      balance,
+      referenceNumber: sNo || undefined,
+      confidenceScore: 0.99,
+      bankName: 'ICICI Bank',
+      approved: true
+    });
+  }
+
+  return filterOutSummaryRows(transactions);
+}
+
 
 // ─── 4. AXIS BANK ───
 export const parseAxisStatement = createStandardTableParser(
@@ -454,11 +724,79 @@ export const parseUnionBankStatement = createStandardTableParser(
 );
 
 // ─── 19. INDIAN BANK ───
-export const parseIndianBankStatement = createStandardTableParser(
-  'Indian Bank',
-  /(\d{2}\/\d{2}\/\d{4}|\d{2}-[A-Za-z]{3}-\d{2,4})\s+(.+?)\s+([A-Za-z0-9]+|-)?\s+([\d,]+\.\d{2}|-)\s+([\d,]+\.\d{2}|-)\s+([\d,]+\.\d{2})/,
-  1, 2, 3, 4, 5, 6
-);
+export function parseIndianBankStatement(text) {
+  const transactions = [];
+  const lines = text.split(/\r?\n/);
+  let idCounter = 1;
+
+  // Preprocess multi-line entries: Date Transaction Details Debits Credits Balance
+  const groupedEntries = [];
+  let currentEntry = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+    if (/^(?:ACCOUNT STATEMENT|Last \d+ Transactions|ACCOUNT DETAILS|Account Holder|Account Type|Account Number|Customer's Address|Branch Name|IFSC|Account Currency|ACCOUNT SUMMARY|Opening Balance|Total Credits|Total Debits|Ending Balance|ACCOUNT ACTIVITY|Indian Bank|\*\*|Total\s+INR)/i.test(trimmed)) continue;
+
+    // Page break or table header closes current entry if it already has amounts
+    if (/^(?:--\s*\d+\s+of\s+\d+\s*--|Date\s+Transaction\s+Details)/i.test(trimmed)) {
+      if (currentEntry) {
+        if (/(?:INR\s*)?([\d,]+(?:\.\d{2})?|-)\s+(?:INR\s*)?([\d,]+(?:\.\d{2})?|-)\s+(?:INR\s*)?([\d,]+(?:\.\d{2})?)$/i.test(currentEntry)) {
+          groupedEntries.push(currentEntry);
+          currentEntry = '';
+        }
+      }
+      continue;
+    }
+
+    const isDateStart = /^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}/.test(trimmed);
+    if (isDateStart) {
+      if (currentEntry) groupedEntries.push(currentEntry);
+      currentEntry = trimmed;
+    } else if (currentEntry) {
+      currentEntry += ' ' + trimmed;
+    }
+  }
+  if (currentEntry) groupedEntries.push(currentEntry);
+
+  for (const entry of groupedEntries) {
+    const match = entry.match(/^(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(.+)$/);
+    if (!match) continue;
+
+    const [, dateStr, rest] = match;
+    const colsMatch = rest.match(/(?:INR\s*)?([\d,]+(?:\.\d{2})?|-)\s+(?:INR\s*)?([\d,]+(?:\.\d{2})?|-)\s+(?:INR\s*)?([\d,]+(?:\.\d{2})?)$/i);
+    if (!colsMatch) continue;
+
+    const [fullCols, debitStr, creditStr, balStr] = colsMatch;
+    const debit = parseCleanAmount(debitStr);
+    const credit = parseCleanAmount(creditStr);
+    const balance = parseCleanAmount(balStr);
+
+    if (debit === 0 && credit === 0) continue;
+
+    const type = credit > 0 ? 'income' : 'expense';
+    const amount = type === 'income' ? credit : debit;
+    const descPart = rest.slice(0, rest.length - fullCols.length).trim();
+
+    transactions.push({
+      tempId: `indianbank-${Date.now()}-${idCounter++}`,
+      date: standardizeDate(dateStr),
+      description: descPart,
+      merchantName: extractMerchantFromNarration(descPart, 'Indian Bank'),
+      category: categorizeByNarration(descPart),
+      type,
+      amount,
+      debit: type === 'expense' ? amount : 0,
+      credit: type === 'income' ? amount : 0,
+      balance,
+      confidenceScore: 0.99,
+      bankName: 'Indian Bank',
+      approved: true
+    });
+  }
+
+  return filterOutSummaryRows(transactions);
+}
 
 // ─── 20. BANK OF INDIA (BOI) ───
 export const parseBoiStatement = createStandardTableParser(
@@ -468,11 +806,87 @@ export const parseBoiStatement = createStandardTableParser(
 );
 
 // ─── 21. INDIAN OVERSEAS BANK (IOB) ───
-export const parseIobStatement = createStandardTableParser(
-  'Indian Overseas Bank',
-  /(\d{2}\/\d{2}\/\d{4}|\d{2}-[A-Za-z]{3}-\d{4})\s+(.+?)\s+([A-Za-z0-9]+|-)?\s+([\d,]+\.\d{2}|-)\s+([\d,]+\.\d{2}|-)\s+([\d,]+\.\d{2})/,
-  1, 2, 3, 4, 5, 6
-);
+export function parseIobStatement(text) {
+  const transactions = [];
+  const lines = text.split(/\r?\n/);
+  let idCounter = 1;
+
+  // Preprocess multi-line entries: Date(Value Date) Particulars RefNo TxnType Debit Credit Balance
+  const groupedEntries = [];
+  let currentEntry = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+    if (/^(?:Page\s*\d+|Report Generation|STATEMENT OF THE ACCOUNT|CUSTOMER DETAILS|Customer ID|Branch Address|Account No|Branch Code|Customer's Address|Address of Customer|\*\*This is a computer)/i.test(trimmed)) continue;
+    if (/^(?:Date\(Value Date\)|Date\(Value|Particulars|Ref No\.|Transaction Type|Debit\(Rs\)|Credit\(Rs\)|Balance\(Rs\))/i.test(trimmed)) continue;
+
+    if (/^(?:[\d,]+\.\d{2}\s+[\d,]+\.\d{2}|Effective available balance|--\s*\d+\s+of\s+\d+\s*--)/i.test(trimmed)) {
+      if (currentEntry) {
+        groupedEntries.push(currentEntry);
+        currentEntry = '';
+      }
+      continue;
+    }
+
+    const isDateStart = /^(\d{1,2}-[A-Za-z]{3}-\d{2,4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/.test(trimmed);
+    if (isDateStart) {
+      if (currentEntry) groupedEntries.push(currentEntry);
+      currentEntry = trimmed;
+    } else if (currentEntry) {
+      currentEntry += ' ' + trimmed;
+    }
+  }
+  if (currentEntry) groupedEntries.push(currentEntry);
+
+  for (const entry of groupedEntries) {
+    const dateMatch = entry.match(/^(\d{1,2}-[A-Za-z]{3}-\d{2,4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})(?:\s*\(\d{1,2}-[A-Za-z]{3}-\d{2,4}\))?\s+(.+)$/);
+    if (!dateMatch) continue;
+
+    const [, dateStr, rest] = dateMatch;
+    const colsMatch = rest.match(/([\d,]+(?:\.\d{2})?|-)\s+([\d,]+(?:\.\d{2})?|-)\s+([\d,]+(?:\.\d{2})?)$/);
+    if (!colsMatch) continue;
+
+    const [fullCols, debitStr, creditStr, balStr] = colsMatch;
+    const debit = parseCleanAmount(debitStr);
+    const credit = parseCleanAmount(creditStr);
+    const balance = parseCleanAmount(balStr);
+
+    if (debit === 0 && credit === 0) continue;
+
+    const type = credit > 0 ? 'income' : 'expense';
+    const amount = type === 'income' ? credit : debit;
+
+    let descPart = rest.slice(0, rest.length - fullCols.length).trim();
+    descPart = descPart.replace(/\s+(?:Transfer|Clearing|Cash|ATM|NEFT|RTGS|UPI|IMPS|POS)$/i, '').trim();
+
+    let refNo;
+    const refMatch = descPart.match(/\s+([A-Za-z0-9]{8,12})$/);
+    if (refMatch) {
+      refNo = refMatch[1];
+      descPart = descPart.slice(0, descPart.length - refMatch[0].length).trim();
+    }
+
+    transactions.push({
+      tempId: `iob-${Date.now()}-${idCounter++}`,
+      date: standardizeDate(dateStr),
+      description: descPart,
+      merchantName: extractMerchantFromNarration(descPart, 'Indian Overseas Bank'),
+      category: categorizeByNarration(descPart),
+      type,
+      amount,
+      debit: type === 'expense' ? amount : 0,
+      credit: type === 'income' ? amount : 0,
+      balance,
+      referenceNumber: refNo,
+      confidenceScore: 0.99,
+      bankName: 'Indian Overseas Bank',
+      approved: true
+    });
+  }
+
+  return filterOutSummaryRows(transactions);
+}
 
 // ─── 22. CENTRAL BANK OF INDIA ───
 export const parseCentralBankStatement = createStandardTableParser(
@@ -1050,16 +1464,11 @@ export async function parsePdfBufferWithNativeRegex(fileBuffer) {
     let extractedText = '';
     const pureUint8 = bufferToPureUint8Array(fileBuffer);
 
-    if (pdfParse && pdfParse.PDFParse) {
-      const parser = new pdfParse.PDFParse(pureUint8);
+    const PDFParser = await getPDFParse();
+    if (PDFParser) {
+      const parser = new PDFParser(pureUint8);
       const textResult = await parser.getText();
       extractedText = typeof textResult === 'string' ? textResult : (textResult?.text || '');
-    } else if (typeof pdfParse === 'function') {
-      const parsedData = await pdfParse(pureUint8);
-      extractedText = parsedData?.text || '';
-    } else if (typeof pdfParse?.default === 'function') {
-      const parsedData = await pdfParse.default(pureUint8);
-      extractedText = parsedData?.text || '';
     }
 
     const text = normalizeDevanagari(extractedText);
@@ -1073,13 +1482,13 @@ export async function parsePdfBufferWithNativeRegex(fileBuffer) {
     // Direct keyword match checks for high accuracy
     const bankRules = [
       { keywords: ['phonepe', 'phone pe'], fn: parsePhonePeStatement, name: 'phonepe' },
-      { keywords: ['google pay', 'gpay', 'upi', 'okaxis', 'okhdfcbank', 'okicici', 'oksbi', 'tez'], fn: parseGooglePayStatement, name: 'gpay' },
-      { keywords: ['paytm', 'one97'], fn: parsePaytmStatement, name: 'paytm' },
+      { keywords: ['google pay', 'gpay', 'tez', 'google payments'], fn: parseGooglePayStatement, name: 'gpay' },
+      { keywords: ['paytm', 'one97', 'paytm payments'], fn: parsePaytmStatement, name: 'paytm' },
       { keywords: ['hdfc bank', 'hdfcbank'], fn: parseHdfcStatement, name: 'hdfc' },
       { keywords: ['state bank of india', 'onlinesbi', 'sbi'], fn: parseSbiStatement, name: 'sbi' },
-      { keywords: ['icici bank', 'icicibank'], fn: parseIciciStatement, name: 'icici' },
+      { keywords: ['icici bank', 'icicibank', 'icici'], fn: parseIciciStatement, name: 'icici' },
       { keywords: ['axis bank', 'axisbank'], fn: parseAxisStatement, name: 'axis' },
-      { keywords: ['kotak mahindra', 'kotak bank'], fn: parseKotakStatement, name: 'kotak' },
+      { keywords: ['kotak mahindra', 'kotak bank', 'kotak'], fn: parseKotakStatement, name: 'kotak' },
       { keywords: ['indusind bank', 'indusind'], fn: parseIndusIndStatement, name: 'indusind' },
       { keywords: ['yes bank', 'yesbank'], fn: parseYesBankStatement, name: 'yesbank' },
       { keywords: ['federal bank', 'federalbank', 'fi money', 'jupiter money'], fn: parseFederalBankStatement, name: 'federal' },
@@ -1111,15 +1520,23 @@ export async function parsePdfBufferWithNativeRegex(fileBuffer) {
       { keywords: ['cred', 'dreamplug'], fn: parseCredStatement, name: 'cred' },
     ];
 
+    let bestMatch = null;
     for (const rule of bankRules) {
       if (rule.keywords.some(k => lower.includes(k))) {
         const res = rule.fn(text);
         const filtered = filterOutSummaryRows(res);
         if (filtered.length > 0) {
-          return { parser: `${rule.name}_native_regex`, transactions: filtered };
+          if (!bestMatch || filtered.length > bestMatch.transactions.length) {
+            bestMatch = { parser: `${rule.name}_native_regex`, transactions: filtered };
+          }
         }
       }
     }
+
+    if (bestMatch && bestMatch.transactions.length > 0) {
+      return bestMatch;
+    }
+
 
     // Universal statement parser
     const universalRes = parseUniversalStatement(text);

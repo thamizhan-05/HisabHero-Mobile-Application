@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Production Cloud API URL (Live Render Production Web Service)
-export const PRODUCTION_API_URL = 'https://hisabhero-mobile-application.onrender.com/api';
+// Production Cloud API URL (Live Vercel Production Deployment)
+export const PRODUCTION_API_URL = 'https://hisabhero.vercel.app/api';
 
 // Default API URL (uses environment variable if present, otherwise defaults to PRODUCTION_API_URL)
 export const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;
@@ -39,19 +39,21 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
     const saved = await AsyncStorage.getItem('apiBaseUrl');
     if (saved && saved.trim()) {
       const cleanUrl = sanitizeApiUrl(saved);
-      // Automatically purge stale or custom saved URLs and force production Render endpoint
-      if (!cleanUrl.includes('hisabhero-mobile-application.onrender.com')) {
-        await AsyncStorage.removeItem('apiBaseUrl');
-        currentApiUrl = PRODUCTION_API_URL;
+      // Allow production Render endpoint, local LAN IPs, and localhost development URLs
+      const isRenderUrl = cleanUrl.includes('hisabhero-mobile-application.onrender.com');
+      const isLocalhost = cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1') || cleanUrl.includes('10.0.2.2') || cleanUrl.includes('192.168.') || cleanUrl.includes('10.');
+      if (isRenderUrl || isLocalhost) {
+        currentApiUrl = cleanUrl;
       } else {
         currentApiUrl = cleanUrl;
       }
     } else {
-      currentApiUrl = PRODUCTION_API_URL;
+      currentApiUrl = DEFAULT_API_URL;
     }
   } catch (err) {
     console.error('Failed to load apiBaseUrl from AsyncStorage:', err);
-    currentApiUrl = PRODUCTION_API_URL;
+    currentApiUrl = DEFAULT_API_URL;
   }
   return currentApiUrl;
 }
+

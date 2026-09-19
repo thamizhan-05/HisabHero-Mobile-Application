@@ -21,6 +21,7 @@ import {
   HelpCircle,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
+import { useTheme } from '../theme/themeSystem';
 import * as DocumentPicker from 'expo-document-picker';
 
 const UploadCloudIcon = UploadCloud as any;
@@ -47,6 +48,7 @@ export function BankReconciliationScreen({
   activeWorkspaceId = 'personal',
   onRefreshData,
 }: BankReconciliationScreenProps) {
+  const { theme, accentHex } = useTheme();
   const [bankTransactions, setBankTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
@@ -256,15 +258,15 @@ export function BankReconciliationScreen({
   };
 
   return (
-    <View style={styles.screenContainer}>
+    <View style={[styles.screenContainer, { backgroundColor: theme.bg }]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* Upload Statement Card */}
-        <View style={styles.uploadCard}>
-          <Text style={styles.uploadTitle}>Import Bank Statement</Text>
-          <Text style={styles.uploadSub}>Upload your monthly statement to reconcile with your HisabHero records</Text>
+        <View style={[styles.uploadCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          <Text style={[styles.uploadTitle, { color: theme.text }]}>Import Bank Statement</Text>
+          <Text style={[styles.uploadSub, { color: theme.textSecondary }]}>Upload your monthly statement to reconcile with your HisabHero records</Text>
           
           <TouchableOpacity 
-            style={styles.uploadBtn} 
+            style={[styles.uploadBtn, { backgroundColor: accentHex }]} 
             onPress={handlePickDocument}
             disabled={uploading}
           >
@@ -280,19 +282,19 @@ export function BankReconciliationScreen({
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Unreconciled Bank Transactions</Text>
-          <TouchableOpacity onPress={fetchBankTransactions} style={styles.refreshBtn}>
-            <RefreshCwIcon color="#8fc0ff" size={16} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Unreconciled Bank Transactions</Text>
+          <TouchableOpacity onPress={fetchBankTransactions} style={[styles.refreshBtn, { backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1 }]}>
+            <RefreshCwIcon color={accentHex} size={16} />
           </TouchableOpacity>
         </View>
 
         {loading ? (
-          <ActivityIndicator color="#4f8cff" size="large" style={{ marginTop: 24 }} />
+          <ActivityIndicator color={accentHex} size="large" style={{ marginTop: 24 }} />
         ) : bankTransactions.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <CheckCircleIcon color="#2ecc71" size={32} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>All caught up! 🎉</Text>
-            <Text style={styles.emptySub}>No unreconciled bank transactions found.</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>All caught up! 🎉</Text>
+            <Text style={[styles.emptySub, { color: theme.textSecondary }]}>No unreconciled bank transactions found.</Text>
           </View>
         ) : (
           <View style={styles.layoutContainer}>
@@ -304,16 +306,16 @@ export function BankReconciliationScreen({
                 return (
                   <TouchableOpacity
                     key={tx.id || tx._id}
-                    style={[styles.txCard, isSelected && styles.txCardSelected]}
+                    style={[styles.txCard, { backgroundColor: theme.card, borderColor: isSelected ? accentHex : theme.cardBorder }]}
                     onPress={() => handleSelectTx(tx)}
                   >
                     <View style={styles.txHeader}>
-                      <Text style={styles.txDesc} numberOfLines={1}>{tx.description}</Text>
+                      <Text style={[styles.txDesc, { color: theme.text }]} numberOfLines={1}>{tx.description}</Text>
                       <Text style={[styles.txAmount, isCredit ? styles.colorGreen : styles.colorRed]}>
                         {isCredit ? '+' : '-'}₹{tx.amount.toLocaleString('en-IN')}
                       </Text>
                     </View>
-                    <Text style={styles.txMeta}>Date: {tx.date} • Suggestion: {tx.aiSuggestedCategory}</Text>
+                    <Text style={[styles.txMeta, { color: theme.textMuted }]}>Date: {tx.date} • Suggestion: {tx.aiSuggestedCategory}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -321,19 +323,19 @@ export function BankReconciliationScreen({
 
             {/* Split reconciliation window */}
             {selectedTx && (
-              <View style={styles.matchingPane}>
-                <Text style={styles.paneTitle}>Reconcile Transaction</Text>
-                <View style={styles.selectedDetailsCard}>
-                  <Text style={styles.detailsDesc}>{selectedTx.description}</Text>
-                  <Text style={styles.detailsSub}>Date: {selectedTx.date} • Amount: ₹{selectedTx.amount.toLocaleString('en-IN')}</Text>
+              <View style={[styles.matchingPane, { backgroundColor: theme.card, borderColor: accentHex }]}>
+                <Text style={[styles.paneTitle, { color: theme.text }]}>Reconcile Transaction</Text>
+                <View style={[styles.selectedDetailsCard, { backgroundColor: theme.subtleCard || theme.bg, borderColor: theme.cardBorder, borderWidth: 1 }]}>
+                  <Text style={[styles.detailsDesc, { color: theme.text }]}>{selectedTx.description}</Text>
+                  <Text style={[styles.detailsSub, { color: theme.textSecondary }]}>Date: {selectedTx.date} • Amount: ₹{selectedTx.amount.toLocaleString('en-IN')}</Text>
                 </View>
 
-                <View style={styles.matchesHeader}>
-                  <Text style={styles.matchesTitle}>Potential Matches</Text>
+                <View style={[styles.matchesHeader, { borderTopColor: theme.cardBorder }]}>
+                  <Text style={[styles.matchesTitle, { color: accentHex }]}>Potential Matches</Text>
                 </View>
 
                 {loadingMatches ? (
-                  <ActivityIndicator color="#4f8cff" size="small" style={{ marginVertical: 12 }} />
+                  <ActivityIndicator color={accentHex} size="small" style={{ marginVertical: 12 }} />
                 ) : matches.length > 0 ? (
                   matches.map(m => (
                     <View key={m.transaction.id} style={styles.matchRow}>
@@ -366,7 +368,7 @@ export function BankReconciliationScreen({
                   </TouchableOpacity>
 
                   <TouchableOpacity 
-                    style={styles.createBtn}
+                    style={[styles.createBtn, { backgroundColor: accentHex }]}
                     onPress={() => {
                       setSelectedCategory(selectedTx.aiSuggestedCategory || 'Other');
                       setCreateModalVisible(true);
@@ -390,26 +392,26 @@ export function BankReconciliationScreen({
         onRequestClose={() => setMappingVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Map CSV Columns</Text>
-            <Text style={styles.modalSub}>Select which columns correspond to the transaction fields:</Text>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Map CSV Columns</Text>
+            <Text style={[styles.modalSub, { color: theme.textSecondary }]}>Select which columns correspond to the transaction fields:</Text>
             
             <ScrollView style={{ maxHeight: 300, marginBottom: 12 }}>
               {mappingState && ['date', 'description', 'amount'].map(field => {
                 const mappedVal = selectedMapping[field] || '';
                 return (
                   <View key={field} style={styles.mappingRow}>
-                    <Text style={styles.mappingField}>{field.toUpperCase()}:</Text>
+                    <Text style={[styles.mappingField, { color: theme.textSecondary }]}>{field.toUpperCase()}:</Text>
                     <TouchableOpacity 
-                      style={styles.dropdownBtn}
+                      style={[styles.dropdownBtn, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
                       onPress={() => setActiveDropdownField(activeDropdownField === field ? null : field)}
                     >
-                      <Text style={styles.dropdownBtnText}>{mappedVal || 'Select Column...'}</Text>
-                      <ChevronDownIcon color="#8fc0ff" size={16} />
+                      <Text style={[styles.dropdownBtnText, { color: theme.text }]}>{mappedVal || 'Select Column...'}</Text>
+                      <ChevronDownIcon color={theme.textMuted} size={16} />
                     </TouchableOpacity>
                     
                     {activeDropdownField === field && (
-                      <View style={styles.dropdownList}>
+                      <View style={[styles.dropdownList, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                         {mappingState.headers.map(h => (
                           <TouchableOpacity
                             key={h}
@@ -419,7 +421,7 @@ export function BankReconciliationScreen({
                               setActiveDropdownField(null);
                             }}
                           >
-                            <Text style={styles.dropdownItemText}>{h}</Text>
+                            <Text style={[styles.dropdownItemText, { color: theme.text }]}>{h}</Text>
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -430,10 +432,10 @@ export function BankReconciliationScreen({
             </ScrollView>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setMappingVisible(false)}>
-                <Text style={styles.btnCancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.btn, styles.btnCancel, { borderColor: theme.cardBorder }]} onPress={() => setMappingVisible(false)}>
+                <Text style={[styles.btnCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnConfirm]} onPress={handleSubmitMapping}>
+              <TouchableOpacity style={[styles.btn, styles.btnConfirm, { backgroundColor: accentHex }]} onPress={handleSubmitMapping}>
                 <Text style={styles.btnConfirmText}>Confirm & Import</Text>
               </TouchableOpacity>
             </View>
@@ -449,20 +451,21 @@ export function BankReconciliationScreen({
         onRequestClose={() => setCreateModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Category</Text>
-            <Text style={styles.modalSub}>Choose a ledger category for this transaction entry:</Text>
-            
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Record Bank Transaction</Text>
+            <Text style={[styles.modalSub, { color: theme.textSecondary }]}>Select category for: "{selectedTx?.description}"</Text>
+
+            <Text style={[styles.mappingField, { color: theme.textSecondary }]}>CATEGORY:</Text>
             <TouchableOpacity 
-              style={styles.categorySelector}
+              style={[styles.categorySelector, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
               onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
             >
-              <Text style={styles.categorySelectorText}>{selectedCategory}</Text>
-              <ChevronDownIcon color="#4f8cff" size={18} />
+              <Text style={[styles.categorySelectorText, { color: theme.text }]}>{selectedCategory}</Text>
+              <ChevronDownIcon color={theme.textMuted} size={18} />
             </TouchableOpacity>
 
             {showCategoryDropdown && (
-              <ScrollView style={styles.categoryScroll}>
+              <ScrollView style={[styles.categoryScroll, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                 {CATEGORIES.map(cat => (
                   <TouchableOpacity
                     key={cat}
@@ -472,18 +475,24 @@ export function BankReconciliationScreen({
                       setShowCategoryDropdown(false);
                     }}
                   >
-                    <Text style={styles.categoryItemText}>{cat}</Text>
+                    <Text style={[styles.categoryItemText, { color: theme.text }]}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             )}
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setCreateModalVisible(false)}>
-                <Text style={styles.btnCancelText}>Cancel</Text>
+              <TouchableOpacity 
+                style={[styles.btn, styles.btnCancel, { borderColor: theme.cardBorder }]} 
+                onPress={() => setCreateModalVisible(false)}
+              >
+                <Text style={[styles.btnCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnConfirm]} onPress={handleCreateAndReconcile}>
-                <Text style={styles.btnConfirmText}>Create & Match</Text>
+              <TouchableOpacity 
+                style={[styles.btn, styles.btnConfirm, { backgroundColor: accentHex }]} 
+                onPress={handleCreateAndReconcile}
+              >
+                <Text style={styles.btnConfirmText}>Save Entry</Text>
               </TouchableOpacity>
             </View>
           </View>
