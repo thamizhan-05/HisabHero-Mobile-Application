@@ -694,23 +694,66 @@ export const documentsRepo = {
 
     return safeDb(
       async () => {
+        // Fetch the document to get its stored extracted transactions
         const { data: doc } = await supabase
           .from('uploaded_documents')
-          .select('id, workspace_id, extracted_transactions')
+          .select('id, workspace_id, extracted_transactions, file_name, summary')
           .eq('id', id)
           .maybeSingle();
 
-        if (doc && Array.isArray(doc.extracted_transactions) && doc.extracted_transactions.length > 0) {
-          const dates = Array.from(new Set(doc.extracted_transactions.map(t => t.date).filter(Boolean)));
-          if (dates.length > 0) {
-            await supabase
-              .from('transactions')
-              .delete()
-              .eq('workspace_id', doc.workspace_id)
-              .in('date', dates);
+        if (doc) {
+          const wsId = doc.workspace_id;
+          const txList = Array.isArray(doc.extracted_transactions) ? doc.extracted_transactions : [];
+
+          if (txList.length > 0) {
+            // Strategy 1: Delete by exact description + date + amount fingerprint (most precise)
+            const fingerprints = txList
+              .filter(t => t.description && t.date && t.amount)
+              .map(t => ({
+                description: String(t.description).trim().slice(0, 200),
+                date: t.date,
+                amount: Number(t.amount)
+              }));
+
+            if (fingerprints.length > 0) {
+              // Build OR conditions for description+date+amount triplets
+              const orFilters = fingerprints
+                .slice(0, 50) // Supabase limit safety
+                .map(f => `and(description.eq.${f.description},date.eq.${f.date},amount.eq.${f.amount})`)
+                .join(',');
+
+              try {
+                await supabase
+                  .from('transactions')
+                  .delete()
+                  .eq('workspace_id', wsId)
+                  .or(orFilters);
+              } catch (e) {
+                // Fallback: delete by dates only
+                const dates = Array.from(new Set(txList.map(t => t.date).filter(Boolean)));
+                if (dates.length > 0) {
+                  await supabase
+                    .from('transactions')
+                    .delete()
+                    .eq('workspace_id', wsId)
+                    .in('date', dates);
+                }
+              }
+            } else {
+              // Fallback: date-range delete
+              const dates = Array.from(new Set(txList.map(t => t.date).filter(Boolean)));
+              if (dates.length > 0) {
+                await supabase
+                  .from('transactions')
+                  .delete()
+                  .eq('workspace_id', wsId)
+                  .in('date', dates);
+              }
+            }
           }
         }
 
+        // Delete the document record itself
         const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
         if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
         return true;
