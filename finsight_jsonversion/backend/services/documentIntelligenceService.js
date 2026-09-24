@@ -6,7 +6,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import * as XLSX from 'xlsx';
 import { transactionsRepo, merchantMappingsRepo } from '../db/supabaseDb.js';
-import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array, filterOutSummaryRows } from './pdfParsers.js';
+import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array, filterOutSummaryRows, determineCashFlowType, parseCleanAmount } from './pdfParsers.js';
 
 // Comprehensive Vernacular Indian Numerals Mapping (Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali, Devanagari)
 const INDIAN_VERNACULAR_DIGITS = {

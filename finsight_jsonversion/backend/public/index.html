@@ -2816,8 +2816,9 @@
 
     /* 3. Onboarding Checklist Dock Widget */
     .hh-checklist-dock {
+      display: none;
       position: fixed;
-      bottom: 24px;
+      bottom: 88px;
       right: 24px;
       z-index: 99980;
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -4842,8 +4843,8 @@
                 </div>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="badge" id="hikeRiskBadge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.75rem;">
-                  ⚠️ ELEVATED MARGIN EROSION
+                <span class="badge" id="hikeRiskBadge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.75rem;">
+                  🟢 MARGIN SECURE
                 </span>
                 <button class="btn btn-secondary" onclick="loadSupplierPriceHikes(true)" style="padding: 7px 14px; font-size: 0.8rem;">
                   <i class="fas fa-sync-alt"></i> Re-Scan Invoices
@@ -4855,13 +4856,13 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 1.25rem;">
               <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 12px;">
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Items Monitored</div>
-                <div id="hikeItemsMonitored" style="font-size: 1.2rem; font-weight: 800; color: #fff; font-family: var(--font-mono);">42 SKUs</div>
+                <div id="hikeItemsMonitored" style="font-size: 1.2rem; font-weight: 800; color: #fff; font-family: var(--font-mono);">0 SKUs</div>
                 <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 2px;">From raw materials & packaging</div>
               </div>
               <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 12px;">
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Detected Markups</div>
-                <div id="hikeCountDetected" style="font-size: 1.2rem; font-weight: 800; color: #f87171; font-family: var(--font-mono);">3 Vendors</div>
-                <div style="font-size: 0.7rem; color: #fca5a5; margin-top: 2px;">Avg. +11.1% cost surge</div>
+                <div id="hikeCountDetected" style="font-size: 1.2rem; font-weight: 800; color: #34d399; font-family: var(--font-mono);">0 Vendors</div>
+                <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">Avg. 0.0% cost change</div>
               </div>
               <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px;">
                 <div style="font-size: 0.75rem; color: #fca5a5; margin-bottom: 4px;">Annual Margin Erosion</div>
@@ -10489,47 +10490,130 @@
       }
     }
 
-    // ─── GLOBAL TOAST NOTIFICATION ENGINE ───
-    function showToast(msg, type = 'success') {
-      let toast = document.getElementById('globalToast');
-      if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'globalToast';
-        toast.style.cssText = `
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔔 HIGH-IMPACT HIGHLIGHTED ALERT & NOTIFICATION SYSTEM
+    // ═══════════════════════════════════════════════════════════════════
+    function showHighlightedNotice(message, type = 'info', duration = 4500) {
+      if (!message) return;
+      let banner = document.getElementById('hhHighlightedNotice');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'hhHighlightedNotice';
+        banner.style.cssText = `
           position: fixed;
           top: 24px;
-          right: 24px;
-          z-index: 99999;
-          background: #0f172a;
+          left: 50%;
+          transform: translateX(-50%) translateY(-25px);
+          z-index: 100000;
+          min-width: 320px;
+          max-width: min(92vw, 560px);
+          background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%);
+          border-radius: 16px;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          padding: 14px 18px;
           color: #ffffff;
-          border: 1px solid #10b981;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(16, 185, 129, 0.4);
-          padding: 12px 20px;
-          border-radius: 12px;
-          font-weight: 700;
-          font-size: 0.9rem;
+          opacity: 0;
+          transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
           display: flex;
           align-items: center;
-          gap: 10px;
-          transform: translateY(-20px);
-          opacity: 0;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          gap: 14px;
+          font-family: var(--font-body, system-ui, sans-serif);
+          pointer-events: auto;
         `;
-        document.body.appendChild(toast);
+        document.body.appendChild(banner);
       }
-      toast.innerHTML = type === 'success' ? `<span>✨</span> <span>${msg}</span>` : `<span>ℹ️</span> <span>${msg}</span>`;
-      toast.style.display = 'flex';
-      setTimeout(() => {
-        toast.style.transform = 'translateY(0)';
-        toast.style.opacity = '1';
-      }, 10);
 
-      setTimeout(() => {
-        toast.style.transform = 'translateY(-20px)';
-        toast.style.opacity = '0';
-        setTimeout(() => { toast.style.display = 'none'; }, 300);
-      }, 3500);
+      const msgStr = String(message);
+      const isErr = type === 'error' || /fail|error|wrong|breach|invalid|denied/i.test(msgStr);
+      const isWarn = type === 'warning' || /alert|warn|pending|schedule|attention/i.test(msgStr);
+      const isSucc = type === 'success' || /✅|success|ready|done|approved|copied|saved|updated|verified/i.test(msgStr);
+
+      let borderColor = '#10b981';
+      let glowColor = 'rgba(16, 185, 129, 0.45)';
+      let iconEmoji = '✨';
+      let tagText = 'SUCCESS';
+      let tagBg = 'rgba(16, 185, 129, 0.18)';
+      let tagColor = '#6ee7b7';
+
+      if (isErr) {
+        borderColor = '#ef4444';
+        glowColor = 'rgba(239, 68, 68, 0.55)';
+        iconEmoji = '⚠️';
+        tagText = 'ATTENTION';
+        tagBg = 'rgba(239, 68, 68, 0.2)';
+        tagColor = '#fca5a5';
+      } else if (isWarn) {
+        borderColor = '#f59e0b';
+        glowColor = 'rgba(245, 158, 11, 0.55)';
+        iconEmoji = '⚡';
+        tagText = 'NOTICE';
+        tagBg = 'rgba(245, 158, 11, 0.2)';
+        tagColor = '#fde68a';
+      } else if (!isSucc) {
+        borderColor = '#0ea5e9';
+        glowColor = 'rgba(14, 165, 233, 0.5)';
+        iconEmoji = '💡';
+        tagText = 'INFO';
+        tagBg = 'rgba(14, 165, 233, 0.2)';
+        tagColor = '#7dd3fc';
+      }
+
+      banner.style.border = `1.5px solid ${borderColor}`;
+      banner.style.boxShadow = `0 20px 50px rgba(0, 0, 0, 0.85), 0 0 35px ${glowColor}`;
+
+      banner.innerHTML = `
+        <div style="width: 42px; height: 42px; min-width: 42px; border-radius: 12px; background: ${tagBg}; border: 1.5px solid ${borderColor}; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; box-shadow: 0 0 16px ${glowColor};">
+          ${iconEmoji}
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+            <span style="font-size: 0.68rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; background: ${tagBg}; color: ${tagColor}; padding: 1px 7px; border-radius: 6px;">
+              ${tagText}
+            </span>
+            <span style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">HisabHero Instant Alert</span>
+          </div>
+          <div style="font-size: 0.875rem; font-weight: 700; color: #f8fafc; line-height: 1.4; word-break: break-word; white-space: pre-line;">
+            ${msgStr}
+          </div>
+        </div>
+        <button onclick="dismissHighlightedNotice()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 4px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Dismiss">
+          ✕
+        </button>
+      `;
+
+      banner.style.display = 'flex';
+      requestAnimationFrame(() => {
+        banner.style.transform = 'translateX(-50%) translateY(0)';
+        banner.style.opacity = '1';
+      });
+
+      if (window.__noticeTimer) clearTimeout(window.__noticeTimer);
+      window.__noticeTimer = setTimeout(() => {
+        dismissHighlightedNotice();
+      }, duration);
     }
+
+    function dismissHighlightedNotice() {
+      const banner = document.getElementById('hhHighlightedNotice');
+      if (banner) {
+        banner.style.transform = 'translateX(-50%) translateY(-25px)';
+        banner.style.opacity = '0';
+        setTimeout(() => { banner.style.display = 'none'; }, 350);
+      }
+    }
+
+    // Intercept native browser alert so all notifications are beautifully highlighted
+    window.alert = function(msg) {
+      showHighlightedNotice(msg, 'info');
+    };
+
+    // Override showToast to use the high-visibility banner
+    function showToast(msg, type = 'success') {
+      showHighlightedNotice(msg, type);
+    }
+
 
     // ─── LIVE OCR VISION ENGINE & INTERACTIVE SAMPLES ───
     const ocrSampleData = {
@@ -11742,10 +11826,28 @@
           if (monEl) monEl.textContent = `${s.itemsMonitored} SKUs`;
           
           const countEl = document.getElementById('hikeCountDetected');
-          if (countEl) countEl.textContent = `${s.priceHikesDetected} Vendors`;
+          if (countEl) {
+            countEl.textContent = `${s.priceHikesDetected || 0} Vendors`;
+            countEl.style.color = (s.priceHikesDetected > 0) ? '#f87171' : '#34d399';
+          }
           
           const erEl = document.getElementById('hikeAnnualErosion');
           if (erEl) erEl.textContent = '₹' + Number(s.totalAnnualMarginLeakage || 0).toLocaleString('en-IN');
+
+          const badgeEl = document.getElementById('hikeRiskBadge');
+          if (badgeEl) {
+            if (s.priceHikesDetected > 0) {
+              badgeEl.textContent = '⚠️ ELEVATED MARGIN EROSION';
+              badgeEl.style.background = 'rgba(239, 68, 68, 0.2)';
+              badgeEl.style.color = '#fca5a5';
+              badgeEl.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+            } else {
+              badgeEl.textContent = '🟢 MARGIN SECURE';
+              badgeEl.style.background = 'rgba(16, 185, 129, 0.2)';
+              badgeEl.style.color = '#6ee7b7';
+              badgeEl.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+            }
+          }
 
           if (showToast) alert('✅ Supplier Price Hike Radar scanned bills: ₹' + Number(s.totalAnnualMarginLeakage || 0).toLocaleString('en-IN') + ' annual leakage detected.');
         }

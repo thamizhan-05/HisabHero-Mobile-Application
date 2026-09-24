@@ -40,10 +40,38 @@ export function normalizeDevanagari(text = '') {
 }
 
 export function parseCleanAmount(val) {
-  if (!val || val === '-' || val === '--') return 0;
-  const normalized = normalizeDevanagari(String(val)).replace(/,/g, '').trim();
-  const num = parseFloat(normalized);
-  return isNaN(num) ? 0 : Math.abs(num);
+  if (val === null || val === undefined || val === '' || val === '-' || val === '--') return 0;
+  if (typeof val === 'number') {
+    return isNaN(val) || !isFinite(val) ? 0 : Math.round(Math.abs(val) * 100) / 100;
+  }
+  // 1. Normalize Devanagari numerals to 0-9
+  let s = normalizeDevanagari(String(val)).trim();
+  
+  // 2. Remove currency symbols, words, Cr/Dr markers, quotes
+  s = s.replace(/(?:₹|INR|Rs.?|Rupees?|$|€|£)/gi, '');
+  s = s.replace(/\b(?:CR|DR|DEBIT|CREDIT|BAL|BALANCE)\b/gi, '');
+  
+  // 3. Handle accounting bracketed negatives: (1,234.50) -> 1234.50
+  const isBracketed = /^\((.*)\)$/.test(s.trim());
+  if (isBracketed) {
+    s = s.trim().replace(/^\(|\)$/g, '');
+  }
+
+  // 4. Remove all characters except digits, minus, plus, and period
+  s = s.replace(/,/g, '').replace(/[^0-9.+-]/g, '').trim();
+
+  // If there are multiple periods (e.g. thousand separator 10.000.50 or date artifact),
+  // keep all integer parts together and treat the last part as decimal
+  const parts = s.split('.');
+  if (parts.length > 2) {
+    s = parts.slice(0, -1).join('') + '.' + parts[parts.length - 1];
+  }
+
+  const num = parseFloat(s);
+  if (isNaN(num) || !isFinite(num)) return 0;
+  
+  // Exactly 2-decimal precision to prevent floating point zero bugs
+  return Math.round(Math.abs(num) * 100) / 100;
 }
 
 export function extractMerchantAndCaption(narration = '', bankName = '') {
@@ -390,36 +418,57 @@ export function isSummaryOrNonTransactionLine(desc = '', merchant = '', lineText
 }
 
 export function determineCashFlowType({ text = '', desc = '', debit = 0, credit = 0, drCr = '', rawAmountStr = '' }) {
-  // 1. Explicit debit / credit amounts
-  if (credit > 0 && debit === 0) return 'income';
-  if (debit > 0 && credit === 0) return 'expense';
+  const cleanDebit = parseCleanAmount(debit);
+  const cleanCredit = parseCleanAmount(credit);
 
-  // 2. Explicit Dr / Cr indicator
-  const cleanDrCr = String(drCr).toUpperCase().trim();
-  if (cleanDrCr === 'CR' || cleanDrCr === 'CREDIT' || cleanDrCr === 'CREDITED') return 'income';
-  if (cleanDrCr === 'DR' || cleanDrCr === 'DEBIT' || cleanDrCr === 'DEBITED') return 'expense';
+  const combined = `${desc} ${text} ${rawAmountStr}`.toLowerCase();
 
-  // 3. Negative / Positive amount string sign
-  if (/^-\s*(?:₹|INR|Rs\.?)?\s*[\d,]+/i.test(rawAmountStr) || /\([\d,]+\.?\d*\)/.test(rawAmountStr)) return 'expense';
-  if (/^\+\s*(?:₹|INR|Rs\.?)?\s*[\d,]+/i.test(rawAmountStr)) return 'income';
+  // 1. High-priority explicit received / income phrases
+  // Handles: "Payment received", "Received payment", "Received from", "Money received", "Payment from", "Paid by", "Customer paid"
+  const isExplicitIncome = /\b(?:received from|payment received|received payment|money received|amount received|received via|received rs|received inr|received\b|payment from|paid by|transferred by|sent by|client paid|customer paid|cashback from|cashback|refund from|refund of|refunded|refund|salary from|salary credit|salary|dividend|stipend|interest credited|int\.pd|inward|upi inward|collection|settlement|mila|mil gaya|jama|aaya|vasool|vaanginen|varavu)\b/i.test(combined);
 
-  const combined = `${desc} ${text}`.toLowerCase();
+  // 2. High-priority explicit expense / sent phrases
+  // Handles: "Paid to", "Payment to", "Money sent to", "Sent to", "Paid for", "Debited from", "Bill payment", "Recharge"
+  const isExplicitExpense = /\b(?:paid to|payment to|money sent to|sent to|paid for|paid using|paid via|transfer to|debited from|withdrawn from|withdrawal|atm wdl|pos swipe|recharge|bill payment|autopay|nach|ecs|emi|loan payment|spent|purchase|bought|kharcha|diya)\b/i.test(combined);
 
-  // 4. Action verb semantics
-  const isPaidTo = /\b(?:paid to|payment to|money sent to|sent to|transfer to|autopay to|recharge|bill payment|debited from|withdrawn from|dr\/|paid using)\b/i.test(combined);
-  const isReceivedFrom = /\b(?:received from|money received from|cashback from|cashback|refund from|refund of|refunded|deposited to|credited to|salary from|salary credit|cr\/)\b/i.test(combined);
-
-  if (isPaidTo && !isReceivedFrom) return 'expense';
-  if (isReceivedFrom && !isPaidTo) return 'income';
-
-  if (isPaidTo && isReceivedFrom) {
-    if (/\b(?:paid to|payment to|money sent to)\b/i.test(combined)) return 'expense';
-    if (/\b(?:received from|money received from|cashback|refund)\b/i.test(combined)) return 'income';
+  // If text has both (e.g. "Payment received from Ramesh" has "payment" and "received"):
+  if (isExplicitIncome && isExplicitExpense) {
+    if (/\b(?:received|payment from|paid by|cashback|refund|salary|credited|cr)\b/i.test(combined)) {
+      return 'income';
+    }
+    if (/\b(?:paid to|money sent to|sent to|payment to)\b/i.test(combined)) {
+      return 'expense';
+    }
   }
 
-  // 5. Keyword heuristics
-  if (/\b(?:debit|debited|spent|purchase|withdrawal|transfer out|dr)\b/i.test(combined)) return 'expense';
-  if (/\b(?:credit|credited|deposit|deposited|inflow|salary|dividend|cr)\b/i.test(combined)) return 'income';
+  if (isExplicitIncome && !isExplicitExpense) return 'income';
+  if (isExplicitExpense && !isExplicitIncome) return 'expense';
+
+  // 3. Explicit Dr / Cr field indicator
+  const cleanDrCr = String(drCr).toUpperCase().trim();
+  if (/^(?:CR|CREDIT|CREDITED|INFLOW|DEPOSIT|DEPOSITED|C)$/i.test(cleanDrCr)) return 'income';
+  if (/^(?:DR|DEBIT|DEBITED|OUTFLOW|WITHDRAWAL|WITHDRAWN|D)$/i.test(cleanDrCr)) return 'expense';
+
+  // 4. Explicit debit / credit columns
+  if (cleanCredit > 0 && cleanDebit === 0) return 'income';
+  if (cleanDebit > 0 && cleanCredit === 0) return 'expense';
+
+  // 5. Amount string sign indicators: + is income, - or (brackets) is expense
+  const rawStr = String(rawAmountStr).trim();
+  if (/^\+\s*(?:₹|INR|Rs\.?)?\s*[\d,]+/i.test(rawStr) || /[\d,]+\s*\+\s*$/.test(rawStr)) return 'income';
+  if (/^-\s*(?:₹|INR|Rs\.?)?\s*[\d,]+/i.test(rawStr) || /[\d,]+\s*-\s*$/.test(rawStr) || /^\([\d,.]+\)$/.test(rawStr)) return 'expense';
+
+  // 6. UPI narration tags & bank codes: UPI/CR/... vs UPI/DR/...
+  if (/\b(?:upi\/cr|cr\/|\/cr\/|\(cr\)|[\s\/]cr[\s\/$]|by transfer|by clearing|neft cr|rtgs cr|imps cr)\b/i.test(combined)) {
+    return 'income';
+  }
+  if (/\b(?:upi\/dr|dr\/|\/dr\/|\(dr\)|[\s\/]dr[\s\/$]|to transfer|neft dr|rtgs dr|imps dr)\b/i.test(combined)) {
+    return 'expense';
+  }
+
+  // 7. General keyword heuristics
+  if (/\b(?:credit|credited|deposit|deposited|inflow|income|sale|sales)\b/i.test(combined)) return 'income';
+  if (/\b(?:debit|debited|outflow|expense|spent|fee|charge|tax|gst)\b/i.test(combined)) return 'expense';
 
   return 'expense';
 }
@@ -530,20 +579,20 @@ export function parseSbiStatement(text) {
 
       if (credit === 0 && debit === 0) continue;
 
-      let type = 'expense';
-      let amount = debit;
-      if (credit > 0 && debit === 0) {
-        type = 'income';
-        amount = credit;
-      } else if (debit > 0 && credit === 0) {
-        type = 'expense';
-        amount = debit;
-      } else if (/\bUPI\/CR\b/i.test(desc) || /\bCR\b/i.test(desc)) {
-        type = 'income';
-        amount = credit || debit;
+      // Accurately determine cash flow type based on description, narration, and column semantics
+      const determinedType = determineCashFlowType({
+        text: line,
+        desc,
+        debit,
+        credit
+      });
+      
+      let type = determinedType;
+      let amount = 0;
+      if (type === 'income') {
+        amount = credit > 0 ? credit : debit;
       } else {
-        type = 'expense';
-        amount = debit || credit;
+        amount = debit > 0 ? debit : credit;
       }
 
       transactions.push({
@@ -574,8 +623,7 @@ export function parseSbiStatement(text) {
         const prevNumStr = numbers[numbers.length - 2];
         const balance = parseCleanAmount(balStr);
         const amount = parseCleanAmount(prevNumStr);
-        const isCr = /\bUPI\/CR\b/i.test(line) || /\bCR\b/i.test(line);
-        const type = isCr ? 'income' : 'expense';
+        const type = determineCashFlowType({ text: line, desc: line, rawAmountStr: prevNumStr });
 
         transactions.push({
           tempId: `sbi-${Date.now()}-${idCounter++}`,
@@ -1345,7 +1393,7 @@ export function parseGooglePayStatement(text) {
     const refMatch = trimmed.match(/(?:UPI Ref ID|UPI transaction ID|Google transaction ID|UTR|Ref No)[:\s]+([A-Za-z0-9]+)/i);
     const refNo = refMatch ? refMatch[1].trim() : undefined;
 
-    const desc = `${type === 'income' ? 'Received from' : 'Paid to'} ${partyName}`;
+    const desc = `${type === 'income' ? (partyName.toLowerCase().includes('received') ? partyName : 'Received from ' + partyName) : (partyName.toLowerCase().includes('paid') ? partyName : 'Paid to ' + partyName)}`;
 
     transactions.push({
       tempId: `gpay-${Date.now()}-${idCounter++}`,

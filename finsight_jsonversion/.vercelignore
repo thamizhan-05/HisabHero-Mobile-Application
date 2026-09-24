@@ -1,0 +1,6 @@
+backend/public/*.apk
+*.apk
+scratch/
+node_modules/
+.git/
+.env.example

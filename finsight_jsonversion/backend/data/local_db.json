@@ -33,6 +33,40 @@
       "auth_providers": [],
       "created_at": "2026-09-19T06:02:35.352Z",
       "updated_at": "2026-09-19T06:02:35.352Z"
+    },
+    {
+      "id": "89c4038c-0364-49fe-abca-81a7e8435deb",
+      "_id": "89c4038c-0364-49fe-abca-81a7e8435deb",
+      "email": "flow_test_1789841843514@example.com",
+      "full_name": "Integration Test User",
+      "fullName": "Integration Test User",
+      "password": "210000:0823f928f6a90b2034cd3a997bf0bb73:8eb34e499c2bf28e4bfa7abfa8c2bed8ca6dab772b1c0ec799556b9d2cdc5a9a4a8f2afd54b3d4149892e866017b0f32a56378b398392d63019ed002897a5c8e",
+      "passwordHash": "210000:0823f928f6a90b2034cd3a997bf0bb73:8eb34e499c2bf28e4bfa7abfa8c2bed8ca6dab772b1c0ec799556b9d2cdc5a9a4a8f2afd54b3d4149892e866017b0f32a56378b398392d63019ed002897a5c8e",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-19T18:17:24.962Z",
+      "updated_at": "2026-09-19T18:17:24.962Z"
+    },
+    {
+      "id": "3e894647-20d8-4a5b-80c7-493f8a3e54cf",
+      "_id": "3e894647-20d8-4a5b-80c7-493f8a3e54cf",
+      "email": "old_bug_user_1789841845581@example.com",
+      "full_name": "Old Bug User",
+      "fullName": "Old Bug User",
+      "password": "210000:22ac387643881ca6f77f27c4f78ba710:fc3738398b4a566caa317fbf08153ca129be9d586ff85152d58ba1c6cbc532bcd853503f57986dc5c4d1ff100e1047372c6e26b81af819b4e780398a25750b26",
+      "passwordHash": "210000:22ac387643881ca6f77f27c4f78ba710:fc3738398b4a566caa317fbf08153ca129be9d586ff85152d58ba1c6cbc532bcd853503f57986dc5c4d1ff100e1047372c6e26b81af819b4e780398a25750b26",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-19T18:17:25.780Z",
+      "updated_at": "2026-09-19T18:17:25.780Z"
     }
   ],
   "workspaces": [
@@ -95,6 +129,65 @@
       },
       "created_at": "2026-09-19T06:02:35.354Z",
       "updated_at": "2026-09-19T06:02:35.354Z"
+    },
+    {
+      "id": "a0b7e940-f66c-4c28-993c-9c3bd07f0e3c",
+      "_id": "a0b7e940-f66c-4c28-993c-9c3bd07f0e3c",
+      "name": "Integration Test User's Personal Workspace",
+      "type": "personal",
+      "owner_id": "89c4038c-0364-49fe-abca-81a7e8435deb",
+      "ownerId": "89c4038c-0364-49fe-abca-81a7e8435deb",
+      "currency": "INR",
+      "join_code": "HERO-07BB8",
+      "joinCode": "HERO-BH1H9",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-19T18:17:24.962Z",
+      "updated_at": "2026-09-19T18:17:24.962Z"
+    },
+    {
+      "id": "d68568df-73bc-45d0-9e43-4f45a8b679c7",
+      "_id": "d68568df-73bc-45d0-9e43-4f45a8b679c7",
+      "name": "Test Business Workspace",
+      "type": "personal",
+      "owner_id": "6aaed1b4880feae0d52d5328",
+      "ownerId": "6aaed1b4880feae0d52d5328",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-3CZ6O",
+      "joinCode": "HERO-FUCJB",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-19T18:17:25.064Z",
+      "updated_at": "2026-09-19T18:17:25.064Z"
+    },
+    {
+      "id": "59432185-3da0-409e-95f3-dbd18a8ff7a2",
+      "_id": "59432185-3da0-409e-95f3-dbd18a8ff7a2",
+      "name": "Old Bug User's Personal Workspace",
+      "type": "personal",
+      "owner_id": "3e894647-20d8-4a5b-80c7-493f8a3e54cf",
+      "ownerId": "3e894647-20d8-4a5b-80c7-493f8a3e54cf",
+      "currency": "INR",
+      "join_code": "HERO-EK4EX",
+      "joinCode": "HERO-GIWYO",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-19T18:17:25.780Z",
+      "updated_at": "2026-09-19T18:17:25.780Z"
     }
   ],
   "transactions": [
@@ -2019,6 +2112,15 @@
       "is_verified": false,
       "expires_at": "2026-09-19T06:17:23.210Z",
       "created_at": "2026-09-19T06:02:23.211Z"
+    },
+    {
+      "id": "ecb78856-0299-430c-93ed-1a7b69ce3ee5",
+      "email": "flow_test_1789841843514@example.com",
+      "otp_code": "123456",
+      "purpose": "signup",
+      "is_verified": false,
+      "expires_at": "2026-09-19T18:32:23.514Z",
+      "created_at": "2026-09-19T18:17:24.552Z"
     }
   ],
   "merchant_mappings": [
