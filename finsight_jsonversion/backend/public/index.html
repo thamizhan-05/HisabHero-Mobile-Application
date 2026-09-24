@@ -4260,7 +4260,106 @@
         <!-- SECTION 1: OVERVIEW DASHBOARD (DYNAMIC ZERO-DATA UNTIL ADDED) -->
         <div id="section-overview">
 
-        <!-- 🌿 DAILY HISAB HUB (Simple Mode Friendly) -->
+        <!-- Hero Banner with Clickable Health Score Gauge -->
+          <div class="dash-hero-banner" id="dashHeroBanner">
+            <div>
+              <div class="pill-badge emerald" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4); margin-bottom: 0.5rem;">
+                🟢 Active Workspace Session
+              </div>
+              <h2 id="dashGreeting" style="color: #ffffff; font-size: 1.75rem;">Welcome to HisabHero!</h2>
+              <p style="color: #94a3b8; font-size: 0.9375rem; margin-top: 4px;">
+                Real-time financial records and statement ledgers isolated to this workspace.
+              </p>
+            </div>
+
+            <!-- Health Score Gauge (Clickable) -->
+            <div class="flex items-center gap-4" style="background: rgba(255,255,255,0.06); padding: 0.75rem 1.25rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="openHealthReportModal()">
+              <div style="text-align: center;">
+                <div id="dashHealthScoreTitle" data-i18n="health_gauge_title" style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 800;">Health Gauge 🔍</div>
+                <div id="dashHealthScoreNumber" style="font-size: 1.75rem; font-weight: 900; color: #10b981; font-family: var(--font-display);">--/100</div>
+              </div>
+              <div style="width: 2px; height: 36px; background: rgba(255,255,255,0.1);"></div>
+              <div>
+                <div id="dashHealthScoreLabel" style="font-size: 0.8125rem; font-weight: 800; color: #6ee7b7;">READY</div>
+                <div style="font-size: 0.6875rem; color: #cbd5e1;">Click to view audit report</div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 flex-wrap">
+              <button class="btn btn-accent" onclick="openAddTxModal()">+ Add Transaction</button>
+              <button class="btn" id="dashVoiceCopilotBtn" style="background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%); color: #ffffff; font-weight: 800; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.35); display: flex; align-items: center; gap: 6px;" onclick="openBhashaVoiceModal()">
+                <span>🎙️</span> <span>Voice Copilot (Bhasha AI)</span>
+              </button>
+              <button class="btn btn-outline" id="dashUploadStatementBtn" data-i18n="btn_upload_statement" onclick="showSection('upload')">📄 Upload Statement</button>
+            </div>
+          </div>
+
+          <!-- 💡 Contextual Pro-Tip Announcement Banner (Guidance Type 5) -->
+          <div id="hhProTipBanner" class="hh-protip-banner">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.25rem;">💡</span>
+              <span id="hhProTipText"><strong>Guidance Pro-Tip:</strong> Upload bank PDF statements to instantly generate automated cash burn rate, runway projections, and Indian tax deductions.</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-outline" style="padding: 2px 10px; font-size: 0.75rem;" onclick="cycleProTip()">Next Tip ↻</button>
+              <button style="background: transparent; border: none; color: #94a3b8; font-size: 1rem; cursor: pointer;" onclick="document.getElementById('hhProTipBanner').style.display='none'">✕</button>
+            </div>
+          </div>
+
+          <!-- Dynamic Workspace Presets (Section 10.1: Executive, Analyst, Operations) -->
+          <div style="display: flex; gap: 8px; margin-bottom: 1.25rem; background: var(--surface); padding: 6px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+            <button id="presetBtnExec" data-i18n="view_exec" class="btn btn-primary" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('executive')">📊 Executive View</button>
+            <button id="presetBtnAnalyst" data-i18n="view_analyst" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('analyst')">📈 Analyst View</button>
+            <button id="presetBtnOps" data-i18n="view_ops" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('operations')">⚙️ Operations View</button>
+          </div>
+
+          <!-- Inline Starting Balance & Safe Daily Spend Card -->
+          <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <div style="flex: 1 1 300px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Cash Starting Balance</div>
+                <div id="webOpeningBalDisplay" style="font-size: 1.35rem; font-weight: 800; color: var(--primary); margin-top: 2px;">₹0</div>
+              </div>
+              <div id="webOpeningBalEditBox" style="display: none; gap: 4px; align-items: center;">
+                <input type="number" id="webOpeningBalInput" class="form-input" style="width: 110px; padding: 4px 8px; font-size: 0.875rem;" placeholder="0" />
+                <button class="btn btn-accent" style="padding: 4px 8px; font-size: 0.75rem;" onclick="saveWebOpeningBalance()">Save</button>
+                <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="toggleWebOpeningBalEdit(false)">✕</button>
+              </div>
+              <button id="webOpeningBalEditBtn" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;" onclick="toggleWebOpeningBalEdit(true)">✏️ Edit</button>
+            </div>
+
+            <div id="webSafeSpendCard" style="flex: 1 1 300px; background: var(--secondary-soft); border: 1px solid var(--border-focus); border-radius: var(--radius-md); padding: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div id="webSafeSpendTitle" data-i18n="safespend_title" style="font-size: 0.75rem; font-weight: 800; color: var(--secondary); text-transform: uppercase;">🧭 Safe Daily Spend (Personal)</div>
+                <span id="webSafeSpendDays" class="pill-badge" style="font-size: 0.65rem; padding: 2px 6px;">-- DAYS LEFT</span>
+              </div>
+              <div id="webSafeSpendAmount" style="font-size: 1.35rem; font-weight: 900; color: var(--secondary); margin-top: 2px;">₹0 <span style="font-size: 0.8rem; font-weight: 600;">/ day</span></div>
+            </div>
+          </div>
+
+          <!-- What Changed? MoM Variance Card -->
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <strong style="font-size: 0.9375rem; color: var(--primary);">📊 What Changed? (Month-over-Month Variance)</strong>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">vs. Previous Month</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+              <div style="background: var(--background); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Revenue Shift</div>
+                <div id="momRevShift" style="font-size: 1rem; font-weight: 800; color: var(--accent); margin-top: 2px;">+0%</div>
+              </div>
+              <div style="background: var(--background); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Outflow Shift</div>
+                <div id="momOutflowShift" style="font-size: 1rem; font-weight: 800; color: var(--danger); margin-top: 2px;">0%</div>
+              </div>
+              <div style="background: var(--background); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Margin Delta</div>
+                <div id="momMarginDelta" style="font-size: 1rem; font-weight: 800; color: var(--secondary); margin-top: 2px;">0 pts</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 🌿 DAILY HISAB HUB (Simple Mode Friendly) -->
         <div id="webDailyHisabHub" style="background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow-md);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
             <div>
@@ -4377,105 +4476,6 @@
                 <span style="color: var(--text-muted);" id="sdTomorrowCommitmentsText">No vendor payouts scheduled for tomorrow</span>
               </div>
               <a href="javascript:void(0)" onclick="openShutterDownModal()" style="color: #38bdf8; text-decoration: none; font-weight: 600;">Preview WhatsApp Z-Report &rarr;</a>
-            </div>
-          </div>
-
-          <!-- 💡 Contextual Pro-Tip Announcement Banner (Guidance Type 5) -->
-          <div id="hhProTipBanner" class="hh-protip-banner">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="font-size: 1.25rem;">💡</span>
-              <span id="hhProTipText"><strong>Guidance Pro-Tip:</strong> Upload bank PDF statements to instantly generate automated cash burn rate, runway projections, and Indian tax deductions.</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <button class="btn btn-outline" style="padding: 2px 10px; font-size: 0.75rem;" onclick="cycleProTip()">Next Tip ↻</button>
-              <button style="background: transparent; border: none; color: #94a3b8; font-size: 1rem; cursor: pointer;" onclick="document.getElementById('hhProTipBanner').style.display='none'">✕</button>
-            </div>
-          </div>
-
-          <!-- Hero Banner with Clickable Health Score Gauge -->
-          <div class="dash-hero-banner" id="dashHeroBanner">
-            <div>
-              <div class="pill-badge emerald" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4); margin-bottom: 0.5rem;">
-                🟢 Active Workspace Session
-              </div>
-              <h2 id="dashGreeting" style="color: #ffffff; font-size: 1.75rem;">Welcome to HisabHero!</h2>
-              <p style="color: #94a3b8; font-size: 0.9375rem; margin-top: 4px;">
-                Real-time financial records and statement ledgers isolated to this workspace.
-              </p>
-            </div>
-
-            <!-- Health Score Gauge (Clickable) -->
-            <div class="flex items-center gap-4" style="background: rgba(255,255,255,0.06); padding: 0.75rem 1.25rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="openHealthReportModal()">
-              <div style="text-align: center;">
-                <div id="dashHealthScoreTitle" data-i18n="health_gauge_title" style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 800;">Health Gauge 🔍</div>
-                <div id="dashHealthScoreNumber" style="font-size: 1.75rem; font-weight: 900; color: #10b981; font-family: var(--font-display);">--/100</div>
-              </div>
-              <div style="width: 2px; height: 36px; background: rgba(255,255,255,0.1);"></div>
-              <div>
-                <div id="dashHealthScoreLabel" style="font-size: 0.8125rem; font-weight: 800; color: #6ee7b7;">READY</div>
-                <div style="font-size: 0.6875rem; color: #cbd5e1;">Click to view audit report</div>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 flex-wrap">
-              <button class="btn btn-accent" onclick="openAddTxModal()">+ Add Transaction</button>
-              <button class="btn" id="dashVoiceCopilotBtn" style="background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%); color: #ffffff; font-weight: 800; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.35); display: flex; align-items: center; gap: 6px;" onclick="openBhashaVoiceModal()">
-                <span>🎙️</span> <span>Voice Copilot (Bhasha AI)</span>
-              </button>
-              <button class="btn btn-outline" id="dashUploadStatementBtn" data-i18n="btn_upload_statement" onclick="showSection('upload')">📄 Upload Statement</button>
-            </div>
-          </div>
-
-          <!-- Dynamic Workspace Presets (Section 10.1: Executive, Analyst, Operations) -->
-          <div style="display: flex; gap: 8px; margin-bottom: 1.25rem; background: var(--surface); padding: 6px; border-radius: var(--radius-md); border: 1px solid var(--border);">
-            <button id="presetBtnExec" data-i18n="view_exec" class="btn btn-primary" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('executive')">📊 Executive View</button>
-            <button id="presetBtnAnalyst" data-i18n="view_analyst" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('analyst')">📈 Analyst View</button>
-            <button id="presetBtnOps" data-i18n="view_ops" class="btn btn-outline" style="flex: 1; padding: 0.45rem; font-size: 0.8125rem;" onclick="setWebPreset('operations')">⚙️ Operations View</button>
-          </div>
-
-          <!-- Inline Starting Balance & Safe Daily Spend Card -->
-          <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
-            <div style="flex: 1 1 300px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; display: flex; align-items: center; justify-content: space-between;">
-              <div>
-                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Cash Starting Balance</div>
-                <div id="webOpeningBalDisplay" style="font-size: 1.35rem; font-weight: 800; color: var(--primary); margin-top: 2px;">₹0</div>
-              </div>
-              <div id="webOpeningBalEditBox" style="display: none; gap: 4px; align-items: center;">
-                <input type="number" id="webOpeningBalInput" class="form-input" style="width: 110px; padding: 4px 8px; font-size: 0.875rem;" placeholder="0" />
-                <button class="btn btn-accent" style="padding: 4px 8px; font-size: 0.75rem;" onclick="saveWebOpeningBalance()">Save</button>
-                <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="toggleWebOpeningBalEdit(false)">✕</button>
-              </div>
-              <button id="webOpeningBalEditBtn" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;" onclick="toggleWebOpeningBalEdit(true)">✏️ Edit</button>
-            </div>
-
-            <div id="webSafeSpendCard" style="flex: 1 1 300px; background: var(--secondary-soft); border: 1px solid var(--border-focus); border-radius: var(--radius-md); padding: 1rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div id="webSafeSpendTitle" data-i18n="safespend_title" style="font-size: 0.75rem; font-weight: 800; color: var(--secondary); text-transform: uppercase;">🧭 Safe Daily Spend (Personal)</div>
-                <span id="webSafeSpendDays" class="pill-badge" style="font-size: 0.65rem; padding: 2px 6px;">-- DAYS LEFT</span>
-              </div>
-              <div id="webSafeSpendAmount" style="font-size: 1.35rem; font-weight: 900; color: var(--secondary); margin-top: 2px;">₹0 <span style="font-size: 0.8rem; font-weight: 600;">/ day</span></div>
-            </div>
-          </div>
-
-          <!-- What Changed? MoM Variance Card -->
-          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-              <strong style="font-size: 0.9375rem; color: var(--primary);">📊 What Changed? (Month-over-Month Variance)</strong>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">vs. Previous Month</span>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
-              <div style="background: var(--background); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Revenue Shift</div>
-                <div id="momRevShift" style="font-size: 1rem; font-weight: 800; color: var(--accent); margin-top: 2px;">+0%</div>
-              </div>
-              <div style="background: var(--background); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Outflow Shift</div>
-                <div id="momOutflowShift" style="font-size: 1rem; font-weight: 800; color: var(--danger); margin-top: 2px;">0%</div>
-              </div>
-              <div style="background: var(--background); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Margin Delta</div>
-                <div id="momMarginDelta" style="font-size: 1rem; font-weight: 800; color: var(--secondary); margin-top: 2px;">0 pts</div>
-              </div>
             </div>
           </div>
 
@@ -8751,6 +8751,20 @@
 
     // ─── WEB WORKSPACE PRESETS (Section 10.1) ───
     let currentWebPreset = 'executive';
+    let isSimpleMode = false;
+
+    function toggleWebAppMode() {
+      isSimpleMode = !isSimpleMode;
+      const badge = document.getElementById('webAppModeText');
+      const icon = document.getElementById('webAppModeIcon');
+      if (badge) badge.textContent = isSimpleMode ? 'Simple Mode' : 'Pro ERP Mode';
+      if (icon) icon.textContent = isSimpleMode ? '🌿' : '⚡';
+      const hisabHub = document.getElementById('webDailyHisabHub');
+      const shutterCard = document.getElementById('webShutterDownCard');
+      if (hisabHub) hisabHub.style.display = isSimpleMode ? 'block' : 'none';
+      if (shutterCard) shutterCard.style.display = isSimpleMode ? 'block' : 'none';
+    }
+
     function setWebPreset(preset) {
       currentWebPreset = preset;
       const btnExec = document.getElementById('presetBtnExec');
@@ -8771,6 +8785,11 @@
         btnOps.className = 'btn btn-primary';
         btnOps.style.fontWeight = '800';
       }
+
+      const hisabHub = document.getElementById('webDailyHisabHub');
+      const shutterCard = document.getElementById('webShutterDownCard');
+      if (hisabHub) hisabHub.style.display = (preset === 'operations' || isSimpleMode) ? 'block' : 'none';
+      if (shutterCard) shutterCard.style.display = (preset === 'operations' || isSimpleMode) ? 'block' : 'none';
     }
 
     // ─── INLINE STARTING CASH BALANCE ───
