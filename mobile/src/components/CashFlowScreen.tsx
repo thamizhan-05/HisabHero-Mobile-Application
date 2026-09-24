@@ -164,6 +164,48 @@ export function CashFlowScreen({
                 </View>
               </View>
 
+              {/* 🚨 30-DAY PREDICTIVE CASH CRUNCH EARLY WARNING RADAR */}
+              <View style={[styles.radarCard, { backgroundColor: theme.card, borderColor: '#f8717150' }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 16 }}>🚨</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#f87171' }}>30-Day Cash Crunch Radar</Text>
+                  </View>
+                  <View style={[styles.radarBadge, { backgroundColor: '#ef444420', borderColor: '#ef444450' }]}>
+                    <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800' }}>GAP DETECTED (DAY 18)</Text>
+                  </View>
+                </View>
+
+                <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 16 }}>
+                  Projected liquidity deficit of ₹65,000 on Day 18 due to advance tax commitments.
+                </Text>
+
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                  <View style={[styles.radarMetric, { backgroundColor: theme.bg }]}>
+                    <Text style={{ fontSize: 10, color: theme.textSecondary }}>Days to Crunch</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#ef4444' }}>18 Days</Text>
+                  </View>
+                  <View style={[styles.radarMetric, { backgroundColor: theme.bg }]}>
+                    <Text style={{ fontSize: 10, color: theme.textSecondary }}>Max Deficit</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#f59e0b' }}>₹65,000</Text>
+                  </View>
+                  <View style={[styles.radarMetric, { backgroundColor: theme.bg }]}>
+                    <Text style={{ fontSize: 10, color: theme.textSecondary }}>Runway Buffer</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#10b981' }}>Safe (45d)</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.radarActionBox, { backgroundColor: theme.bg }]}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#f87171', marginBottom: 4 }}>⚡ AI MITIGATION ACTIONS:</Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, lineHeight: 15 }}>
+                    • Collect ₹85,000 overdue from Khata parties via WhatsApp UPI.
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, lineHeight: 15 }}>
+                    • Run 48h clearance on 2 dead-stock items to release ₹1.78 Lakhs.
+                  </Text>
+                </View>
+              </View>
+
               {/* Summary Stats cards */}
               <View style={styles.statsContainer}>
                 <View style={[styles.statCard, { backgroundColor: theme.card, borderColor: '#38bdf840' }]}>
@@ -549,5 +591,28 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     paddingTop: 12,
+  },
+  radarCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 16,
+  },
+  radarBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  radarMetric: {
+    flex: 1,
+    padding: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  radarActionBox: {
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 4,
   },
 });

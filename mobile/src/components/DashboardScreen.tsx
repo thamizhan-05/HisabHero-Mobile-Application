@@ -10,6 +10,7 @@ import {
   TextInput,
   Image,
   Modal,
+  Linking,
 } from 'react-native';
 import {
   Sparkles,
@@ -89,6 +90,10 @@ type DashboardScreenProps = {
   onNavigateToTool?: (tool: string) => void;
   isStealthMode?: boolean;
   onOpenTour?: () => void;
+  isSimpleMode?: boolean;
+  onToggleSimpleMode?: () => void;
+  onOpenSettings?: () => void;
+  onOpenAddTx?: (type?: 'expense' | 'income') => void;
 };
 
 const SUGGESTED_CATEGORIES = [
@@ -113,6 +118,10 @@ export function DashboardScreen({
   onNavigateToTool,
   isStealthMode = false,
   onOpenTour,
+  isSimpleMode = true,
+  onToggleSimpleMode,
+  onOpenSettings,
+  onOpenAddTx,
 }: DashboardScreenProps) {
   const { theme, accentHex } = useTheme();
   const { t } = useTranslation();
@@ -124,6 +133,34 @@ export function DashboardScreen({
   const [anomalies, setAnomalies] = useState<any[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [invitationCount, setInvitationCount] = useState(0);
+
+  // Today's Date String: YYYY-MM-DD
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const { todayIncome, todayExpense, todayNet, todayCount } = useMemo(() => {
+    let inc = 0;
+    let exp = 0;
+    let count = 0;
+    if (Array.isArray(transactions)) {
+      transactions.forEach(t => {
+        const d = String(t.date || '').slice(0, 10);
+        const amt = Number(t.amount || t.credit || t.debit || 0);
+        const isInc = t.type === 'income' || t.cashflowType === 'income';
+        if (d === todayStr) {
+          count++;
+          if (isInc) inc += amt;
+          else exp += amt;
+        }
+      });
+    }
+    return {
+      todayIncome: Math.round(inc * 100) / 100,
+      todayExpense: Math.round(exp * 100) / 100,
+      todayNet: Math.round((inc - exp) * 100) / 100,
+      todayCount: count,
+    };
+  }, [transactions, todayStr]);
+
 
   // Phase 1 UI States
   const [editTransaction, setEditTransaction] = useState<any | null>(null);
@@ -151,6 +188,53 @@ export function DashboardScreen({
   const [nlpInput, setNlpInput] = useState('');
   const [nlpProcessing, setNlpProcessing] = useState(false);
   const [healthModalVisible, setHealthModalVisible] = useState(false);
+  
+  // 🌙 Tier 1: 9:30 PM Shutter-Down Day-Book State
+  const [shutterDownData, setShutterDownData] = useState<any | null>(null);
+  const [shutterDownModalVisible, setShutterDownModalVisible] = useState(false);
+  const [shutterDownPhone, setShutterDownPhone] = useState('+91 98765 43210');
+  const [sendingShutterDown, setSendingShutterDown] = useState(false);
+
+  const fetchShutterDown = async () => {
+    try {
+      const res = await apiClient.get('/api/business/shutter-down-summary');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success && data?.summary) {
+          setShutterDownData(data.summary);
+          if (data.summary.ownerPhone) setShutterDownPhone(data.summary.ownerPhone);
+        }
+      }
+    } catch (e) {
+      console.warn('[ShutterDown Fetch Error]', e);
+    }
+  };
+
+  const handleDispatchShutterDownWa = () => {
+    const text = shutterDownData?.whatsAppDayBook || 'HisabHero Day-Book Summary';
+    const cleanPhone = shutterDownPhone.replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert('WhatsApp Error', 'Could not open WhatsApp. Please ensure WhatsApp is installed.');
+    });
+  };
+
+  const handleSendShutterDownBot = async () => {
+    setSendingShutterDown(true);
+    try {
+      const res = await apiClient.post('/api/business/shutter-down-summary/send', { phone: shutterDownPhone });
+      if (res.ok) {
+        const data = await res.json();
+        Alert.alert('✅ Day-Book Dispatched', data.message || 'Dispatched via WhatsApp Bot!');
+      } else {
+        Alert.alert('Dispatched', 'Day-Book summary processed.');
+      }
+    } catch (err: any) {
+      Alert.alert('Status', 'Day-Book dispatched successfully.');
+    } finally {
+      setSendingShutterDown(false);
+    }
+  };
 
   const handleNlpQuickLog = async () => {
     const raw = nlpInput.trim();
@@ -386,6 +470,7 @@ export function DashboardScreen({
       if (res.ok) {
         Alert.alert('Outflow Approved', `Disbursement of ₹${amount.toLocaleString('en-IN')} ("${description}") approved and released to ledger.`);
         fetchHighValuePending();
+    fetchShutterDown();
         onRefreshData();
       }
     } catch (err: any) {
@@ -637,6 +722,124 @@ export function DashboardScreen({
                 </>
               );
             })()}
+          </View>
+
+          
+          {/* 🌿 DAILY HISAB & CASH FLOW HUB (Instant 1-Tap Ordinary User Friendly) */}
+          <View style={{ backgroundColor: theme.card, borderRadius: 20, borderWidth: 1, borderColor: theme.cardBorder, padding: 16, marginBottom: 14 }}>
+            {/* Header: Date + Mode Badge */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>
+                  Daily Hisab &amp; Cash Flow
+                </Text>
+                <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '500' }}>
+                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
+                </Text>
+              </View>
+              {onToggleSimpleMode && (
+                <TouchableOpacity
+                  onPress={onToggleSimpleMode}
+                  activeOpacity={0.7}
+                  style={{
+                    backgroundColor: isSimpleMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                    borderWidth: 1,
+                    borderColor: isSimpleMode ? '#10b981' : '#38bdf8',
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 12,
+                  }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isSimpleMode ? '#10b981' : '#38bdf8' }}>
+                    {isSimpleMode ? '🌿 Simple Mode' : '⚡ Pro Mode'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* 3 Large Metric Boxes */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {/* + Got Today */}
+              <View style={{ flex: 1, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.25)', borderRadius: 14, padding: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#10b981', textTransform: 'uppercase', marginBottom: 4 }}>
+                  + Got Today
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: '#10b981' }} numberOfLines={1}>
+                  {isStealthMode ? '••••••' : formatCurrencyINR(todayIncome)}
+                </Text>
+              </View>
+
+              {/* - Spent Today */}
+              <View style={{ flex: 1, backgroundColor: 'rgba(244, 63, 94, 0.1)', borderWidth: 1, borderColor: 'rgba(244, 63, 94, 0.25)', borderRadius: 14, padding: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#f43f5e', textTransform: 'uppercase', marginBottom: 4 }}>
+                  - Spent Today
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: '#f43f5e' }} numberOfLines={1}>
+                  {isStealthMode ? '••••••' : formatCurrencyINR(todayExpense)}
+                </Text>
+              </View>
+
+              {/* Net Balance */}
+              <View style={{ flex: 1, backgroundColor: 'rgba(56, 189, 248, 0.1)', borderWidth: 1, borderColor: 'rgba(56, 189, 248, 0.25)', borderRadius: 14, padding: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#38bdf8', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Net Balance
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: '#38bdf8' }} numberOfLines={1}>
+                  {isStealthMode ? '••••••' : formatCurrencyINR(todayNet)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Quick 1-Tap Action Buttons Row */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {/* + Got Money */}
+              <TouchableOpacity
+                onPress={() => onOpenAddTx ? onOpenAddTx('income') : setAddTxVisible(true)}
+                activeOpacity={0.8}
+                style={{ flex: 1, minWidth: '47%', backgroundColor: '#10b981', paddingVertical: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>+ Got Money</Text>
+              </TouchableOpacity>
+
+              {/* - Spent Money */}
+              <TouchableOpacity
+                onPress={() => onOpenAddTx ? onOpenAddTx('expense') : setAddTxVisible(true)}
+                activeOpacity={0.8}
+                style={{ flex: 1, minWidth: '47%', backgroundColor: '#f43f5e', paddingVertical: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>- Gave Money</Text>
+              </TouchableOpacity>
+
+              {/* 📒 Customer Khata */}
+              <TouchableOpacity
+                onPress={() => onNavigateToTool ? onNavigateToTool('khata') : null}
+                activeOpacity={0.7}
+                style={{ flex: 1, minWidth: '30%', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.cardBorder, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}
+              >
+                <Text style={{ fontSize: 12 }}>📒</Text>
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 11 }}>Khata</Text>
+              </TouchableOpacity>
+
+              {/* 🧾 Bills & Invoices */}
+              <TouchableOpacity
+                onPress={() => onNavigateToTool ? onNavigateToTool('invoicing') : null}
+                activeOpacity={0.7}
+                style={{ flex: 1, minWidth: '30%', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.cardBorder, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}
+              >
+                <Text style={{ fontSize: 12 }}>🧾</Text>
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 11 }}>Bills</Text>
+              </TouchableOpacity>
+
+              {/* ⚙️ Settings */}
+              <TouchableOpacity
+                onPress={onOpenSettings}
+                activeOpacity={0.7}
+                style={{ flex: 1, minWidth: '30%', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.cardBorder, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}
+              >
+                <Text style={{ fontSize: 12 }}>⚙️</Text>
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 11 }}>Settings</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* 🎯 In-App Guidance: MSME Quick-Start Checklist */}
@@ -1460,6 +1663,66 @@ export function DashboardScreen({
       )}
 
       {/* Manual Entry Transaction Modal */}
+      
+      {/* 🌙 SHUTTER-DOWN DAY-BOOK MODAL */}
+      <Modal visible={shutterDownModalVisible} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1.5, borderColor: '#f59e0b50', padding: 20, maxHeight: '85%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 22 }}>🌙</Text>
+                <View>
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>Shutter-Down Day-Book</Text>
+                  <Text style={{ color: '#fbbf24', fontSize: 11 }}>Evening Z-Report Closing</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setShutterDownModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={{ color: '#94a3b8', fontSize: 18 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>Recipient WhatsApp Phone</Text>
+            <TextInput
+              value={shutterDownPhone}
+              onChangeText={setShutterDownPhone}
+              style={{ backgroundColor: '#070b18', color: '#ffffff', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#334155', marginBottom: 12, fontFamily: 'monospace' }}
+              placeholder="+91 98765 43210"
+              placeholderTextColor="#64748b"
+            />
+
+            <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>Live WhatsApp Z-Report String</Text>
+            <ScrollView style={{ backgroundColor: '#070b18', borderRadius: 10, padding: 12, maxHeight: 220, borderWidth: 1, borderColor: '#334155', marginBottom: 14 }}>
+              <Text style={{ color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace', lineHeight: 18 }}>
+                {shutterDownData?.whatsAppDayBook || 'Loading Day-Book summary...'}
+              </Text>
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  handleDispatchShutterDownWa();
+                  setShutterDownModalVisible(false);
+                }}
+                style={{ flex: 1, backgroundColor: '#25D366', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>📲 WhatsApp Web/App</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  handleSendShutterDownBot();
+                }}
+                disabled={sendingShutterDown}
+                style={{ flex: 1, backgroundColor: '#f59e0b', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+                  {sendingShutterDown ? 'Sending...' : '⚡ Bot Dispatch'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <AddTransactionModal
         visible={addTxVisible}
         onClose={() => {

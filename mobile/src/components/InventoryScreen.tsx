@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   TextInput,
+  Linking,
 } from 'react-native';
 import {
   Package,
@@ -20,6 +21,10 @@ import {
   AlertTriangle,
   Clipboard,
   CheckCircle,
+  Boxes,
+  Zap,
+  Sparkles,
+  Tag,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
 import { useTheme } from '../theme/themeSystem';
@@ -33,6 +38,10 @@ const RefreshCwIcon = RefreshCw as any;
 const AlertTriangleIcon = AlertTriangle as any;
 const ClipboardIcon = Clipboard as any;
 const CheckCircleIcon = CheckCircle as any;
+const BoxesIcon = Boxes as any;
+const ZapIcon = Zap as any;
+const SparklesIcon = Sparkles as any;
+const TagIcon = Tag as any;
 
 type InventoryScreenProps = {
   apiBaseUrl: string;
@@ -56,6 +65,12 @@ export function InventoryScreen({
   
   const [loadingItems, setLoadingItems] = useState(false);
   const [loadingPOs, setLoadingPOs] = useState(false);
+  const [deadStockData, setDeadStockData] = useState<any | null>(null);
+  const [loadingDeadStock, setLoadingDeadStock] = useState(false);
+
+  // 🔍 Tier 1: Supplier Price Hike Radar State
+  const [priceHikeData, setPriceHikeData] = useState<any | null>(null);
+  const [loadingPriceHikes, setLoadingPriceHikes] = useState(false);
 
   // Modal states
   const [itemModalVisible, setItemModalVisible] = useState(false);
@@ -104,6 +119,39 @@ export function InventoryScreen({
     }
   };
 
+  const fetchPriceHikes = async () => {
+    setLoadingPriceHikes(true);
+    try {
+      const res = await apiClient.get('/api/business/supplier-price-hikes');
+      if (res.ok) {
+        setPriceHikeData(await res.json());
+      }
+    } catch (err) {
+      console.warn('[PriceHikes Fetch Error]', err);
+    } finally {
+      setLoadingPriceHikes(false);
+    }
+  };
+
+  const handleRenegotiateWa = (supplierName: string, itemName: string, priorPrice: number, latestPrice: number, hikePct: number) => {
+    const text = `Hello ${supplierName}, regarding our recent invoice for "${itemName}": we noticed an increase from ₹${priorPrice} to ₹${latestPrice} (+${hikePct}%). Can we discuss continuing our contract at our historical rate based on our ongoing volume?`;
+    Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`);
+  };
+
+  const fetchDeadStock = async () => {
+    setLoadingDeadStock(true);
+    try {
+      const res = await apiClient.get('/business/dead-stock-analysis');
+      if (res.ok) {
+        setDeadStockData(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingDeadStock(false);
+    }
+  };
+
   const fetchPurchaseOrders = async () => {
     setLoadingPOs(true);
     try {
@@ -132,6 +180,8 @@ export function InventoryScreen({
 
   useEffect(() => {
     fetchInventory();
+    fetchDeadStock();
+    fetchPriceHikes();
     fetchPurchaseOrders();
     fetchSuppliers();
   }, [activeWorkspaceId]);
@@ -312,6 +362,50 @@ export function InventoryScreen({
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {activeSubTab === 'stock' ? (
           <>
+            {/* Business Owner: Dead Stock & Capital Release Radar */}
+            <View style={[styles.deadStockCard, { backgroundColor: theme.card, borderColor: '#f59e0b40' }]}>
+              <View style={styles.deadStockHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <BoxesIcon color="#f59e0b" size={18} style={{ marginRight: 8 }} />
+                  <Text style={[styles.deadStockTitle, { color: theme.text }]}>Dead Capital & Reorder Radar</Text>
+                </View>
+                <View style={styles.badgeWarn}>
+                  <Text style={styles.badgeWarnText}>60+ Days Idle</Text>
+                </View>
+              </View>
+
+              <View style={styles.deadStockStatsRow}>
+                <View style={styles.deadStockStatBox}>
+                  <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>Locked Dead Capital</Text>
+                  <Text style={[styles.statBoxValue, { color: '#f59e0b' }]}>
+                    ₹{Number(deadStockData?.summary?.totalDeadCapital || 0).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <View style={styles.deadStockStatBox}>
+                  <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>Idle Products</Text>
+                  <Text style={[styles.statBoxValue, { color: theme.text }]}>
+                    {deadStockData?.summary?.deadStockItemsCount || 0} items
+                  </Text>
+                </View>
+                <View style={styles.deadStockStatBox}>
+                  <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>Cash Release Pot.</Text>
+                  <Text style={[styles.statBoxValue, { color: '#10b981' }]}>
+                    ₹{Number(deadStockData?.summary?.potentialCashRelease || 0).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Action recommendation */}
+              <View style={[styles.deadStockAdvise, { backgroundColor: theme.bg, borderColor: theme.cardBorder }]}>
+                <SparklesIcon color={accentHex} size={15} style={{ marginRight: 6, marginTop: 2 }} />
+                <Text style={[styles.deadStockAdviseText, { color: theme.textSecondary }]}>
+                  {deadStockData?.deadStockItems && deadStockData.deadStockItems.length > 0
+                    ? `Liquidation Tip: Offer a 20-25% flash clearance on "${deadStockData.deadStockItems[0]?.name}" to instantly liberate working capital.`
+                    : 'All stock movement is healthy. Automated lead-time reorder suggestions active.'}
+                </Text>
+              </View>
+            </View>
+
             {/* Low stock alerts warning block */}
             {lowStockAlerts.length > 0 && (
               <View style={styles.alertsContainer}>
@@ -1122,5 +1216,68 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  deadStockCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+  },
+  deadStockHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  deadStockTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  badgeWarn: {
+    backgroundColor: '#f59e0b20',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#f59e0b50',
+  },
+  badgeWarnText: {
+    color: '#f59e0b',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  deadStockStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  deadStockStatBox: {
+    flex: 1,
+    borderRadius: 10,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  statBoxLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  statBoxValue: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  deadStockAdvise: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+  },
+  deadStockAdviseText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
   },
 });

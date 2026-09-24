@@ -44,11 +44,15 @@ import {
   Search,
   Eye,
   EyeOff,
+  Home,
+  PlusCircle,
 } from 'lucide-react-native';
 
 const SearchIcon = Search as any;
 const EyeIcon = Eye as any;
 const EyeOffIcon = EyeOff as any;
+const HomeIcon = Home as any;
+const PlusCircleIcon = PlusCircle as any;
 
 import { authenticateWithBiometrics } from '../services/biometricAuthService';
 
@@ -58,6 +62,7 @@ import { CashFlowScreen } from './CashFlowScreen';
 import { ExpensesScreen } from './ExpensesScreen';
 import { AiChatScreen } from './AiChatScreen';
 import { UploadScreen } from './UploadScreen';
+import { AddTransactionModal } from './AddTransactionModal';
 import { InvoicesBillsScreen } from './InvoicesBillsScreen';
 import { InventoryScreen } from './InventoryScreen';
 import { FixedAssetsScreen } from './FixedAssetsScreen';
@@ -141,6 +146,30 @@ export function AppNavigator({
   const [workspaceModalVisible, setWorkspaceModalVisible] = useState(false);
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [tourVisible, setTourVisible] = useState(false);
+
+  // 🌿 Simple / Vyapar Mode State (Default true for ordinary users)
+  const [isSimpleMode, setIsSimpleMode] = useState<boolean>(true);
+  const [addTxModalVisible, setAddTxModalVisible] = useState<boolean>(false);
+  const [addTxDefaultType, setAddTxDefaultType] = useState<'expense' | 'income'>('income');
+
+  useEffect(() => {
+    AsyncStorage.getItem('hisabhero_simple_mode').then((val) => {
+      if (val !== null) {
+        setIsSimpleMode(val === 'true');
+      }
+    });
+  }, []);
+
+  const toggleSimpleMode = async () => {
+    const nextVal = !isSimpleMode;
+    setIsSimpleMode(nextVal);
+    await AsyncStorage.setItem('hisabhero_simple_mode', String(nextVal));
+  };
+
+  const handleOpenAddTx = (type: 'expense' | 'income' = 'income') => {
+    setAddTxDefaultType(type);
+    setAddTxModalVisible(true);
+  };
 
   useEffect(() => {
     async function checkFeatureTour() {
@@ -340,7 +369,25 @@ export function AppNavigator({
               <Text style={[styles.userName, { color: theme.text }]} numberOfLines={1}>{headerTitle}</Text>
               <ChevronDownIcon color={accentHex} size={16} />
             </View>
-            <Text style={[styles.companyName, { color: theme.textSecondary }]}>{headerSubtitle}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 }}>
+              <Text style={[styles.companyName, { color: theme.textSecondary }]} numberOfLines={1}>{headerSubtitle}</Text>
+              <TouchableOpacity
+                onPress={toggleSimpleMode}
+                activeOpacity={0.7}
+                style={{
+                  backgroundColor: isSimpleMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                  borderColor: isSimpleMode ? '#10b981' : '#38bdf8',
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingHorizontal: 6,
+                  paddingVertical: 1,
+                }}
+              >
+                <Text style={{ fontSize: 9, fontWeight: '800', color: isSimpleMode ? '#10b981' : '#38bdf8' }}>
+                  {isSimpleMode ? '🌿 SIMPLE' : '⚡ PRO'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
 
@@ -354,7 +401,11 @@ export function AppNavigator({
           <TouchableOpacity style={styles.headerBtn} onPress={() => setWorkspaceModalVisible(true)}>
             <BriefcaseHeaderIcon color={accentHex} size={18} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => setSettingsVisible(true)}>
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: `${accentHex}18`, borderColor: `${accentHex}40`, borderWidth: 1 }]}
+            onPress={() => setSettingsVisible(true)}
+            accessibilityLabel="Open Settings"
+          >
             <SettingsIcon color={accentHex} size={18} />
           </TouchableOpacity>
         </View>
@@ -527,6 +578,10 @@ export function AppNavigator({
             onNavigateToTool={(tool) => setSubTool(tool as any)}
             isStealthMode={isStealthMode}
             onOpenTour={() => setTourVisible(true)}
+            isSimpleMode={isSimpleMode}
+            onToggleSimpleMode={toggleSimpleMode}
+            onOpenSettings={() => setSettingsVisible(true)}
+            onOpenAddTx={handleOpenAddTx}
           />
         );
       case 'expenses':
@@ -658,6 +713,10 @@ export function AppNavigator({
             onNavigateToTool={(tool) => setSubTool(tool as any)}
             isStealthMode={isStealthMode}
             onOpenTour={() => setTourVisible(true)}
+            isSimpleMode={isSimpleMode}
+            onToggleSimpleMode={toggleSimpleMode}
+            onOpenSettings={() => setSettingsVisible(true)}
+            onOpenAddTx={handleOpenAddTx}
           />
         );
       case 'expenses':
@@ -813,6 +872,93 @@ export function AppNavigator({
     </View>
   );
 
+  const renderSimpleTabBar = () => {
+    const isKhataActive = subTool === 'khata';
+    const isBillsActive = (activeBusinessTab === 'invoicing') && !isKhataActive;
+    const isDashboardActive = (activeBusinessTab === 'dashboard' || activePersonalTab === 'dashboard') && !subTool;
+
+    return (
+      <View style={[styles.tabBar, { backgroundColor: theme.tabBarBg, borderColor: theme.tabBarBorder, paddingBottom: Math.max(bottomInset, 8), height: 60 + Math.max(bottomInset, 8) }]}>
+        {/* 1. Hisab / Home */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.7}
+          onPress={() => {
+            setActiveBusinessTab('dashboard');
+            setActivePersonalTab('dashboard');
+            setSubTool(null);
+          }}
+        >
+          <View style={[styles.tabIconWrapper, isDashboardActive && { backgroundColor: `${accentHex}20` }]}>
+            <HomeIcon color={isDashboardActive ? accentHex : theme.textMuted} size={20} />
+          </View>
+          <Text style={[styles.tabLabel, { color: isDashboardActive ? accentHex : theme.textMuted, fontWeight: isDashboardActive ? '800' : '500' }]}>
+            Hisab
+          </Text>
+        </TouchableOpacity>
+
+        {/* 2. Khata Ledger */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.7}
+          onPress={() => setSubTool('khata')}
+        >
+          <View style={[styles.tabIconWrapper, isKhataActive && { backgroundColor: `${accentHex}20` }]}>
+            <UsersIcon color={isKhataActive ? accentHex : theme.textMuted} size={20} />
+          </View>
+          <Text style={[styles.tabLabel, { color: isKhataActive ? accentHex : theme.textMuted, fontWeight: isKhataActive ? '800' : '500' }]}>
+            Khata
+          </Text>
+        </TouchableOpacity>
+
+        {/* 3. Center Big + Add Button */}
+        <TouchableOpacity
+          style={[styles.tabItem, { marginTop: -14 }]}
+          activeOpacity={0.8}
+          onPress={() => handleOpenAddTx('income')}
+        >
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: accentHex, alignItems: 'center', justifyContent: 'center', shadowColor: accentHex, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 6 }}>
+            <PlusCircleIcon color="#ffffff" size={26} />
+          </View>
+          <Text style={[styles.tabLabel, { color: accentHex, fontWeight: '800', marginTop: 2 }]}>
+            + Add
+          </Text>
+        </TouchableOpacity>
+
+        {/* 4. Bills & Invoices */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.7}
+          onPress={() => {
+            setActiveBusinessTab('invoicing');
+            setSubTool(null);
+          }}
+        >
+          <View style={[styles.tabIconWrapper, isBillsActive && { backgroundColor: `${accentHex}20` }]}>
+            <FileTextIcon color={isBillsActive ? accentHex : theme.textMuted} size={20} />
+          </View>
+          <Text style={[styles.tabLabel, { color: isBillsActive ? accentHex : theme.textMuted, fontWeight: isBillsActive ? '800' : '500' }]}>
+            Bills
+          </Text>
+        </TouchableOpacity>
+
+        {/* 5. Settings */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.7}
+          onPress={() => setSettingsVisible(true)}
+        >
+          <View style={styles.tabIconWrapper}>
+            <SettingsIcon color={theme.textMuted} size={20} />
+          </View>
+          <Text style={[styles.tabLabel, { color: theme.textMuted, fontWeight: '500' }]}>
+            Settings
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   if (isDesktop) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg, flexDirection: 'row' }]}>
@@ -869,8 +1015,11 @@ export function AppNavigator({
         {isBusinessView ? renderBusinessContent() : renderPersonalContent()}
       </View>
 
-      {/* Tab Bar */}
-      {isBusinessView ? renderBusinessTabBar() : renderPersonalTabBar()}
+      {/* Tab Bar — Simple 5-Tab Vyapar Mode or Pro Multi-Tab */}
+      {isSimpleMode
+        ? renderSimpleTabBar()
+        : (isBusinessView ? renderBusinessTabBar() : renderPersonalTabBar())
+      }
 
       {/* Workspace Modal */}
       <WorkspaceModal visible={workspaceModalVisible} onClose={() => setWorkspaceModalVisible(false)} activeWorkspaceId={activeWorkspaceId} onSwitchWorkspace={handleSwitchWorkspace} />
@@ -894,6 +1043,19 @@ export function AppNavigator({
 
       {/* 🚀 Interactive Feature Tour Guide Modal */}
       <FeatureTourModal visible={tourVisible} onClose={() => setTourVisible(false)} />
+
+      {/* ➕ Quick Add Transaction Modal */}
+      <AddTransactionModal
+        visible={addTxModalVisible}
+        onClose={() => setAddTxModalVisible(false)}
+        onAddSuccess={() => {
+          setAddTxModalVisible(false);
+          loadFinancialData();
+        }}
+        apiBaseUrl={apiBaseUrl}
+        authToken={authToken}
+        initialType={addTxDefaultType}
+      />
 
       {/* 🔍 Mobile Spotlight Omni-Search Modal */}
       <Modal visible={spotlightVisible} transparent animationType="fade" onRequestClose={() => setSpotlightVisible(false)}>

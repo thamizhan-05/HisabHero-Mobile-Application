@@ -21,16 +21,39 @@ interface VoiceCommandModalProps {
   onSuccess?: () => void;
 }
 
-const SAMPLE_COMMANDS = [
-  'Paid ₹3,500 for petrol today',
-  'Aaj ₹25,000 client A se mil gaya',
-  'Office internet and wifi bill ₹1,499',
-  'Team dinner and food ₹4,200',
-  'Software cloud subscription ₹8,500'
-];
+const REGIONAL_COMMANDS: Record<string, string[]> = {
+  all: [
+    'Sharma ji se ₹15,000 cash mil gaya khata jama karo',
+    'Paid ₹3,500 for diesel delivery today',
+    'Murugan stores-ukku ₹4,500 sarukku anupiyachu',
+    'Raju gariki ₹8,000 khata pay chesamu',
+    'Mehta traders ne ₹12,000 check aapiyu'
+  ],
+  hi: [
+    'Sharma ji se ₹15,000 cash mil gaya khata jama karo',
+    'Dukaan ka bijli bill ₹3,200 diya',
+    'Vendor ko ₹18,000 raw material ke bheje'
+  ],
+  ta: [
+    'Murugan stores-ukku ₹4,500 sarukku pottachu',
+    'Kadai rent ₹12,000 Google Pay vazhiya kuduthom',
+    'Karthik kitta irundhu ₹6,000 varavu vanthirukku'
+  ],
+  te: [
+    'Raju gariki ₹8,000 khata pay chesamu',
+    'Kiran stores nunchi ₹14,000 vachindi',
+    'Current bill ₹2,400 kattamu'
+  ],
+  en: [
+    'Paid ₹3,500 for diesel delivery today',
+    'Received ₹25,000 advance payment from Client A',
+    'Office internet and electricity bill ₹4,200'
+  ]
+};
 
 export const VoiceCommandModal: React.FC<VoiceCommandModalProps> = ({ visible, onClose, onSuccess }) => {
-  const { theme } = useTheme();
+  const { theme, accentHex } = useTheme();
+  const [selectedLang, setSelectedLang] = useState<'all' | 'hi' | 'ta' | 'te' | 'en'>('all');
   const [spokenText, setSpokenText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -45,7 +68,12 @@ export const VoiceCommandModal: React.FC<VoiceCommandModalProps> = ({ visible, o
 
     setLoading(true);
     try {
-      const res = await apiClient.post('/api/ai/voice-expense', { spokenText: text });
+      // Primary: Bhasha AI Copilot
+      let res = await apiClient.post('/business/voice-copilot', { prompt: text, language: selectedLang });
+      if (!res.ok) {
+        // Fallback to voice expense
+        res = await apiClient.post('/api/ai/voice-expense', { spokenText: text });
+      }
       const data = await res.json();
       if (res.ok && data?.success) {
         setLastLogged({
@@ -69,9 +97,10 @@ export const VoiceCommandModal: React.FC<VoiceCommandModalProps> = ({ visible, o
       setIsListening(false);
     } else {
       setIsListening(true);
-      // Simulate listening transcription with a realistic voice prompt
+      // Simulate speech recognition tailored to active language
       setTimeout(() => {
-        const randomSample = SAMPLE_COMMANDS[Math.floor(Math.random() * SAMPLE_COMMANDS.length)];
+        const pool = REGIONAL_COMMANDS[selectedLang] || REGIONAL_COMMANDS.all;
+        const randomSample = pool[Math.floor(Math.random() * pool.length)];
         setSpokenText(randomSample);
         setIsListening(false);
       }, 1800);
@@ -84,10 +113,38 @@ export const VoiceCommandModal: React.FC<VoiceCommandModalProps> = ({ visible, o
         <View style={[styles.sheet, { backgroundColor: theme.card, borderColor: '#10b98140' }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>HisabHero AI Voice Bookkeeper</Text>
+            <View>
+              <Text style={[styles.title, { color: theme.text }]}>Bhasha AI Voice Copilot</Text>
+              <Text style={{ color: '#10b981', fontSize: 10, fontWeight: '700' }}>Multilingual Speech-to-Ledger</Text>
+            </View>
             <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: theme.bg }]}>
               <X size={18} color={theme.textMuted} />
             </TouchableOpacity>
+          </View>
+
+          {/* Regional Language Selectors */}
+          <View style={styles.langRow}>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'hi', label: 'हिन्दी' },
+              { id: 'ta', label: 'தமிழ்' },
+              { id: 'te', label: 'తెలుగు' },
+              { id: 'en', label: 'English' },
+            ].map(l => (
+              <TouchableOpacity
+                key={l.id}
+                style={[
+                  styles.langChip,
+                  selectedLang === l.id && { backgroundColor: '#10b98125', borderColor: '#10b981' },
+                  selectedLang !== l.id && { backgroundColor: theme.bg, borderColor: theme.cardBorder }
+                ]}
+                onPress={() => setSelectedLang(l.id as any)}
+              >
+                <Text style={[styles.langChipText, { color: selectedLang === l.id ? '#10b981' : theme.textSecondary }]}>
+                  {l.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Recognized Text Display Card */}
@@ -192,12 +249,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: 17,
     fontWeight: '800',
     letterSpacing: -0.3,
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 14,
+  },
+  langChip: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  langChipText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   closeBtn: {
     width: 32,

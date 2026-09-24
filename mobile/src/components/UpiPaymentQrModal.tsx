@@ -59,8 +59,21 @@ export function UpiPaymentQrModal({
     }
   };
 
+  const [escalationStage, setEscalationStage] = useState<1 | 2 | 3>(1);
+
+  const getEscalationMessage = () => {
+    const formattedAmt = `₹${Number(amount).toLocaleString('en-IN')}`;
+    if (escalationStage === 1) {
+      return `Namaste ${customerName || 'Customer'} Ji 🙏\n\nFriendly courtesy reminder from *${businessName}* for invoice *${invoiceNumber || 'pending balance'}* of *${formattedAmt}*.\n\nYou can pay directly via any UPI app here:\n👉 ${upiUri}\n\nThank you for your business!`;
+    } else if (escalationStage === 2) {
+      return `Hello ${customerName || 'Customer'} Ji,\n\nInvoice *${invoiceNumber || 'pending balance'}* of *${formattedAmt}* from *${businessName}* is *DUE TODAY*.\n\nPlease tap the 1-click UPI link below to complete the settlement:\n📲 ${upiUri}\n\nDigital receipt will be generated automatically.`;
+    } else {
+      return `URGENT NOTICE: Overdue Account (${customerName || 'Customer'})\n\nInvoice *${invoiceNumber || 'balance'}* of *${formattedAmt}* is overdue. As per credit terms of *${businessName}*, delayed accounts risk credit suspension and statutory interest.\n\nSettle immediately via UPI:\n🚨 ${upiUri}`;
+    }
+  };
+
   const handleShareWhatsApp = async () => {
-    const text = `Namaste ${customerName || 'Customer'} 🙏\n\nPlease find the UPI payment link for ₹${Number(amount).toLocaleString('en-IN')}${invoiceNumber ? ` (Invoice ${invoiceNumber})` : ''}:\n\n🔗 ${upiUri}\n\nYou can pay via Google Pay, PhonePe, Paytm, or BHIM.\n\nThank you,\n${businessName}`;
+    const text = getEscalationMessage();
     const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
 
     try {
@@ -68,10 +81,10 @@ export function UpiPaymentQrModal({
       if (supported) {
         await Linking.openURL(whatsappUrl);
       } else {
-        await Share.share({ message: text, title: 'UPI Payment Link' });
+        await Share.share({ message: text, title: 'Smart Payment Recovery' });
       }
     } catch {
-      await Share.share({ message: text, title: 'UPI Payment Link' });
+      await Share.share({ message: text, title: 'Smart Payment Recovery' });
     }
   };
 
@@ -141,6 +154,51 @@ export function UpiPaymentQrModal({
                 {isEditingVpa ? 'Save' : 'Change'}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* 3-Tier Escalation Stage Selector */}
+          <View style={styles.stageSection}>
+            <Text style={[styles.stageSectionTitle, { color: theme.textSecondary }]}>Recovery Tone & Escalation:</Text>
+            <View style={styles.stageTabsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.stageTab,
+                  escalationStage === 1 && { backgroundColor: '#10b98120', borderColor: '#10b981' },
+                  escalationStage !== 1 && { borderColor: theme.cardBorder, backgroundColor: theme.bg }
+                ]}
+                onPress={() => setEscalationStage(1)}
+              >
+                <Text style={[styles.stageTabText, { color: escalationStage === 1 ? '#10b981' : theme.textMuted }]}>
+                  1. Polite
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.stageTab,
+                  escalationStage === 2 && { backgroundColor: '#f59e0b20', borderColor: '#f59e0b' },
+                  escalationStage !== 2 && { borderColor: theme.cardBorder, backgroundColor: theme.bg }
+                ]}
+                onPress={() => setEscalationStage(2)}
+              >
+                <Text style={[styles.stageTabText, { color: escalationStage === 2 ? '#f59e0b' : theme.textMuted }]}>
+                  2. Due Date
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.stageTab,
+                  escalationStage === 3 && { backgroundColor: '#ef444420', borderColor: '#ef4444' },
+                  escalationStage !== 3 && { borderColor: theme.cardBorder, backgroundColor: theme.bg }
+                ]}
+                onPress={() => setEscalationStage(3)}
+              >
+                <Text style={[styles.stageTabText, { color: escalationStage === 3 ? '#ef4444' : theme.textMuted }]}>
+                  3. Urgent Notice
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Action Buttons */}
@@ -316,5 +374,33 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '800',
+  },
+  stageSection: {
+    width: '100%',
+    marginBottom: 14,
+  },
+  stageSectionTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  stageTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    width: '100%',
+  },
+  stageTab: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stageTabText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

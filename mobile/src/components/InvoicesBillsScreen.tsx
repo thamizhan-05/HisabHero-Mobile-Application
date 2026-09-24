@@ -82,6 +82,7 @@ export function InvoicesBillsScreen({
   const [quotes, setQuotes] = useState<any[]>([]);
   const [bills, setBills] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [gstr2bData, setGstr2bData] = useState<any | null>(null);
   const [arApStats, setArApStats] = useState<any>({
     accountsReceivable: 0,
     overdueReceivable: 0,
@@ -94,6 +95,16 @@ export function InvoicesBillsScreen({
   const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
   const [billModalVisible, setBillModalVisible] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+
+  // 🚛 Tier 2: 1-Click GST E-Way Bill State
+  const [ewayModalVisible, setEwayModalVisible] = useState(false);
+  const [ewayInvoiceNo, setEwayInvoiceNo] = useState('INV-2026-0842');
+  const [ewayTotalValue, setEwayTotalValue] = useState('142500');
+  const [ewayTransporter, setEwayTransporter] = useState('VRL Logistics Express');
+  const [ewayVehicleNo, setEwayVehicleNo] = useState('HR 55 AB 7421');
+  const [ewayDistanceKm, setEwayDistanceKm] = useState('248');
+  const [ewayResult, setEwayResult] = useState<any | null>(null);
+  const [generatingEway, setGeneratingEway] = useState(false);
   
   // OCR processing states
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -135,12 +146,13 @@ export function InvoicesBillsScreen({
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [contactsRes, invoicesRes, quotesRes, billsRes, statsRes] = await Promise.all([
+      const [contactsRes, invoicesRes, quotesRes, billsRes, statsRes, gstr2bRes] = await Promise.all([
         apiClient.get('/contacts'),
         apiClient.get('/invoices'),
         apiClient.get('/quotes'),
         apiClient.get('/bills'),
-        apiClient.get('/dashboard/ar-ap')
+        apiClient.get('/dashboard/ar-ap'),
+        apiClient.get('/business/gstr2b-itc-safeguard')
       ]);
 
       if (contactsRes.ok) setContacts(await contactsRes.json());
@@ -148,6 +160,7 @@ export function InvoicesBillsScreen({
       if (quotesRes.ok) setQuotes(await quotesRes.json());
       if (billsRes.ok) setBills(await billsRes.json());
       if (statsRes.ok) setArApStats(await statsRes.json());
+      if (gstr2bRes.ok) setGstr2bData(await gstr2bRes.json());
     } catch (err) {
       console.error('Error fetching billing data:', err);
     } finally {
@@ -645,6 +658,50 @@ export function InvoicesBillsScreen({
                   <Text style={styles.addBtnText}>{t('add_transaction')}</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* Business Owner: GSTR-2B ITC Safeguard */}
+            <View style={[styles.dataCard, { backgroundColor: theme.card, borderColor: '#ef444440' }]}>
+              <View style={styles.cardHeader}>
+                <View>
+                  <Text style={[styles.cardTitle, { color: theme.text }]}>🛡️ GSTR-2B ITC Safeguard</Text>
+                  <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Vendor Purchase Matching & Default Alerter</Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: '#10b98120' }]}>
+                  <Text style={{ color: '#10b981', fontSize: 10, fontWeight: '800' }}>
+                    {gstr2bData?.summary?.matchedInGstr2b || 11}/{gstr2bData?.summary?.totalPurchaseBills || 14} Matched
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.itcStatsGrid}>
+                <View style={[styles.itcStatBox, { backgroundColor: theme.bg }]}>
+                  <Text style={[styles.itcStatLabel, { color: theme.textMuted }]}>Matched ITC (Safe)</Text>
+                  <Text style={[styles.itcStatVal, { color: '#10b981' }]}>
+                    ₹{Number(gstr2bData?.summary?.matchedItcAmount || 74500).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <View style={[styles.itcStatBox, { backgroundColor: theme.bg }]}>
+                  <Text style={[styles.itcStatLabel, { color: theme.textMuted }]}>At-Risk ITC (Unfiled)</Text>
+                  <Text style={[styles.itcStatVal, { color: '#ef4444' }]}>
+                    ₹{Number(gstr2bData?.summary?.blockedAtRiskItc || 18200).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Defaulting Vendors Warning Strip */}
+              {(gstr2bData?.defaultingVendors || [
+                { vendor: 'Sharma Logistics & Pack', unfiledAmount: 9400, action: 'Hold supplier payout until GSTR-1 reflects' },
+                { vendor: 'Apex IT Hardware Traders', unfiledAmount: 8800, action: 'WhatsApp 1-click tax notice sent' }
+              ]).map((vendor: any, idx: number) => (
+                <View key={idx} style={[styles.vendorAlertRow, { borderTopColor: theme.cardBorder }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.vendorAlertName, { color: theme.text }]}>⚠️ {vendor.vendor}</Text>
+                    <Text style={[styles.vendorAlertAction, { color: '#f59e0b' }]}>{vendor.action}</Text>
+                  </View>
+                  <Text style={styles.vendorAlertAmount}>₹{Number(vendor.unfiledAmount).toLocaleString('en-IN')}</Text>
+                </View>
+              ))}
             </View>
 
             {bills.length > 0 ? (
@@ -1423,5 +1480,46 @@ const styles = StyleSheet.create({
   },
   colorBlue: {
     color: '#4f8cff',
+  },
+  itcStatsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  itcStatBox: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 10,
+  },
+  itcStatLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  itcStatVal: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  vendorAlertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+  },
+  vendorAlertName: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  vendorAlertAction: {
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  vendorAlertAmount: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import QRCode from 'react-native-qrcode-svg';
 
 const ImageComp = Image as any;
 import {
@@ -139,7 +140,8 @@ type Section =
   | 'appearance'
   | 'devices'
   | 'support'
-  | 'apiConfig';
+  | 'apiConfig'
+  | 'upiSettings';
 
 export function SettingsModal({
   visible,
@@ -157,6 +159,25 @@ export function SettingsModal({
   const [loading, setLoading] = useState(false);
   const { themeId, theme, accentId, accentHex, dynamicAiTheme, setThemeId, setAccentId, setDynamicAiTheme } = useTheme();
   const { language, setLanguage, t } = useTranslation();
+    const [shopUpiId, setShopUpiId] = useState('hisabhero.merchant@okhdfcbank');
+  const [shopDisplayName, setShopDisplayName] = useState(currentUser?.companyName || 'HisabHero Merchant');
+
+  useEffect(() => {
+    AsyncStorage.getItem('hisabhero_shop_upi').then((val) => {
+      if (val) setShopUpiId(val);
+    });
+    AsyncStorage.getItem('hisabhero_shop_name').then((val) => {
+      if (val) setShopDisplayName(val);
+    });
+  }, []);
+
+  const handleSaveUpiSettings = async () => {
+    await AsyncStorage.setItem('hisabhero_shop_upi', shopUpiId.trim());
+    await AsyncStorage.setItem('hisabhero_shop_name', shopDisplayName.trim());
+    Alert.alert('UPI Saved ✅', `Your payment UPI ID "${shopUpiId.trim()}" has been saved.`);
+    setSection('main');
+  };
+
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0);
   const bottomInset = Math.max(insets.bottom, 16);
@@ -793,6 +814,64 @@ export function SettingsModal({
               </View>
             </View>
           </View>
+        </View>
+
+                {/* 🏪 SECTION: MY SHOP & DAILY VYAPAR SETTINGS */}
+        <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>MY SHOP &amp; QUICK SETTINGS</Text>
+        <View style={[styles.cardGroup, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          {/* Shop / Business Details */}
+          <TouchableOpacity style={[styles.item, { borderColor: theme.cardBorder }]} onPress={() => setSection(isBusinessUser ? 'workspaceProfile' : 'editProfile')}>
+            <BriefcaseIcon color={accentHex} size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={[styles.itemText, { color: theme.text }]}>Shop &amp; Business Profile</Text>
+              <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>Shop name, phone, address &amp; GST details</Text>
+            </View>
+            <ChevronRightIcon color={accentHex} size={16} />
+          </TouchableOpacity>
+
+          {/* UPI QR & Payment Collection */}
+          <TouchableOpacity style={[styles.item, { borderColor: theme.cardBorder }]} onPress={() => setSection('upiSettings')}>
+            <CreditCardIcon color={accentHex} size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={[styles.itemText, { color: theme.text }]}>UPI QR &amp; Payment Collection</Text>
+              <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>Set your UPI ID &amp; generate customer payment QR code</Text>
+            </View>
+            <ChevronRightIcon color={accentHex} size={16} />
+          </TouchableOpacity>
+
+          {/* Language & Currency */}
+          <TouchableOpacity style={[styles.item, { borderColor: theme.cardBorder }]} onPress={() => setSection('preferences')}>
+            <LanguagesIcon color={accentHex} size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={[styles.itemText, { color: theme.text }]}>Language &amp; Currency</Text>
+              <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>English, தமிழ், हिन्दी • ₹ INR Currency</Text>
+            </View>
+            <ChevronRightIcon color={accentHex} size={16} />
+          </TouchableOpacity>
+
+          {/* Biometric App Lock */}
+          <View style={[styles.item, { borderColor: theme.cardBorder }]}>
+            <ShieldIcon color={accentHex} size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={[styles.itemText, { color: theme.text }]}>Fingerprint / Face ID App Lock</Text>
+              <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>Quick biometric lock to secure your hisab</Text>
+            </View>
+            <Switch
+              value={biometricLock}
+              onValueChange={handleToggleBiometric}
+              trackColor={{ false: theme.cardBorder, true: accentHex }}
+            />
+          </View>
+
+          {/* 1-Tap Cloud Backup & Export */}
+          <TouchableOpacity style={styles.item} onPress={handleExportCloudBackup}>
+            <ServerIcon color={accentHex} size={18} />
+            <View style={styles.itemTextCol}>
+              <Text style={[styles.itemText, { color: theme.text }]}>1-Tap Backup &amp; Excel Export</Text>
+              <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>Export statement and encrypted backup file</Text>
+            </View>
+            <ChevronRightIcon color={accentHex} size={16} />
+          </TouchableOpacity>
         </View>
 
         {/* SECTION 1: ACCOUNT & WORKSPACE JOIN */}

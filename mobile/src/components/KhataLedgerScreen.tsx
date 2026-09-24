@@ -65,6 +65,16 @@ export const KhataLedgerScreen: React.FC = () => {
   const [entryNote, setEntryNote] = useState('');
   const [savingEntry, setSavingEntry] = useState(false);
 
+  // ⚖️ Tier 1: Section 138 NI Act Cheque Bounce State
+  const [chequeBounceModalVisible, setChequeBounceModalVisible] = useState(false);
+  const [chequeDebtorName, setChequeDebtorName] = useState('Sunil Mehta');
+  const [chequeDebtorPhone, setChequeDebtorPhone] = useState('+91 98290 12345');
+  const [chequeNumber, setChequeNumber] = useState('CHQ-849201');
+  const [chequeAmount, setChequeAmount] = useState('85000');
+  const [chequeBank, setChequeBank] = useState('State Bank of India');
+  const [chequeNoticeData, setChequeNoticeData] = useState<any | null>(null);
+  const [generatingNotice, setGeneratingNotice] = useState(false);
+
   const fetchKhataData = async () => {
     try {
       setLoading(true);
@@ -85,6 +95,36 @@ export const KhataLedgerScreen: React.FC = () => {
   useEffect(() => {
     fetchKhataData();
   }, []);
+
+  const handleGenerateChequeNotice = async () => {
+    setGeneratingNotice(true);
+    try {
+      const res = await apiClient.post('/api/business/cheque-bounce-notice', {
+        debtorName: chequeDebtorName,
+        debtorPhone: chequeDebtorPhone,
+        chequeNumber,
+        chequeAmount: Number(chequeAmount) || 85000,
+        bankName: chequeBank,
+        dishonourDate: new Date().toISOString().split('T')[0],
+        dishonourReason: 'Funds Insufficient (Code 01)'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChequeNoticeData(data);
+      }
+    } catch (err: any) {
+      Alert.alert('Notice Error', err.message || 'Could not generate statutory legal notice.');
+    } finally {
+      setGeneratingNotice(false);
+    }
+  };
+
+  const handleSendNoticeWa = () => {
+    const text = chequeNoticeData?.whatsAppNotice || 'Statutory Demand Notice under Section 138 NI Act';
+    const cleanPhone = chequeDebtorPhone.replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not launch WhatsApp.'));
+  };
 
   const handleCreateParty = async () => {
     if (!newPartyName.trim()) {
@@ -421,11 +461,11 @@ export const KhataLedgerScreen: React.FC = () => {
             <TouchableOpacity
               onPress={handleAddEntry}
               disabled={savingEntry}
-              style={[styles.submitBtn, { backgroundColor: entryType === 'credit' ? '#10b981' : '#ef4444' }]}
+              style={[styles.submitBtn, { backgroundColor: entryType === 'credit' ? '#ef4444' : '#10b981' }]}
             >
               {savingEntry ? <ActivityIndicator color="#fff" /> : (
                 <Text style={styles.submitBtnText}>
-                  {entryType === 'credit' ? 'Confirm + Credit' : 'Confirm - Debit'}
+                  {entryType === 'credit' ? 'Confirm: Gave Credit' : 'Confirm: Payment Received'}
                 </Text>
               )}
             </TouchableOpacity>

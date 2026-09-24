@@ -37,6 +37,7 @@ type AddTransactionModalProps = {
   apiBaseUrl: string;
   authToken: string | null;
   editTransaction?: any | null; // Optional prop to switch into EDIT mode
+  initialType?: 'expense' | 'income';
 };
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -51,10 +52,11 @@ export function AddTransactionModal({
   onAddSuccess, 
   apiBaseUrl, 
   authToken,
-  editTransaction = null
+  editTransaction = null,
+  initialType = 'expense',
 }: AddTransactionModalProps) {
   const [nlpInput, setNlpInput] = useState('');
-  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [type, setType] = useState<'expense' | 'income'>(initialType);
   const [date, setDate] = useState(TODAY);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -87,7 +89,7 @@ export function AddTransactionModal({
 
   const resetForm = () => {
     setNlpInput('');
-    setType('expense');
+    setType(initialType);
     setDate(TODAY);
     setDescription('');
     setCategory('');
