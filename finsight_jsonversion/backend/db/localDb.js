@@ -77,7 +77,9 @@ const defaultData = {
   khata_ledgers: [],
   device_sessions: [],
   otp_verifications: [],
-  merchant_mappings: []
+  merchant_mappings: [],
+  inventory_items: [],
+  subscriptions: []
 };
 
 let db = { ...defaultData };
@@ -471,5 +473,121 @@ export const localDb = {
       });
     }
     saveDb();
+  },
+
+  // Khata Ledgers
+  listKhata(workspaceId) {
+    db.khata_ledgers = db.khata_ledgers || [];
+    return db.khata_ledgers.filter(k => !workspaceId || k.workspace_id === workspaceId || k.workspaceId === workspaceId);
+  },
+
+  createKhataParty(partyData) {
+    db.khata_ledgers = db.khata_ledgers || [];
+    const id = generateUUID();
+    const newParty = {
+      id,
+      _id: id,
+      workspace_id: partyData.workspaceId || partyData.workspace_id,
+      workspaceId: partyData.workspaceId || partyData.workspace_id,
+      party_name: partyData.partyName || partyData.party_name,
+      partyName: partyData.partyName || partyData.party_name,
+      party_type: partyData.partyType || partyData.party_type || 'customer',
+      partyType: partyData.partyType || partyData.party_type || 'customer',
+      phone: partyData.phone || '',
+      email: partyData.email || '',
+      net_balance: Number(partyData.netBalance || partyData.net_balance || 0),
+      netBalance: Number(partyData.netBalance || partyData.net_balance || 0),
+      currency: partyData.currency || 'INR',
+      notes: partyData.notes || partyData.note || '',
+      entries: partyData.entries || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.khata_ledgers.push(newParty);
+    saveDb();
+    return newParty;
+  },
+
+  deleteKhataParty(partyId) {
+    db.khata_ledgers = (db.khata_ledgers || []).filter(k => k.id !== partyId && k._id !== partyId);
+    saveDb();
+    return true;
+  },
+
+  // Inventory & Fixed Assets
+  listInventory(workspaceId) {
+    db.inventory_items = db.inventory_items || [];
+    return db.inventory_items.filter(i => !workspaceId || i.workspace_id === workspaceId || i.workspaceId === workspaceId);
+  },
+
+  createInventoryItem(itemData) {
+    db.inventory_items = db.inventory_items || [];
+    const id = generateUUID();
+    const newItem = {
+      id,
+      _id: id,
+      workspace_id: itemData.workspaceId || itemData.workspace_id,
+      workspaceId: itemData.workspaceId || itemData.workspace_id,
+      name: itemData.name || 'Unnamed Item',
+      type: itemData.type || 'stock', // 'stock' or 'asset'
+      sku: itemData.sku || `SKU-${Date.now().toString().slice(-4)}`,
+      category: itemData.category || 'General',
+      stock_quantity: Number(itemData.stockQuantity || itemData.stock_quantity || itemData.stockQty || 0),
+      stockQuantity: Number(itemData.stockQuantity || itemData.stock_quantity || itemData.stockQty || 0),
+      unit_value: Number(itemData.unitValue || itemData.unit_value || itemData.purchasePrice || 0),
+      unitValue: Number(itemData.unitValue || itemData.unit_value || itemData.purchasePrice || 0),
+      reorder_level: Number(itemData.reorderLevel || itemData.reorder_level || 5),
+      useful_life: Number(itemData.usefulLife || itemData.useful_life || 5), // in years for fixed asset
+      usefulLife: Number(itemData.usefulLife || itemData.useful_life || 5),
+      depreciation_method: itemData.depreciationMethod || 'straight_line',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.inventory_items.push(newItem);
+    saveDb();
+    return newItem;
+  },
+
+  deleteInventoryItem(itemId) {
+    db.inventory_items = (db.inventory_items || []).filter(i => i.id !== itemId && i._id !== itemId);
+    saveDb();
+    return true;
+  },
+
+  // Subscriptions
+  listSubscriptions(workspaceId) {
+    db.subscriptions = db.subscriptions || [];
+    return db.subscriptions.filter(s => !workspaceId || s.workspace_id === workspaceId || s.workspaceId === workspaceId);
+  },
+
+  createSubscription(subData) {
+    db.subscriptions = db.subscriptions || [];
+    const id = generateUUID();
+    const newSub = {
+      id,
+      _id: id,
+      workspace_id: subData.workspaceId || subData.workspace_id,
+      workspaceId: subData.workspaceId || subData.workspace_id,
+      name: subData.name || 'Unnamed Subscription',
+      category: subData.category || 'Software & SaaS',
+      amount: Number(subData.amount || subData.cost || 0),
+      billing_cycle: subData.billingCycle || subData.billing_cycle || 'monthly',
+      billingCycle: subData.billingCycle || subData.billing_cycle || 'monthly',
+      next_billing_date: subData.nextBillingDate || subData.next_billing_date || new Date().toISOString().split('T')[0],
+      nextBillingDate: subData.nextBillingDate || subData.next_billing_date || new Date().toISOString().split('T')[0],
+      status: subData.status || 'active',
+      notes: subData.notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.subscriptions.push(newSub);
+    saveDb();
+    return newSub;
+  },
+
+  deleteSubscription(subId) {
+    db.subscriptions = (db.subscriptions || []).filter(s => s.id !== subId && s._id !== subId);
+    saveDb();
+    return true;
   }
 };

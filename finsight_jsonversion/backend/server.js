@@ -35,6 +35,8 @@ import {
   documentsRepo,
   invoicesRepo,
   khataRepo,
+  inventoryRepo,
+  subscriptionsRepo,
   deviceSessionsRepo,
   otpRepo,
   merchantMappingsRepo,
@@ -862,6 +864,7 @@ app.get(['/api/invoices', '/invoices'], authMiddleware, async (req, res) => {
   }
 });
 
+// ─── KHATA BOOK ENDPOINTS ───
 app.get(['/api/khata', '/khata'], authMiddleware, async (req, res) => {
   try {
     const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
@@ -871,6 +874,116 @@ app.get(['/api/khata', '/khata'], authMiddleware, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+app.post(['/api/khata', '/khata'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
+    const party = await khataRepo.create({
+      workspaceId: wsId,
+      workspace_id: wsId,
+      partyName: req.body.partyName || req.body.name,
+      partyType: req.body.partyType || 'customer',
+      phone: req.body.phone || '',
+      email: req.body.email || '',
+      netBalance: Number(req.body.netBalance || req.body.openingBalance || 0),
+      notes: req.body.notes || req.body.note || ''
+    });
+    return res.json({ success: true, party });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete(['/api/khata/:id', '/khata/:id'], authMiddleware, async (req, res) => {
+  try {
+    await khataRepo.delete(req.params.id);
+    return res.json({ success: true, message: 'Party deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── INVENTORY & FIXED ASSETS ENDPOINTS ───
+app.get(['/api/inventory', '/inventory'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
+    const items = await inventoryRepo.listByWorkspace(wsId);
+    return res.json({ success: true, items });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post(['/api/inventory', '/inventory'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
+    const item = await inventoryRepo.create({
+      workspaceId: wsId,
+      workspace_id: wsId,
+      name: req.body.name || 'Unnamed Item',
+      type: req.body.type || 'stock',
+      category: req.body.category || 'General',
+      stockQuantity: Number(req.body.stockQuantity || req.body.stockQty || 0),
+      unitValue: Number(req.body.unitValue || req.body.purchaseCost || 0),
+      reorderLevel: Number(req.body.reorderLevel || 5),
+      usefulLife: Number(req.body.usefulLife || 5),
+      depreciationMethod: req.body.depreciationMethod || 'straight_line'
+    });
+    return res.json({ success: true, item });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete(['/api/inventory/:id', '/inventory/:id'], authMiddleware, async (req, res) => {
+  try {
+    await inventoryRepo.delete(req.params.id);
+    return res.json({ success: true, message: 'Item deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SUBSCRIPTIONS ENDPOINTS ───
+app.get(['/api/subscriptions', '/subscriptions'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
+    const subscriptions = await subscriptionsRepo.listByWorkspace(wsId);
+    return res.json({ success: true, subscriptions });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post(['/api/subscriptions', '/subscriptions'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
+    const subscription = await subscriptionsRepo.create({
+      workspaceId: wsId,
+      workspace_id: wsId,
+      name: req.body.name,
+      category: req.body.category || 'Software & SaaS',
+      amount: Number(req.body.amount || req.body.cost || 0),
+      billingCycle: req.body.billingCycle || 'monthly',
+      nextBillingDate: req.body.nextBillingDate || new Date().toISOString().split('T')[0],
+      status: req.body.status || 'active',
+      notes: req.body.notes || ''
+    });
+    return res.json({ success: true, subscription });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete(['/api/subscriptions/:id', '/subscriptions/:id'], authMiddleware, async (req, res) => {
+  try {
+    await subscriptionsRepo.delete(req.params.id);
+    return res.json({ success: true, message: 'Subscription deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 app.get(['/api/devices/sessions', '/devices/sessions'], authMiddleware, async (req, res) => {
   try {

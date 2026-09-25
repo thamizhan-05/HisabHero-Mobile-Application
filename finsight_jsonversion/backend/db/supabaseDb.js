@@ -892,41 +892,6 @@ export const invoicesRepo = {
   }
 };
 
-// ─── 6. KHATA REPOSITORY ─────────────────────────────────────────────────────
-export const khataRepo = {
-  async listByWorkspace(workspaceId) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('khata_ledgers')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('created_at', { ascending: false });
-
-        if (error) throw new Error(`[khataRepo.listByWorkspace] ${error.message}`);
-        return data || [];
-      },
-      () => localDb.listKhata(workspaceId)
-    );
-  },
-
-  async create(khataData) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('khata_ledgers')
-          .insert(khataData)
-          .select()
-          .single();
-
-        if (error) throw new Error(`[khataRepo.create] ${error.message}`);
-        return data;
-      },
-      () => localDb.createKhata(khataData)
-    );
-  }
-};
-
 // ─── 7. DEVICE SESSIONS REPOSITORY ───────────────────────────────────────────
 export const deviceSessionsRepo = {
   async listByUser(userId) {
@@ -1080,3 +1045,135 @@ export async function purgeUserAccountAndAllData(userId) {
   localDb.save();
   return true;
 }
+
+// ─── 11. KHATA REPOSITORY ────────────────────────────────────────────────────
+export const khataRepo = {
+  async listByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('khata_ledgers')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+        if (error) return localDb.listKhata(workspaceId);
+        return data || [];
+      },
+      () => localDb.listKhata(workspaceId)
+    );
+  },
+
+  async create(partyData) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('khata_ledgers')
+          .insert(partyData)
+          .select()
+          .single();
+        if (error) return localDb.createKhataParty(partyData);
+        return data;
+      },
+      () => localDb.createKhataParty(partyData)
+    );
+  },
+
+  async delete(partyId) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('khata_ledgers').delete().eq('id', partyId);
+        localDb.deleteKhataParty(partyId);
+        return !error;
+      },
+      () => localDb.deleteKhataParty(partyId)
+    );
+  }
+};
+
+// ─── 12. INVENTORY & ASSETS REPOSITORY ──────────────────────────────────────
+export const inventoryRepo = {
+  async listByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+        if (error) return localDb.listInventory(workspaceId);
+        return data || [];
+      },
+      () => localDb.listInventory(workspaceId)
+    );
+  },
+
+  async create(itemData) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .insert(itemData)
+          .select()
+          .single();
+        if (error) return localDb.createInventoryItem(itemData);
+        return data;
+      },
+      () => localDb.createInventoryItem(itemData)
+    );
+  },
+
+  async delete(itemId) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('inventory_items').delete().eq('id', itemId);
+        localDb.deleteInventoryItem(itemId);
+        return !error;
+      },
+      () => localDb.deleteInventoryItem(itemId)
+    );
+  }
+};
+
+// ─── 13. SUBSCRIPTIONS REPOSITORY ───────────────────────────────────────────
+export const subscriptionsRepo = {
+  async listByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+        if (error) return localDb.listSubscriptions(workspaceId);
+        return data || [];
+      },
+      () => localDb.listSubscriptions(workspaceId)
+    );
+  },
+
+  async create(subData) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .insert(subData)
+          .select()
+          .single();
+        if (error) return localDb.createSubscription(subData);
+        return data;
+      },
+      () => localDb.createSubscription(subData)
+    );
+  },
+
+  async delete(subId) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('subscriptions').delete().eq('id', subId);
+        localDb.deleteSubscription(subId);
+        return !error;
+      },
+      () => localDb.deleteSubscription(subId)
+    );
+  }
+};

@@ -4626,6 +4626,55 @@
         </div>
 
         <!-- ═════════════════════════════════════════════════════════════
+             SECTION: DEDICATED TRANSACTIONS & EXPENSES LEDGER PAGE
+             ═════════════════════════════════════════════════════════════ -->
+        <div id="section-transactions" style="display: none;">
+          <div class="data-table-card">
+            <div class="flex justify-between items-center" style="margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+              <div>
+                <h2 style="font-size: 1.6rem; margin-bottom: 4px;">💳 Transactions &amp; Expenses Ledger</h2>
+                <p style="color: var(--text-muted); font-size: 0.875rem;">Complete workspace ledger of income, expenses, UPI payments, and bank statement records.</p>
+              </div>
+              <div class="flex gap-2" style="flex-wrap: wrap;">
+                <button class="btn btn-outline" style="padding: 0.5rem 0.9rem;" onclick="filterTxTable('all')">All</button>
+                <button class="btn btn-outline" style="padding: 0.5rem 0.9rem; color: #10b981; border-color: rgba(16, 185, 129, 0.4);" onclick="filterTxTable('income')">🟢 Inflows</button>
+                <button class="btn btn-outline" style="padding: 0.5rem 0.9rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" onclick="filterTxTable('expense')">🔴 Outflows</button>
+                <button class="btn btn-primary" style="padding: 0.5rem 1rem;" onclick="openAddTxModal()">+ Add Transaction</button>
+                <button class="btn btn-accent" style="padding: 0.5rem 1rem;" onclick="showSection('upload')">📄 Upload Statement</button>
+              </div>
+            </div>
+
+            <!-- Search and Filter Bar -->
+            <div class="flex justify-between items-center" style="margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 260px;">
+                <input type="text" id="txSearchInput" class="form-input" placeholder="🔍 Search transactions by merchant, description, amount..." oninput="handleTxSearch(this.value)" style="width: 100%;" />
+              </div>
+              <div class="flex items-center gap-3">
+                <span id="txCountBadge" class="pill-badge emerald" style="font-size: 0.8rem; padding: 4px 10px;">0 Transactions</span>
+                <button class="btn btn-outline" style="padding: 0.45rem 0.9rem; font-size: 0.8125rem;" onclick="loadWorkspaceData()">🔄 Refresh</button>
+              </div>
+            </div>
+
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description / Narration</th>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dedicatedTxTableBody">
+                <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No transactions recorded in this workspace yet. Click "+ Add Transaction" or "Upload Statement" above.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═════════════════════════════════════════════════════════════
              SECTION: EXPENSE CATEGORY DEEP-DIVE ANALYSIS PAGE
              ═════════════════════════════════════════════════════════════ -->
         <div id="section-expenseAnalysis" style="display: none;">
@@ -4887,7 +4936,7 @@
                 <h2 style="font-size: 1.5rem;">📦 Inventory Stock & Fixed Asset Depreciation</h2>
                 <p style="color: var(--text-muted); font-size: 0.875rem;">Track stock levels, low-stock reorder warnings, and annual asset depreciation.</p>
               </div>
-              <button class="btn btn-primary" onclick="alert('Add Asset/Item modal ready!')">+ Add Item / Asset</button>
+              <button class="btn btn-primary" onclick="openAddInventoryModal()">+ Add Item / Asset</button>
             </div>
 
             <table class="table">
@@ -4898,10 +4947,11 @@
                   <th>Stock Qty</th>
                   <th>Unit Value (₹)</th>
                   <th>Depreciation / Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="inventoryTableBody">
-                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No inventory items or fixed assets recorded in this workspace yet.</td></tr>
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No inventory items or fixed assets recorded in this workspace yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -4915,7 +4965,7 @@
                 <h2 style="font-size: 1.5rem;">🔁 SaaS & Recurring Subscriptions</h2>
                 <p style="color: var(--text-muted); font-size: 0.875rem;">Track all active auto-debit tool subscriptions and renewal dates.</p>
               </div>
-              <button class="btn btn-primary" onclick="alert('Add Subscription modal ready!')">+ Add Subscription</button>
+              <button class="btn btn-primary" onclick="openAddSubscriptionModal()">+ Add Subscription</button>
             </div>
 
             <table class="table">
@@ -4926,10 +4976,11 @@
                   <th>Next Renewal</th>
                   <th>Cost (₹)</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="subscriptionsTableBody">
-                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No recurring subscriptions added yet.</td></tr>
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No recurring subscriptions added yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -5852,6 +5903,174 @@
     </div>
   </div>
 
+  <!-- ─── MODAL: ADD KHATA PARTY ─── -->
+  <div id="addPartyModal" class="modal-backdrop">
+    <div class="modal-box" style="max-width: 480px;">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;">
+        <span style="font-size: 1.75rem;">📒</span>
+        <div>
+          <h3 style="font-size: 1.3rem; font-weight: 800; margin: 0;">Add Khata Party</h3>
+          <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 2px 0 0 0;">Record a customer receivable or vendor payable.</p>
+        </div>
+      </div>
+      <form id="addPartyForm" onsubmit="handleAddPartySubmit(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Party Name *</label>
+          <input type="text" id="partyName" class="form-input" placeholder="e.g. Ramesh & Sons, Metro Traders" required />
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Party Type *</label>
+          <select id="partyType" class="form-select" required>
+            <option value="customer">👤 Customer (You'll Receive Money)</option>
+            <option value="vendor">🏢 Vendor / Supplier (You'll Pay Money)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Phone / WhatsApp Number</label>
+          <input type="tel" id="partyPhone" class="form-input" placeholder="+91 98765 43210" />
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Opening Net Balance (₹)</label>
+          <input type="number" id="partyBalance" class="form-input" placeholder="0" step="any" />
+          <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 3px;">Enter positive amount. For Customer, it's money they owe you. For Vendor, it's money you owe them.</small>
+        </div>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label">Notes / Terms (Optional)</label>
+          <input type="text" id="partyNote" class="form-input" placeholder="e.g. Net 30 payment term, invoice reference" />
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-outline" onclick="closeModals()">Cancel</button>
+          <button type="submit" id="addPartySubmitBtn" class="btn btn-accent" style="font-weight: 800;">+ Save Party</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: ADD INVENTORY / ASSET ─── -->
+  <div id="addInventoryModal" class="modal-backdrop">
+    <div class="modal-box" style="max-width: 500px;">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;">
+        <span style="font-size: 1.75rem;">📦</span>
+        <div>
+          <h3 style="font-size: 1.3rem; font-weight: 800; margin: 0;">Add Item / Fixed Asset</h3>
+          <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 2px 0 0 0;">Track stock inventory or fixed asset depreciation.</p>
+        </div>
+      </div>
+      <form id="addInventoryForm" onsubmit="handleAddInventorySubmit(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Item Classification *</label>
+          <select id="invType" class="form-select" onchange="toggleInvTypeFields(this.value)" required>
+            <option value="stock">📦 Inventory Stock Item (Raw Material / Goods)</option>
+            <option value="asset">🏛️ Fixed Asset (Computer, Machinery, Vehicle)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Item / Asset Name *</label>
+          <input type="text" id="invName" class="form-input" placeholder="e.g. MacBook Pro M3, Raw Cotton Yarn, Delivery Van" required />
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Category *</label>
+          <select id="invCategory" class="form-select" required>
+            <option value="Raw Materials">Raw Materials</option>
+            <option value="Finished Goods">Finished Goods</option>
+            <option value="Packaging">Packaging</option>
+            <option value="Computers & IT">Computers & IT</option>
+            <option value="Machinery & Tools">Machinery & Tools</option>
+            <option value="Vehicles">Vehicles</option>
+            <option value="Office Furniture">Office Furniture</option>
+            <option value="General">General</option>
+          </select>
+        </div>
+        <div class="flex gap-3" style="margin-bottom: 1rem;">
+          <div style="flex: 1;">
+            <label class="form-label" id="invQtyLabel">Stock Quantity *</label>
+            <input type="number" id="invQty" class="form-input" placeholder="10" min="0" required />
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Unit Value / Cost (₹) *</label>
+            <input type="number" id="invUnitValue" class="form-input" placeholder="5000" min="0" step="any" required />
+          </div>
+        </div>
+        <div id="invStockFields" style="margin-bottom: 1.25rem;">
+          <label class="form-label">Low-Stock Reorder Warning Level</label>
+          <input type="number" id="invReorderLevel" class="form-input" placeholder="5" min="1" value="5" />
+          <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 3px;">Triggers low-stock warning when balance drops below this threshold.</small>
+        </div>
+        <div id="invAssetFields" style="margin-bottom: 1.25rem; display: none;">
+          <label class="form-label">Useful Life (Years) for Depreciation</label>
+          <input type="number" id="invUsefulLife" class="form-input" placeholder="3" min="1" value="3" />
+          <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 3px;">Annual depreciation calculated automatically using straight-line method.</small>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-outline" onclick="closeModals()">Cancel</button>
+          <button type="submit" id="addInventorySubmitBtn" class="btn btn-primary" style="font-weight: 800;">+ Save Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: ADD RECURRING SUBSCRIPTION ─── -->
+  <div id="addSubscriptionModal" class="modal-backdrop">
+    <div class="modal-box" style="max-width: 480px;">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;">
+        <span style="font-size: 1.75rem;">🔁</span>
+        <div>
+          <h3 style="font-size: 1.3rem; font-weight: 800; margin: 0;">Add SaaS / Subscription</h3>
+          <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 2px 0 0 0;">Monitor recurring tool auto-debits and renewal dates.</p>
+        </div>
+      </div>
+      <form id="addSubscriptionForm" onsubmit="handleAddSubscriptionSubmit(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Tool / Service Name *</label>
+          <input type="text" id="subName" class="form-input" placeholder="e.g. AWS Cloud, Google Workspace, Slack, Zoom" required />
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Category *</label>
+          <select id="subCategory" class="form-select" required>
+            <option value="Cloud & Hosting">Cloud & Hosting</option>
+            <option value="Software & Productivity">Software & Productivity</option>
+            <option value="Marketing & Design">Marketing & Design</option>
+            <option value="AI & API Tools">AI & API Tools</option>
+            <option value="Accounting & Legal">Accounting & Legal</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="flex gap-3" style="margin-bottom: 1rem;">
+          <div style="flex: 1;">
+            <label class="form-label">Cost (₹) *</label>
+            <input type="number" id="subCost" class="form-input" placeholder="1500" min="0" step="any" required />
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Billing Cycle *</label>
+            <select id="subCycle" class="form-select" required>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label">Next Renewal Date *</label>
+          <input type="date" id="subNextDate" class="form-input" required />
+        </div>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label">Auto-Debit Status</label>
+          <select id="subStatus" class="form-select">
+            <option value="active">Active (Auto-Debit On)</option>
+            <option value="paused">Paused / Evaluating</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-outline" onclick="closeModals()">Cancel</button>
+          <button type="submit" id="addSubscriptionSubmitBtn" class="btn btn-primary" style="font-weight: 800;">+ Save Subscription</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ─── MODAL: CREATE WORKSPACE ─── -->
   <div id="createWsModal" class="modal-backdrop">
     <div class="modal-box">
@@ -6613,11 +6832,21 @@
         // Render Dynamic Financial Charts
         renderFinancialCharts(currentWorkspaceTransactions, totalIn, totalOut, catMap);
 
+        // Render Dedicated Transactions Ledger Table
+        if (typeof renderDedicatedTransactionsTable === 'function') {
+          renderDedicatedTransactionsTable();
+        }
+
         // Render Expense Analysis Details
         renderExpenseAnalysisDetails(currentWorkspaceTransactions, totalOut, catMap);
 
         // Preload Uploaded Documents & Statements list
         loadUploadedDocuments();
+
+        // Preload Khata, Inventory, and Subscriptions data
+        if (typeof loadKhataData === 'function') loadKhataData();
+        if (typeof loadInventoryData === 'function') loadInventoryData();
+        if (typeof loadSubscriptionsData === 'function') loadSubscriptionsData();
       } catch (err) {
         console.error('Failed to load workspace data:', err);
       }
@@ -8048,8 +8277,516 @@
       document.getElementById('joinWsModal').classList.add('active');
     }
 
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+    }
+
+    // ─── KHATA BOOK MODAL & HANDLERS ───
     function openAddPartyModal() {
-      alert('Add Khata Party modal ready!');
+      closeModals();
+      const form = document.getElementById('addPartyForm');
+      if (form) form.reset();
+      const modal = document.getElementById('addPartyModal');
+      if (modal) modal.classList.add('active');
+    }
+
+    async function handleAddPartySubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('addPartySubmitBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+      const wsId = currentActiveWorkspaceId || 'personal';
+      const payload = {
+        workspaceId: wsId,
+        partyName: document.getElementById('partyName').value.trim(),
+        partyType: document.getElementById('partyType').value,
+        phone: document.getElementById('partyPhone').value.trim(),
+        netBalance: parseFloat(document.getElementById('partyBalance').value) || 0,
+        notes: document.getElementById('partyNote').value.trim()
+      };
+
+      try {
+        const res = await fetch('/api/khata', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          closeModals();
+          showToast(`✅ Party "${payload.partyName}" saved to Khata Book!`, 'success');
+          await loadKhataData();
+        } else {
+          alert('❌ Failed to save party: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('❌ Network error saving party: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Save Party'; }
+      }
+    }
+
+    async function loadKhataData() {
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch(`/api/khata?workspaceId=${wsId}`, {
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          }
+        });
+        const data = await res.json();
+        const parties = (data && data.ledgers) ? data.ledgers : [];
+
+        let totalRecv = 0;
+        let totalPay = 0;
+        let custCount = 0;
+        let vendCount = 0;
+
+        const tbody = document.getElementById('khataTableBody');
+        if (tbody) {
+          tbody.innerHTML = '';
+          if (parties.length > 0) {
+            parties.forEach(p => {
+              const isCust = (p.party_type === 'customer' || p.partyType === 'customer');
+              const bal = Math.abs(Number(p.net_balance || p.netBalance || 0));
+              if (isCust) {
+                totalRecv += bal;
+                custCount++;
+              } else {
+                totalPay += bal;
+                vendCount++;
+              }
+
+              const safePhone = (p.phone || '').replace(/[^0-9]/g, '');
+              const pName = p.party_name || p.partyName || 'Party';
+              const waText = encodeURIComponent(`Hi ${pName}, friendly reminder from HisabHero regarding pending balance of ₹${bal.toLocaleString('en-IN')}. Please settle via UPI. Thank you!`);
+              const waLink = safePhone ? `https://wa.me/${safePhone}?text=${waText}` : '#';
+
+              tbody.innerHTML += `
+                <tr>
+                  <td>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${escapeHtml(pName)}</div>
+                    ${p.notes ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(p.notes)}</div>` : ''}
+                  </td>
+                  <td><span class="pill-badge ${isCust ? 'emerald' : 'rose'}" style="font-size: 0.72rem; padding: 2px 8px;">${isCust ? '👤 Customer' : '🏢 Vendor'}</span></td>
+                  <td>
+                    ${p.phone ? `<a href="tel:${p.phone}" style="color: #38bdf8; text-decoration: none;">📞 ${escapeHtml(p.phone)}</a>` : '<span style="color: var(--text-muted);">—</span>'}
+                  </td>
+                  <td style="font-weight: 800; font-size: 1rem; color: ${isCust ? '#10b981' : '#f87171'};">
+                    ₹${bal.toLocaleString('en-IN')}
+                  </td>
+                  <td>
+                    <div class="flex gap-2 items-center">
+                      ${safePhone ? `
+                        <a href="${waLink}" target="_blank" class="btn btn-accent" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                          <span>💬</span> WhatsApp Reminder
+                        </a>
+                      ` : `
+                        <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem; opacity: 0.6;" onclick="alert('No phone number specified for this party.')">💬 No Phone</button>
+                      `}
+                      <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.72rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="deleteKhataParty('${p.id || p._id}', '${escapeHtml(pName)}')">🗑️</button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            });
+          } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No Khata parties recorded yet. Click "+ Add Party" above to add your first customer or vendor.</td></tr>';
+          }
+        }
+
+        const recvEl = document.getElementById('khataTotalReceive');
+        if (recvEl) recvEl.textContent = '₹' + totalRecv.toLocaleString('en-IN');
+        const payEl = document.getElementById('khataTotalPay');
+        if (payEl) payEl.textContent = '₹' + totalPay.toLocaleString('en-IN');
+        const recvCountEl = document.getElementById('khataReceiveCount');
+        if (recvCountEl) recvCountEl.textContent = `${custCount} active customer accounts`;
+        const payCountEl = document.getElementById('khataPayCount');
+        if (payCountEl) payCountEl.textContent = `${vendCount} vendor accounts`;
+      } catch (err) {
+        console.error('Failed to load Khata data:', err);
+      }
+    }
+
+    async function deleteKhataParty(partyId, name) {
+      if (!confirm(`Are you sure you want to delete "${name}" from Khata Book?`)) return;
+      try {
+        const res = await fetch(`/api/khata/${partyId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`🗑️ Party "${name}" removed.`, 'success');
+          await loadKhataData();
+        } else {
+          alert('Failed to delete party: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ─── INVENTORY & ASSETS MODAL & HANDLERS ───
+    function openAddInventoryModal() {
+      closeModals();
+      const form = document.getElementById('addInventoryForm');
+      if (form) form.reset();
+      toggleInvTypeFields('stock');
+      const modal = document.getElementById('addInventoryModal');
+      if (modal) modal.classList.add('active');
+    }
+
+    function toggleInvTypeFields(type) {
+      const stockFields = document.getElementById('invStockFields');
+      const assetFields = document.getElementById('invAssetFields');
+      const qtyLabel = document.getElementById('invQtyLabel');
+      const qtyInput = document.getElementById('invQty');
+
+      if (type === 'asset') {
+        if (stockFields) stockFields.style.display = 'none';
+        if (assetFields) assetFields.style.display = 'block';
+        if (qtyLabel) qtyLabel.textContent = 'Asset Quantity';
+        if (qtyInput) { qtyInput.value = '1'; }
+      } else {
+        if (stockFields) stockFields.style.display = 'block';
+        if (assetFields) assetFields.style.display = 'none';
+        if (qtyLabel) qtyLabel.textContent = 'Stock Quantity *';
+        if (qtyInput && qtyInput.value === '1') { qtyInput.value = ''; }
+      }
+    }
+
+    async function handleAddInventorySubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('addInventorySubmitBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+      const wsId = currentActiveWorkspaceId || 'personal';
+      const payload = {
+        workspaceId: wsId,
+        name: document.getElementById('invName').value.trim(),
+        type: document.getElementById('invType').value,
+        category: document.getElementById('invCategory').value,
+        stockQuantity: parseFloat(document.getElementById('invQty').value) || 0,
+        unitValue: parseFloat(document.getElementById('invUnitValue').value) || 0,
+        reorderLevel: parseFloat(document.getElementById('invReorderLevel').value) || 5,
+        usefulLife: parseFloat(document.getElementById('invUsefulLife').value) || 3
+      };
+
+      try {
+        const res = await fetch('/api/inventory', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          closeModals();
+          showToast(`✅ ${payload.type === 'asset' ? 'Fixed Asset' : 'Stock Item'} "${payload.name}" saved!`, 'success');
+          await loadInventoryData();
+        } else {
+          alert('❌ Failed to save item: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('❌ Network error: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Save Item'; }
+      }
+    }
+
+    async function loadInventoryData() {
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch(`/api/inventory?workspaceId=${wsId}`, {
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          }
+        });
+        const data = await res.json();
+        const items = (data && data.items) ? data.items : [];
+
+        const tbody = document.getElementById('inventoryTableBody');
+        if (tbody) {
+          tbody.innerHTML = '';
+          if (items.length > 0) {
+            items.forEach(item => {
+              const isStock = (item.type === 'stock' || !item.type);
+              const qty = Number(item.stock_quantity || item.stockQuantity || 0);
+              const val = Number(item.unit_value || item.unitValue || 0);
+              const reorder = Number(item.reorder_level || item.reorderLevel || 5);
+              const isLowStock = isStock && qty <= reorder;
+
+              tbody.innerHTML += `
+                <tr>
+                  <td>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${isStock ? '📦' : '🏛️'} ${escapeHtml(item.name)}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(item.sku || 'SKU-GEN')}</div>
+                  </td>
+                  <td><span class="pill-badge" style="font-size: 0.72rem; padding: 2px 7px;">${escapeHtml(item.category || 'General')}</span></td>
+                  <td>
+                    ${isStock ? `
+                      <span style="font-weight: 800; ${isLowStock ? 'color: #f87171;' : 'color: #fff;'}">${qty} units</span>
+                      ${isLowStock ? `<span class="pill-badge rose" style="font-size: 0.65rem; margin-left: 6px;">⚠️ LOW STOCK</span>` : ''}
+                    ` : '<span style="color: #94a3b8;">1 Unit (Asset)</span>'}
+                  </td>
+                  <td style="font-weight: 800; color: #fff;">₹${val.toLocaleString('en-IN')}</td>
+                  <td>
+                    ${isStock ? `
+                      <span class="pill-badge emerald" style="font-size: 0.72rem;">✓ Ready for Sale</span>
+                    ` : `
+                      <div style="font-size: 0.8125rem; color: #38bdf8; font-weight: 700;">
+                        ₹${(val / (Number(item.useful_life || item.usefulLife || 5))).toFixed(0)}/yr depreciation
+                      </div>
+                      <div style="font-size: 0.7rem; color: var(--text-muted);">${item.useful_life || item.usefulLife || 5} yr useful life</div>
+                    `}
+                  </td>
+                  <td>
+                    <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="deleteInventoryItem('${item.id || item._id}', '${escapeHtml(item.name)}')">🗑️</button>
+                  </td>
+                </tr>
+              `;
+            });
+          } else {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No inventory items or fixed assets recorded in this workspace yet. Click "+ Add Item / Asset" above.</td></tr>';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load inventory data:', err);
+      }
+    }
+
+    async function deleteInventoryItem(itemId, name) {
+      if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+      try {
+        const res = await fetch(`/api/inventory/${itemId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`🗑️ "${name}" deleted.`, 'success');
+          await loadInventoryData();
+        } else {
+          alert('Failed to delete item: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ─── SUBSCRIPTIONS MODAL & HANDLERS ───
+    function openAddSubscriptionModal() {
+      closeModals();
+      const form = document.getElementById('addSubscriptionForm');
+      if (form) form.reset();
+      const today = new Date().toISOString().split('T')[0];
+      const nextDate = document.getElementById('subNextDate');
+      if (nextDate) nextDate.value = today;
+      const modal = document.getElementById('addSubscriptionModal');
+      if (modal) modal.classList.add('active');
+    }
+
+    async function handleAddSubscriptionSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('addSubscriptionSubmitBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+      const wsId = currentActiveWorkspaceId || 'personal';
+      const payload = {
+        workspaceId: wsId,
+        name: document.getElementById('subName').value.trim(),
+        category: document.getElementById('subCategory').value,
+        amount: parseFloat(document.getElementById('subCost').value) || 0,
+        billingCycle: document.getElementById('subCycle').value,
+        nextBillingDate: document.getElementById('subNextDate').value,
+        status: document.getElementById('subStatus').value
+      };
+
+      try {
+        const res = await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          closeModals();
+          showToast(`✅ Subscription "${payload.name}" saved!`, 'success');
+          await loadSubscriptionsData();
+        } else {
+          alert('❌ Failed to save subscription: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('❌ Network error: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Save Subscription'; }
+      }
+    }
+
+    async function loadSubscriptionsData() {
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch(`/api/subscriptions?workspaceId=${wsId}`, {
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          }
+        });
+        const data = await res.json();
+        const subs = (data && data.subscriptions) ? data.subscriptions : [];
+
+        const tbody = document.getElementById('subscriptionsTableBody');
+        if (tbody) {
+          tbody.innerHTML = '';
+          if (subs.length > 0) {
+            subs.forEach(s => {
+              const amt = Number(s.amount || s.cost || 0);
+              const nextDate = s.next_billing_date || s.nextBillingDate || '2026-10-01';
+              const isActive = (s.status === 'active');
+
+              tbody.innerHTML += `
+                <tr>
+                  <td>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">🔁 ${escapeHtml(s.name)}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(s.category || 'Software & SaaS')}</div>
+                  </td>
+                  <td><span class="pill-badge" style="font-size: 0.72rem; text-transform: capitalize;">${escapeHtml(s.billing_cycle || s.billingCycle || 'monthly')}</span></td>
+                  <td style="color: #38bdf8; font-weight: 600;">${new Date(nextDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                  <td style="font-weight: 800; color: #f87171;">₹${amt.toLocaleString('en-IN')}</td>
+                  <td>
+                    <span class="pill-badge ${isActive ? 'emerald' : 'amber'}" style="font-size: 0.72rem; text-transform: uppercase;">
+                      ${isActive ? '● Auto-Debit' : '○ Paused'}
+                    </span>
+                  </td>
+                  <td>
+                    <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="deleteSubscription('${s.id || s._id}', '${escapeHtml(s.name)}')">🗑️</button>
+                  </td>
+                </tr>
+              `;
+            });
+          } else {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No recurring subscriptions added yet. Click "+ Add Subscription" above.</td></tr>';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load subscriptions data:', err);
+      }
+    }
+
+    async function deleteSubscription(subId, name) {
+      if (!confirm(`Are you sure you want to delete subscription "${name}"?`)) return;
+      try {
+        const res = await fetch(`/api/subscriptions/${subId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`🗑️ "${name}" deleted.`, 'success');
+          await loadSubscriptionsData();
+        } else {
+          alert('Failed to delete subscription: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ─── TRANSACTIONS & EXPENSES LEDGER FILTER & SEARCH ───
+    let currentTxFilter = 'all';
+    let currentTxSearchQuery = '';
+
+    function filterTxTable(type) {
+      currentTxFilter = type;
+      renderDedicatedTransactionsTable();
+    }
+
+    function handleTxSearch(query) {
+      currentTxSearchQuery = (query || '').toLowerCase().trim();
+      renderDedicatedTransactionsTable();
+    }
+
+    function renderDedicatedTransactionsTable() {
+      const tbody = document.getElementById('dedicatedTxTableBody');
+      if (!tbody) return;
+
+      let list = currentWorkspaceTransactions || [];
+      if (currentTxFilter !== 'all') {
+        list = list.filter(t => t.type === currentTxFilter);
+      }
+      if (currentTxSearchQuery) {
+        list = list.filter(t => 
+          (t.description || '').toLowerCase().includes(currentTxSearchQuery) ||
+          (t.category || '').toLowerCase().includes(currentTxSearchQuery) ||
+          (t.narration || '').toLowerCase().includes(currentTxSearchQuery) ||
+          String(t.amount || '').includes(currentTxSearchQuery)
+        );
+      }
+
+      const countBadge = document.getElementById('txCountBadge');
+      if (countBadge) countBadge.textContent = `${list.length} Transactions`;
+
+      tbody.innerHTML = '';
+      if (list.length > 0) {
+        list.forEach(t => {
+          const isInc = (t.type === 'income');
+          tbody.innerHTML += `
+            <tr>
+              <td>${t.date ? new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today'}</td>
+              <td>
+                <div style="font-weight: 700; color: #fff;">${escapeHtml(t.description)}</div>
+                ${t.narration && t.narration !== t.description ? `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${escapeHtml(t.narration)}</div>` : ''}
+              </td>
+              <td><span class="pill-badge" style="font-size: 0.72rem; padding: 2px 7px;">${escapeHtml(t.category || 'General')}</span></td>
+              <td><span class="pill-badge ${isInc ? 'emerald' : 'rose'}" style="font-weight: 800;">${isInc ? '🟢 + INFLOW' : '🔴 - OUTFLOW'}</span></td>
+              <td style="font-weight: 800; font-size: 0.95rem; color: ${isInc ? '#10b981' : '#f87171'}">₹${Number(t.amount || 0).toLocaleString('en-IN')}</td>
+              <td><span style="color: #10b981; font-weight: 700;">✓ Verified</span></td>
+              <td>
+                <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.72rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="handleDeleteTx('${t.id || t._id}', '${escapeHtml(t.description)}', ${t.amount})">🗑️ Delete</button>
+              </td>
+            </tr>
+          `;
+        });
+      } else {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No matching transactions found. Click "+ Add Transaction" or "Upload Statement" above.</td></tr>';
+      }
+    }
+    
+    async function handleDeleteTx(id, desc, amt) {
+      if (!confirm(`Are you sure you want to delete transaction "${desc}" (₹${amt})?`)) return;
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch(`/api/transactions/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'x-workspace-id': wsId
+          }
+        });
+        const data = await res.json();
+        if (res.ok && (data.success || data.message)) {
+          showToast(`Deleted transaction "${desc}"`, 'info');
+          await loadWorkspaceData();
+        } else {
+          alert('Failed to delete transaction: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('Network error deleting transaction: ' + err.message);
+      }
     }
 
     function openCreateInvoiceModal() {
@@ -8147,7 +8884,10 @@
       else if (secName === 'khata') document.getElementById('mobNavKhata')?.classList.add('active');
       else if (secName === 'invoices') document.getElementById('mobNavKhata')?.classList.add('active');
 
-      document.getElementById('section-overview').style.display = (secName === 'overview' || secName === 'transactions') ? 'block' : 'none';
+      document.getElementById('section-overview').style.display = (secName === 'overview') ? 'block' : 'none';
+      if (document.getElementById('section-transactions')) {
+        document.getElementById('section-transactions').style.display = (secName === 'transactions') ? 'block' : 'none';
+      }
       document.getElementById('section-expenseAnalysis').style.display = (secName === 'expenseAnalysis') ? 'block' : 'none';
       document.getElementById('section-khata').style.display = (secName === 'khata') ? 'block' : 'none';
       document.getElementById('section-invoices').style.display = (secName === 'invoices') ? 'block' : 'none';
@@ -8161,11 +8901,23 @@
       document.getElementById('section-team').style.display = (secName === 'team') ? 'block' : 'none';
       document.getElementById('section-settings').style.display = (secName === 'settings') ? 'block' : 'none';
 
-      if (secName === 'overview' || secName === 'cashflow' || secName === 'expenseAnalysis') {
-          if (secName === 'cashflow') loadCashFlowRadar();
+      if (secName === 'overview' || secName === 'cashflow' || secName === 'expenseAnalysis' || secName === 'transactions') {
+        if (secName === 'cashflow') loadCashFlowRadar();
         setTimeout(() => {
           loadWorkspaceData();
+          if (secName === 'transactions' && typeof renderDedicatedTransactionsTable === 'function') {
+            renderDedicatedTransactionsTable();
+          }
         }, 100);
+      }
+      if (secName === 'khata' && typeof loadKhataData === 'function') {
+        loadKhataData();
+      }
+      if (secName === 'inventory' && typeof loadInventoryData === 'function') {
+        loadInventoryData();
+      }
+      if (secName === 'subscriptions' && typeof loadSubscriptionsData === 'function') {
+        loadSubscriptionsData();
       }
       if (secName === 'upload') {
         setTimeout(() => {
