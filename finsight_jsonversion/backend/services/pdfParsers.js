@@ -191,7 +191,7 @@ export function standardizeDate(dateStr) {
     jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
   };
 
-  const dayFirstNamed = cleaned.match(/(?:^|\b)(\d{1,2})[\s\/-]([A-Za-z]{3,9})[\s\/-](\d{2,4})\b/);
+  const dayFirstNamed = cleaned.match(/(?:^|\b)(\d{1,2})[\s\/-]([A-Za-z]{3,9}),?[\s\/-](\d{2,4})\b/);
   if (dayFirstNamed) {
     const [, dayStr, monthName, yearStr] = dayFirstNamed;
     const mKey = monthName.toLowerCase().slice(0, 3);
@@ -424,23 +424,27 @@ export function determineCashFlowType({ text = '', desc = '', debit = 0, credit 
   const combined = `${desc} ${text} ${rawAmountStr}`.toLowerCase();
 
   // 1. High-priority explicit received / income phrases
-  // Handles: "Payment received", "Received payment", "Received from", "Money received", "Payment from", "Paid by", "Customer paid"
-  const isExplicitIncome = /\b(?:received from|payment received|received payment|money received|amount received|received via|received rs|received inr|received\b|payment from|paid by|transferred by|sent by|client paid|customer paid|cashback from|cashback|refund from|refund of|refunded|refund|salary from|salary credit|salary|dividend|stipend|interest credited|int\.pd|inward|upi inward|collection|settlement|mila|mil gaya|jama|aaya|vasool|vaanginen|varavu)\b/i.test(combined);
+  // Handles: "Payment received", "Received payment", "Received from", "Money received", "Payment from", "Customer paid"
+  const isExplicitIncome = /\b(?:received from|payment received|received payment|money received|amount received|received via|received rs|received inr|received\b|payment from|transferred by|sent by|client paid|customer paid|cashback from|cashback|refund from|refund of|refunded|refund|salary from|salary credit|salary|dividend|stipend|interest credited|int\.pd|inward|upi inward|collection|settlement|mila|mil gaya|jama|aaya|vasool|vaanginen|varavu)\b/i.test(combined) ||
+    (/\bpaid by\b/i.test(combined) && !/\bpaid by\s+(?:[a-z\s]+bank|iob|sbi|hdfc|icici|axis|kotak|pnb|bob|canara|union|account|a\/c|\d{4})\b/i.test(combined));
 
   // 2. High-priority explicit expense / sent phrases
-  // Handles: "Paid to", "Payment to", "Money sent to", "Sent to", "Paid for", "Debited from", "Bill payment", "Recharge"
-  const isExplicitExpense = /\b(?:paid to|payment to|money sent to|sent to|paid for|paid using|paid via|transfer to|debited from|withdrawn from|withdrawal|atm wdl|pos swipe|recharge|bill payment|autopay|nach|ecs|emi|loan payment|spent|purchase|bought|kharcha|diya)\b/i.test(combined);
+  // Handles: "Paid to", "Payment to", "Money sent to", "Sent to", "Paid for", "Debited from", "Bill payment", "Recharge", "Paid by <Bank>"
+  const isExplicitExpense = /\b(?:paid to|payment to|money sent to|sent to|paid for|paid using|paid via|transfer to|debited from|withdrawn from|withdrawal|atm wdl|pos swipe|recharge|bill payment|autopay|nach|ecs|emi|loan payment|spent|purchase|bought|kharcha|diya)\b/i.test(combined) ||
+    /\bpaid by\s+(?:[a-z\s]+bank|iob|sbi|hdfc|icici|axis|kotak|pnb|bob|canara|union|account|a\/c|\d{4})\b/i.test(combined);
 
-  // If text has both (e.g. "Payment received from Ramesh" has "payment" and "received"):
+  // If text has both (e.g. "Payment received from Ramesh" or "Paid to Merchant ... Paid by Bank"):
   if (isExplicitIncome && isExplicitExpense) {
-    if (/\b(?:received|payment from|paid by|cashback|refund|salary|credited|cr)\b/i.test(combined)) {
+    if (/\b(?:paid to|payment to|money sent to|sent to|transfer to)\b/i.test(combined) && !/\b(?:received from|received payment|payment received|refund from|cashback from)\b/i.test(combined)) {
+      return 'expense';
+    }
+    if (/\b(?:received from|received payment|payment received|refund from|cashback from|cashback|refund|salary|interest credited)\b/i.test(combined)) {
       return 'income';
     }
-    if (/\b(?:paid to|money sent to|sent to|payment to)\b/i.test(combined)) {
+    if (/\b(?:paid to|payment to|money sent to|sent to|transfer to)\b/i.test(combined)) {
       return 'expense';
     }
   }
-
   if (isExplicitIncome && !isExplicitExpense) return 'income';
   if (isExplicitExpense && !isExplicitIncome) return 'expense';
 
@@ -1358,14 +1362,94 @@ export function parseCredStatement(text) {
 
 // ─── 35. GOOGLE PAY (GPAY) & UPI STATEMENT PARSER ───
 export function parseGooglePayStatement(text) {
+  if (!text) return [];
   const transactions = [];
   let idCounter = 1;
 
-  // Strategy A: Block-based ("Paid to ...", "Received from ...", "Payment to ...")
-  const blocks = text.split(/(?=(?:Paid to|Payment to|Money sent to|Received from|Money received from|Refund from|Cashback from|Cashback|\+\s*₹|-\s*₹|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+(?:Paid|Received)))/i);
-  for (const block of blocks) {
+  const cleanText = text.replace(/--\s*\d+\s+of\s+\d+\s*--/g, '').replace(/Page\s+\d+\s+of\s+\d+/gi, '');
+
+  // Strategy A: Official GPay Statement format (Date & Time preceding Action & Party)
+  // e.g.:
+  // 01 Feb, 2026
+  // 09:34 AM
+  // Received from Suganya Vijayakumar
+  // UPI Transaction ID: 117983699294
+  // Paid to Indian Overseas Bank 2077
+  // ₹3,000
+  const officialBlockRegex = /(?:^|\n)(?=\d{1,2}\s+[A-Za-z]{3},?\s*\d{4}\s*\n\s*\d{1,2}:\d{2}\s*[AP]M)/gi;
+  const officialBlocks = cleanText.split(officialBlockRegex);
+
+  for (const block of officialBlocks) {
     const trimmed = block.trim();
-    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
+    if (!trimmed) continue;
+
+    const headerMatch = trimmed.match(/^(\d{1,2}\s+[A-Za-z]{3},?\s*\d{4})\s*\n\s*(\d{1,2}:\d{2}\s*[AP]M)\s*\n\s*(Received from|Paid to|Money received from|Money sent to|Payment to|Refund from|Cashback from|Cashback)\s+([^\n\r]+)/i);
+    
+    if (headerMatch) {
+      const dateStr = headerMatch[1];
+      const timeStr = headerMatch[2];
+      const action = headerMatch[3].trim().toLowerCase();
+      let partyName = headerMatch[4].trim().replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
+
+      const amtMatch = trimmed.match(/(?:[-+]?\s*(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?))|([\d,]+\.\d{2})/i);
+      if (!amtMatch) continue;
+
+      const amount = parseCleanAmount(amtMatch[1] || amtMatch[0]);
+      if (amount <= 0) continue;
+
+      // In GPay statements:
+      // "Received from ..." -> strictly INCOME
+      // "Paid to ..." -> strictly EXPENSE
+      const isIncome = action.includes('received') || action.includes('refund') || action.includes('cashback');
+      const type = isIncome ? 'income' : 'expense';
+
+      const refMatch = trimmed.match(/(?:UPI Ref ID|UPI transaction ID|Google transaction ID|UTR|Ref No)[:\s]+([A-Za-z0-9]+)/i);
+      const refNo = refMatch ? refMatch[1].trim() : undefined;
+
+      const desc = isIncome ? `Received from ${partyName}` : `Paid to ${partyName}`;
+
+      transactions.push({
+        tempId: `gpay-${Date.now()}-${idCounter++}`,
+        date: standardizeDate(dateStr),
+        description: desc,
+        merchantName: partyName,
+        category: categorizeByNarration(partyName),
+        type,
+        amount,
+        debit: type === 'expense' ? amount : 0,
+        credit: type === 'income' ? amount : 0,
+        referenceNumber: refNo,
+        confidenceScore: 0.99,
+        bankName: 'Google Pay (UPI)',
+        approved: true
+      });
+    }
+  }
+
+  if (transactions.length > 0) return filterOutSummaryRows(transactions);
+
+  // Strategy B: App activity list & legacy exports (Action precedes Party & Date)
+  // e.g.:
+  // Paid to Swiggy
+  // Jan 16, 2026
+  // ₹ 450.00
+  // Completed • From HDFC Bank
+  const altBlockRegex = /(?:^|\n)(?=(?:Paid to|Payment to|Money sent to|Received from|Money received from|Refund from|Cashback from)\s+(?!(?:Indian Overseas Bank|HDFC Bank|State Bank|ICICI Bank|Axis Bank|Kotak Bank|Bank of|Union Bank|Canara Bank|Punjab National|account|a\/c|\d{4}))[^\n\r]+)/gi;
+  const altBlocks = cleanText.split(altBlockRegex);
+
+  for (const block of altBlocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+
+    const actionMatch = trimmed.match(/^(Paid to|Payment to|Money sent to|Received from|Money received from|Refund from|Cashback from)\s+([^\n\r]+)/i);
+    if (!actionMatch) continue;
+
+    const action = actionMatch[1].toLowerCase();
+    let partyName = actionMatch[2].replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
+
+    if (/^(?:Indian Overseas Bank|HDFC Bank|State Bank|ICICI Bank|Axis Bank|Kotak Bank|Bank of|Union Bank|Canara Bank|Punjab National|account|a\/c)/i.test(partyName)) {
+      continue;
+    }
 
     const amtMatch = trimmed.match(/(?:[-+]?\s*(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?))|([\d,]+\.\d{2})/i);
     if (!amtMatch) continue;
@@ -1373,27 +1457,16 @@ export function parseGooglePayStatement(text) {
     const amount = parseCleanAmount(amtMatch[1] || amtMatch[0]);
     if (amount <= 0) continue;
 
-    // Determine type with accurate cash flow semantics
-    const type = determineCashFlowType({
-      text: trimmed,
-      rawAmountStr: amtMatch[0]
-    });
+    const isIncome = action.includes('received') || action.includes('refund') || action.includes('cashback');
+    const type = isIncome ? 'income' : 'expense';
 
-    const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
+    const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i);
     const dateStr = dateMatch ? dateMatch[1] : '';
-
-    let partyName = 'UPI Transfer';
-    const nameMatch = trimmed.match(/(?:Paid to|Received from|Payment to|Money sent to|Transfer to|Refund from|Cashback from)\s*([^\n\r•,]+)/i);
-    if (nameMatch) {
-      partyName = nameMatch[1].replace(/(?:₹|INR|Rs\.?).*$/, '').trim();
-    }
-
-    if (!partyName || isSummaryOrNonTransactionLine(partyName, partyName, trimmed)) continue;
 
     const refMatch = trimmed.match(/(?:UPI Ref ID|UPI transaction ID|Google transaction ID|UTR|Ref No)[:\s]+([A-Za-z0-9]+)/i);
     const refNo = refMatch ? refMatch[1].trim() : undefined;
 
-    const desc = `${type === 'income' ? (partyName.toLowerCase().includes('received') ? partyName : 'Received from ' + partyName) : (partyName.toLowerCase().includes('paid') ? partyName : 'Paid to ' + partyName)}`;
+    const desc = isIncome ? `Received from ${partyName}` : `Paid to ${partyName}`;
 
     transactions.push({
       tempId: `gpay-${Date.now()}-${idCounter++}`,
@@ -1406,56 +1479,10 @@ export function parseGooglePayStatement(text) {
       debit: type === 'expense' ? amount : 0,
       credit: type === 'income' ? amount : 0,
       referenceNumber: refNo,
-      confidenceScore: 0.99,
+      confidenceScore: 0.98,
       bankName: 'Google Pay (UPI)',
       approved: true
     });
-  }
-
-  if (transactions.length > 0) return filterOutSummaryRows(transactions);
-
-  // Strategy B: Line-by-line GPay / UPI Statement table records
-  const lines = text.split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || isSummaryOrNonTransactionLine('', '', trimmed)) continue;
-
-    const dateMatch = trimmed.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s*\d{4}|\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\d{4}[\/\.-]\d{1,2}[\/\.-]\d{1,2})/i);
-    const amtMatch = trimmed.match(/(?:[-+]?\s*(?:₹|INR|Rs\.?)\s*([\d,]+(?:\.\d{2})?))|([\d,]+\.\d{2})/i);
-
-    if (dateMatch && amtMatch) {
-      const amount = parseCleanAmount(amtMatch[1] || amtMatch[0]);
-      if (amount > 0) {
-        const type = determineCashFlowType({
-          text: trimmed,
-          rawAmountStr: amtMatch[0]
-        });
-
-        let desc = trimmed
-          .replace(dateMatch[0], '')
-          .replace(amtMatch[0], '')
-          .replace(/\b(?:COMPLETED|SUCCESS|SUCCESSFUL|DEBITED|CREDITED|PAID|RECEIVED|UPI)\b/gi, '')
-          .trim();
-        if (!desc) desc = type === 'income' ? 'UPI Inflow' : 'UPI Outflow';
-
-        if (isSummaryOrNonTransactionLine(desc, '', trimmed)) continue;
-
-        transactions.push({
-          tempId: `gpay-line-${Date.now()}-${idCounter++}`,
-          date: standardizeDate(dateMatch[1]),
-          description: desc,
-          merchantName: desc.split(/[\/\-_]/)[0].trim() || 'UPI Merchant',
-          category: categorizeByNarration(desc),
-          type,
-          amount,
-          debit: type === 'expense' ? amount : 0,
-          credit: type === 'income' ? amount : 0,
-          confidenceScore: 0.96,
-          bankName: 'Google Pay (UPI)',
-          approved: true
-        });
-      }
-    }
   }
 
   return filterOutSummaryRows(transactions);
