@@ -2,7 +2,7 @@
   "expo": {
     "name": "HisabHero",
     "slug": "hisabhero-mobile",
-    "version": "4.0.0",
+    "version": "7.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "hisabhero",
@@ -34,7 +34,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#06111f"
       },
-      "versionCode": 3
+      "versionCode": 7
     },
 
     "plugins": [
