@@ -194,79 +194,92 @@ export function PayrollScreen() {
           <View style={[styles.summaryStrip, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Staff</Text>
-              <Text style={[styles.summaryVal, { color: theme.text }]}>{pagarData?.summary?.totalStaff || 3}</Text>
+              <Text style={[styles.summaryVal, { color: theme.text }]}>{pagarData?.summary?.totalStaff || (pagarData?.staff?.length) || 0}</Text>
             </View>
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Salary Pool</Text>
-              <Text style={[styles.summaryVal, { color: theme.text }]}>₹{(pagarData?.summary?.totalDisbursed || 43500).toLocaleString('en-IN')}</Text>
+              <Text style={[styles.summaryVal, { color: theme.text }]}>₹{(pagarData?.summary?.totalDisbursed || 0).toLocaleString('en-IN')}</Text>
             </View>
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Advances Cut</Text>
-              <Text style={[styles.summaryVal, { color: '#f59e0b' }]}>-₹{(pagarData?.summary?.totalAdvancesGiven || 7000).toLocaleString('en-IN')}</Text>
+              <Text style={[styles.summaryVal, { color: '#f59e0b' }]}>-₹{(pagarData?.summary?.totalAdvancesGiven || 0).toLocaleString('en-IN')}</Text>
             </View>
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Net Payable</Text>
-              <Text style={[styles.summaryVal, { color: '#10b981' }]}>₹{(pagarData?.summary?.netPayable || 36500).toLocaleString('en-IN')}</Text>
+              <Text style={[styles.summaryVal, { color: '#10b981' }]}>₹{(pagarData?.summary?.netPayable || 0).toLocaleString('en-IN')}</Text>
             </View>
           </View>
 
           {/* Staff Cards */}
-          {(pagarData?.staff || [
-            { id: 'EMP-01', name: 'Ramesh Kumar (Store Mgr)', monthlySalary: 22000, attendance: { present: 26, absent: 2, halfDay: 2, overtimeDays: 1 }, advancesDrawn: 3000, netPayable: 17533 },
-            { id: 'EMP-02', name: 'Sunil Rao (Billing & Stock)', monthlySalary: 16500, attendance: { present: 28, absent: 0, halfDay: 1, overtimeDays: 2 }, advancesDrawn: 2500, netPayable: 14550 },
-            { id: 'EMP-03', name: 'Deepa Verma (Customer Desk)', monthlySalary: 15000, attendance: { present: 25, absent: 3, halfDay: 0, overtimeDays: 0 }, advancesDrawn: 1500, netPayable: 11000 },
-          ]).map((member: any) => (
-            <View key={member.id} style={[styles.staffCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-              <View style={styles.staffHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.staffName, { color: theme.text }]}>{member.name}</Text>
-                  <Text style={[styles.staffBase, { color: theme.textSecondary }]}>Base: ₹{Number(member.monthlySalary).toLocaleString('en-IN')}/mo</Text>
+          {(pagarData?.staff && pagarData.staff.length > 0) ? (
+            pagarData.staff.map((member: any) => (
+              <View key={member.id || member._id} style={[styles.staffCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                <View style={styles.staffHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.staffName, { color: theme.text }]}>{member.name}</Text>
+                    <Text style={[styles.staffBase, { color: theme.textSecondary }]}>Base: ₹{Number(member.monthlySalary || member.baseSalary || 0).toLocaleString('en-IN')}/mo</Text>
+                  </View>
+                  <View style={[styles.netBadge, { backgroundColor: '#10b98115', borderColor: '#10b98150' }]}>
+                    <Text style={styles.netBadgeText}>Net: ₹{Number(member.netPayable || member.monthlySalary || 0).toLocaleString('en-IN')}</Text>
+                  </View>
                 </View>
-                <View style={[styles.netBadge, { backgroundColor: '#10b98115', borderColor: '#10b98150' }]}>
-                  <Text style={styles.netBadgeText}>Net: ₹{Number(member.netPayable).toLocaleString('en-IN')}</Text>
+
+                {/* Attendance Badges */}
+                <View style={styles.attRow}>
+                  <View style={[styles.attBadge, { backgroundColor: '#10b98115' }]}>
+                    <Text style={[styles.attText, { color: '#10b981' }]}>{member.attendance?.present ?? 26} Present</Text>
+                  </View>
+                  <View style={[styles.attBadge, { backgroundColor: '#ef444415' }]}>
+                    <Text style={[styles.attText, { color: '#ef4444' }]}>{member.attendance?.absent ?? 0} Absent</Text>
+                  </View>
+                  <View style={[styles.attBadge, { backgroundColor: '#f59e0b15' }]}>
+                    <Text style={[styles.attText, { color: '#f59e0b' }]}>{member.attendance?.halfDay ?? 0} Half</Text>
+                  </View>
+                  <View style={[styles.attBadge, { backgroundColor: '#3b82f615' }]}>
+                    <Text style={[styles.attText, { color: '#3b82f6' }]}>+{member.attendance?.overtimeDays ?? 0} OT</Text>
+                  </View>
+                </View>
+
+                {/* Advance and WhatsApp row */}
+                <View style={styles.cardActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.advanceBtn, { borderColor: '#f59e0b', backgroundColor: '#f59e0b15' }]}
+                    onPress={() => {
+                      setSelectedStaffForAdvance(member);
+                      setAdvanceVisible(true);
+                    }}
+                  >
+                    <Text style={styles.advanceBtnText}>
+                      + Advance (₹{member.advancesDrawn || member.totalAdvances || 0})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.whatsappPayslipBtn, { backgroundColor: '#10b981' }]}
+                    onPress={() => handleSendWhatsAppPayslip(member)}
+                  >
+                    <MessageCircleIcon color="#ffffff" size={14} style={{ marginRight: 4 }} />
+                    <Text style={styles.whatsappPayslipBtnText}>WhatsApp Slip</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-
-              {/* Attendance Badges */}
-              <View style={styles.attRow}>
-                <View style={[styles.attBadge, { backgroundColor: '#10b98115' }]}>
-                  <Text style={[styles.attText, { color: '#10b981' }]}>{member.attendance?.present || 26} Present</Text>
-                </View>
-                <View style={[styles.attBadge, { backgroundColor: '#ef444415' }]}>
-                  <Text style={[styles.attText, { color: '#ef4444' }]}>{member.attendance?.absent || 0} Absent</Text>
-                </View>
-                <View style={[styles.attBadge, { backgroundColor: '#f59e0b15' }]}>
-                  <Text style={[styles.attText, { color: '#f59e0b' }]}>{member.attendance?.halfDay || 0} Half</Text>
-                </View>
-                <View style={[styles.attBadge, { backgroundColor: '#3b82f615' }]}>
-                  <Text style={[styles.attText, { color: '#3b82f6' }]}>+{member.attendance?.overtimeDays || 0} OT</Text>
-                </View>
-              </View>
-
-              {/* Advance and WhatsApp row */}
-              <View style={styles.cardActionsRow}>
-                <TouchableOpacity
-                  style={[styles.advanceBtn, { borderColor: '#f59e0b', backgroundColor: '#f59e0b15' }]}
-                  onPress={() => {
-                    setSelectedStaffForAdvance(member);
-                    setAdvanceVisible(true);
-                  }}
-                >
-                  <Text style={styles.advanceBtnText}>
-                    + Advance (₹{member.advancesDrawn || 0})
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.whatsappPayslipBtn, { backgroundColor: '#10b981' }]}
-                  onPress={() => handleSendWhatsAppPayslip(member)}
-                >
-                  <MessageCircleIcon color="#ffffff" size={14} style={{ marginRight: 4 }} />
-                  <Text style={styles.whatsappPayslipBtnText}>WhatsApp Slip</Text>
-                </TouchableOpacity>
-              </View>
+            ))
+          ) : (
+            <View style={[styles.staffCard, { backgroundColor: theme.card, borderColor: theme.cardBorder, alignItems: 'center', padding: 24 }]}>
+              <UsersIcon color={theme.textSecondary} size={32} style={{ marginBottom: 10 }} />
+              <Text style={{ color: theme.text, fontSize: 15, fontWeight: '800', marginBottom: 6 }}>No Staff Members Added</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, textAlign: 'center', marginBottom: 16, lineHeight: 18 }}>
+                Add your employees or staff via 'Run Payroll' to manage attendance, daily wage advances, and auto-generate WhatsApp salary slips.
+              </Text>
+              <TouchableOpacity
+                style={[styles.addBtn, { backgroundColor: accentHex, paddingHorizontal: 16 }]}
+                onPress={() => setAddVisible(true)}
+              >
+                <PlusIcon color="#fff" size={14} />
+                <Text style={styles.addBtnText}>Add Staff Member</Text>
+              </TouchableOpacity>
             </View>
-          ))}
+          )}
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>

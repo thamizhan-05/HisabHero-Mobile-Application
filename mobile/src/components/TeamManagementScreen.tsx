@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
   Text,
@@ -58,7 +59,7 @@ export function TeamManagementScreen({
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
-  const [joinCode, setJoinCode] = useState<string>('HERO-WS-SELVA1');
+  const [joinCode, setJoinCode] = useState<string>('');
   const [members, setMembers] = useState<any[]>([]);
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
@@ -67,6 +68,12 @@ export function TeamManagementScreen({
   const fetchTeamData = async () => {
     setLoading(true);
     try {
+      let curUser: any = null;
+      try {
+        const rawUser = await AsyncStorage.getItem('user');
+        if (rawUser) curUser = JSON.parse(rawUser);
+      } catch (e) {}
+
       // 1. Fetch current workspace details for Join Code
       const resWs = await apiClient.get('/workspaces');
       if (resWs.ok) {
@@ -75,6 +82,8 @@ export function TeamManagementScreen({
         const current = list.find((w: any) => w.id === activeWorkspaceId || w._id === activeWorkspaceId) || list[0];
         if (current && (current.joinCode || current.join_code)) {
           setJoinCode(current.joinCode || current.join_code);
+        } else if (current?.name && curUser?.fullName) {
+          setJoinCode('HERO-WS-' + curUser.fullName.substring(0, 5).toUpperCase() + '1');
         }
       }
 
@@ -82,14 +91,27 @@ export function TeamManagementScreen({
       const resMembers = await apiClient.get(`/workspaces/${activeWorkspaceId}/members`).catch(() => null);
       if (resMembers && resMembers.ok) {
         const mData = await resMembers.json();
-        setMembers(mData.members || mData || []);
-      } else {
-        // Fallback default member view
+        const memList = mData.members || mData || [];
+        if (Array.isArray(memList) && memList.length > 0) {
+          setMembers(memList);
+        } else if (curUser) {
+          setMembers([
+            {
+              id: curUser.id || curUser._id || 'user_owner',
+              fullName: curUser.fullName || curUser.name || 'Owner',
+              email: curUser.email || '',
+              role: 'owner',
+              status: 'Active',
+              joinedAt: new Date().toISOString().split('T')[0],
+            }
+          ]);
+        }
+      } else if (curUser) {
         setMembers([
           {
-            id: 'mem_1',
-            fullName: 'Workspace Owner',
-            email: 'owner@hisabhero.com',
+            id: curUser.id || curUser._id || 'user_owner',
+            fullName: curUser.fullName || curUser.name || 'Owner',
+            email: curUser.email || '',
             role: 'owner',
             status: 'Active',
             joinedAt: new Date().toISOString().split('T')[0],

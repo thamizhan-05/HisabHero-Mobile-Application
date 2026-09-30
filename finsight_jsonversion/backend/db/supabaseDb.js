@@ -6,7 +6,7 @@
 
 import { supabase } from './supabaseClient.js';
 import { localDb } from './localDb.js';
-import { mongoUsersRepo, mongoWorkspacesRepo, mongoOtpRepo } from './mongoDb.js';
+import { mongoUsersRepo, mongoWorkspacesRepo, mongoTransactionsRepo, mongoStaffRepo, mongoOtpRepo } from './mongoDb.js';
 
 let isSupabaseOffline = true; // Supabase project DNS is paused/offline, default to fast offline mode
 
@@ -507,12 +507,84 @@ export const workspacesRepo = {
       },
       () => localDb.findWorkspacesByOwner(userId)
     );
+  },
+
+  async upgradeToBusiness(workspaceId) {
+    try {
+      const mongoRes = await mongoWorkspacesRepo.upgradeToBusiness(workspaceId);
+      try { localDb.upgradeWorkspaceToBusiness(workspaceId); } catch (e) {}
+      if (mongoRes) return mongoRes;
+    } catch (e) {
+      console.warn('[workspacesRepo.upgradeToBusiness] Mongo warning:', e.message);
+    }
+
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('workspaces')
+          .update({ type: 'business', updated_at: new Date().toISOString() })
+          .eq('id', workspaceId)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[workspacesRepo.upgradeToBusiness] ${error.message}`);
+        return data;
+      },
+      () => localDb.upgradeWorkspaceToBusiness(workspaceId)
+    );
+  },
+
+  async addMember(workspaceId, memberData) {
+    try {
+      const mongoMem = await mongoWorkspacesRepo.addMember(workspaceId, memberData);
+      try { localDb.addWorkspaceMember({ workspaceId, ...memberData }); } catch (e) {}
+      if (mongoMem) return mongoMem;
+    } catch (e) {
+      console.warn('[workspacesRepo.addMember] Mongo warning:', e.message);
+    }
+
+    return localDb.addWorkspaceMember({ workspaceId, ...memberData });
+  },
+
+  async getMembers(workspaceId) {
+    try {
+      const members = await mongoWorkspacesRepo.getMembers(workspaceId);
+      if (members && members.length > 0) return members;
+    } catch (e) {
+      console.warn('[workspacesRepo.getMembers] Mongo warning:', e.message);
+    }
+
+    const ws = await this.findById(workspaceId);
+    if (ws && ws.ownerId) {
+      const owner = await usersRepo.findById(ws.ownerId);
+      if (owner) {
+        return [{
+          id: owner.id,
+          fullName: owner.fullName,
+          email: owner.email,
+          role: 'owner',
+          status: 'Active',
+          joinedAt: new Date().toISOString().split('T')[0]
+        }];
+      }
+    }
+    return [];
   }
 };
 
 // ─── 3. TRANSACTIONS REPOSITORY ──────────────────────────────────────────────
 export const transactionsRepo = {
   async create(tx) {
+    // 1. Write to persistent MongoDB Atlas
+    try {
+      const mongoTx = await mongoTransactionsRepo.create(tx);
+      try { localDb.createTransaction(tx); } catch (e) {}
+      if (mongoTx) return mongoTx;
+    } catch (e) {
+      console.warn('[transactionsRepo.create] Mongo error:', e.message);
+    }
+
+    // 2. Fallback to Supabase / localDb
     return safeDb(
       async () => {
         const payload = {
@@ -562,6 +634,16 @@ export const transactionsRepo = {
   async createBatch(txList) {
     if (!Array.isArray(txList) || txList.length === 0) return [];
 
+    // 1. Write to persistent MongoDB Atlas
+    try {
+      const mongoBatch = await mongoTransactionsRepo.createBatch(txList);
+      try { localDb.createTransactionsBatch(txList); } catch (e) {}
+      if (mongoBatch && mongoBatch.length > 0) return mongoBatch;
+    } catch (e) {
+      console.warn('[transactionsRepo.createBatch] Mongo error:', e.message);
+    }
+
+    // 2. Fallback to Supabase / localDb
     return safeDb(
       async () => {
         const payloads = txList.map(tx => ({
@@ -605,10 +687,19 @@ export const transactionsRepo = {
   },
 
   async listByWorkspace(workspaceId, { limit = 500, offset = 0, type, category } = {}) {
+    if (!workspaceId) return [];
+
+    // 1. Read from persistent MongoDB Atlas
+    try {
+      const mongoList = await mongoTransactionsRepo.listByWorkspace(workspaceId, { limit, offset, type, category });
+      if (mongoList && mongoList.length > 0) return mongoList;
+    } catch (e) {
+      console.warn('[transactionsRepo.listByWorkspace] Mongo error:', e.message);
+    }
+
+    // 2. Fallback to Supabase / localDb
     return safeDb(
       async () => {
-        if (!workspaceId) return [];
-
         let query = supabase
           .from('transactions')
           .select('*')
@@ -643,7 +734,109 @@ export const transactionsRepo = {
     );
   },
 
+  async findById(id) {
+    if (!id) return null;
+    try {
+      const mongoTx = await mongoTransactionsRepo.findById(id);
+      if (mongoTx) return mongoTx;
+    } catch (e) {
+      console.warn('[transactionsRepo.findById] Mongo error:', e.message);
+    }
+
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw new Error(`[transactionsRepo.findById] ${error.message}`);
+        if (!data) return null;
+        return {
+          _id: data.id,
+          id: data.id,
+          workspaceId: data.workspace_id,
+          userId: data.user_id,
+          type: data.type,
+          category: data.category,
+          amount: Number(data.amount),
+          description: data.description,
+          merchant: data.merchant,
+          date: data.date,
+          paymentMethod: data.payment_method,
+          taxAmount: Number(data.tax_amount || 0),
+          createdAt: data.created_at
+        };
+      },
+      () => localDb.data.transactions.find(t => t.id === id || t._id === id) || null
+    );
+  },
+
+  async update(id, updates) {
+    if (!id) return null;
+    try {
+      const mongoTx = await mongoTransactionsRepo.update(id, updates);
+      if (mongoTx) {
+        try {
+          const localTx = localDb.data.transactions.find(t => t.id === id || t._id === id);
+          if (localTx) { Object.assign(localTx, updates); localDb.save(); }
+        } catch (e) {}
+        return mongoTx;
+      }
+    } catch (e) {
+      console.warn('[transactionsRepo.update] Mongo error:', e.message);
+    }
+
+    return safeDb(
+      async () => {
+        const payload = {};
+        if (updates.description !== undefined) payload.description = updates.description;
+        if (updates.amount !== undefined) payload.amount = Number(updates.amount);
+        if (updates.type !== undefined) payload.type = updates.type;
+        if (updates.category !== undefined) payload.category = updates.category;
+        if (updates.date !== undefined) payload.date = updates.date;
+        if (updates.merchant !== undefined) payload.merchant = updates.merchant;
+        if (updates.paymentMethod !== undefined) payload.payment_method = updates.paymentMethod;
+
+        const { data, error } = await supabase
+          .from('transactions')
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[transactionsRepo.update] ${error.message}`);
+        return {
+          _id: data.id,
+          id: data.id,
+          workspaceId: data.workspace_id,
+          userId: data.user_id,
+          type: data.type,
+          category: data.category,
+          amount: Number(data.amount),
+          description: data.description,
+          merchant: data.merchant,
+          date: data.date,
+          paymentMethod: data.payment_method,
+          createdAt: data.created_at
+        };
+      },
+      () => {
+        const localTx = localDb.data.transactions.find(t => t.id === id || t._id === id);
+        if (localTx) { Object.assign(localTx, updates); localDb.save(); }
+        return localTx;
+      }
+    );
+  },
+
   async getMetrics(workspaceId) {
+    try {
+      const metrics = await mongoTransactionsRepo.getMetrics(workspaceId);
+      if (metrics && metrics.count > 0) return metrics;
+    } catch (e) {
+      console.warn('[transactionsRepo.getMetrics] Mongo error:', e.message);
+    }
+
     const txs = await this.listByWorkspace(workspaceId, { limit: 10000 });
     let totalInflow = 0;
     let totalOutflow = 0;
@@ -670,6 +863,14 @@ export const transactionsRepo = {
   },
 
   async delete(id) {
+    try {
+      const res = await mongoTransactionsRepo.delete(id);
+      try { localDb.deleteTransaction(id); } catch (e) {}
+      if (res) return true;
+    } catch (e) {
+      console.warn('[transactionsRepo.delete] Mongo error:', e.message);
+    }
+
     return safeDb(
       async () => {
         const { error } = await supabase.from('transactions').delete().eq('id', id);
@@ -681,6 +882,17 @@ export const transactionsRepo = {
   },
 
   async deleteByWorkspace(workspaceId) {
+    try {
+      await mongoTransactionsRepo.deleteByWorkspace(workspaceId);
+      try {
+        localDb.data.transactions = localDb.data.transactions.filter(t => t.workspace_id !== workspaceId && t.workspaceId !== workspaceId);
+        localDb.save();
+      } catch (e) {}
+      return true;
+    } catch (e) {
+      console.warn('[transactionsRepo.deleteByWorkspace] Mongo error:', e.message);
+    }
+
     return safeDb(
       async () => {
         const { error } = await supabase.from('transactions').delete().eq('workspace_id', workspaceId);
@@ -1177,3 +1389,7 @@ export const subscriptionsRepo = {
     );
   }
 };
+
+// ─── 14. STAFF & PAGAR KHATA REPOSITORY ─────────────────────────────────────
+export const staffRepo = mongoStaffRepo;
+

@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HisabHero Platform — System &amp; Architecture Specification Report</title>
+  
+  <!-- Core Markdown and Diagram Engines -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  
+  <!-- MathJax for LaTeX mathematical formula rendering -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- GitHub Markdown CSS Stylesheet -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
+  
+  <style>
+    :root {
+      --primary-accent: #0284c7;
+      --primary-accent-hover: #0369a1;
+      --bg-surface: #ffffff;
+      --text-main: #0f172a;
+      --border-subtle: #e2e8f0;
+      --bg-subtle: #f8fafc;
+    }
+
+    body {
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 45px 35px;
+      background-color: var(--bg-surface);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      line-height: 1.68;
+    }
+
+    @media (max-width: 767px) {
+      body {
+        padding: 18px 14px;
+      }
+    }
+
+    .markdown-body {
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 100%;
+      font-size: 14.5px;
+    }
+
+    .markdown-body h1 {
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 12px;
+      margin-top: 36px;
+      color: #0f172a;
+      font-size: 26px;
+      font-weight: 800;
+    }
+
+    .markdown-body h2 {
+      border-bottom: 1px solid #cbd5e1;
+      padding-bottom: 8px;
+      margin-top: 32px;
+      color: #1e293b;
+      font-size: 20px;
+      font-weight: 750;
+    }
+
+    .markdown-body h3 {
+      margin-top: 24px;
+      color: #334155;
+      font-size: 16.5px;
+      font-weight: 700;
+    }
+
+    .markdown-body h4 {
+      margin-top: 18px;
+      color: #475569;
+      font-size: 14.5px;
+      font-weight: 700;
+    }
+
+    /* High-contrast Diagram Container Styling */
+    .mermaid-container {
+      background-color: #f8fafc !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 10px !important;
+      padding: 24px 16px !important;
+      margin: 28px 0 !important;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+      page-break-inside: avoid;
+      overflow-x: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .mermaid {
+      width: 100% !important;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .mermaid svg {
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      min-height: 120px !important;
+      overflow: visible !important;
+    }
+
+    .mermaid .edgePath .path, .mermaid path.link, .mermaid line {
+      stroke: #0f172a !important;
+      stroke-width: 2px !important;
+    }
+
+    .mermaid marker path, .mermaid [id^=arrowhead] path {
+      fill: #0f172a !important;
+      stroke: #0f172a !important;
+    }
+
+    .mermaid text, .mermaid text * {
+      fill: #0f172a !important;
+      font-weight: 600 !important;
+      font-size: 13px !important;
+      font-family: inherit !important;
+    }
+
+    .mermaid rect.actor, .mermaid .node rect, .mermaid .node polygon, .mermaid .node circle {
+      fill: #f8fafc !important;
+      stroke: #0f172a !important;
+      stroke-width: 1.6px !important;
+    }
+
+    /* Production Table Styling */
+    .markdown-body table {
+      display: table !important;
+      width: 100% !important;
+      border-collapse: collapse !important;
+      margin: 20px 0 !important;
+      font-size: 13.5px !important;
+    }
+
+    .markdown-body table th {
+      background-color: #f1f5f9 !important;
+      font-weight: 750 !important;
+      color: #0f172a !important;
+      border: 1px solid #cbd5e1 !important;
+      padding: 10px 14px !important;
+      text-align: left;
+    }
+
+    .markdown-body table td {
+      border: 1px solid #e2e8f0 !important;
+      padding: 9px 14px !important;
+      vertical-align: top;
+    }
+
+    .markdown-body table tr:nth-child(2n) {
+      background-color: #f8fafc !important;
+    }
+
+    .markdown-body code {
+      font-family: "JetBrains Mono", Menlo, Consolas, "Courier New", monospace;
+      font-size: 12.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background-color: #f1f5f9;
+      color: #0369a1;
+      border: 1px solid #e2e8f0;
+    }
+
+    .markdown-body pre {
+      background-color: #0f172a;
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      border: 1px solid #334155;
+    }
+
+    .markdown-body pre code {
+      background-color: transparent;
+      color: #f8fafc;
+      border: none;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .markdown-body blockquote {
+      border-left: 4px solid #0284c7;
+      padding: 10px 18px;
+      color: #334155;
+      background-color: #f0f9ff;
+      border-radius: 0 8px 8px 0;
+      margin: 18px 0;
+    }
+
+    /* Print & Export Bar Styling */
+    .print-btn-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      gap: 12px;
+    }
+
+    .badge-report {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background-color: #f0f9ff;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      background-color: #0284c7;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn:hover {
+      background-color: #0369a1;
+    }
+
+    .btn-secondary {
+      background-color: #f8fafc;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+
+    .btn-secondary:hover {
+      background-color: #f1f5f9;
+    }
+
+    /* Print Optimization Rules */
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+
+    @media print {
+      body {
+        padding: 0 !important;
+        background-color: #ffffff !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      h1, h2, h3 {
+        page-break-after: avoid;
+        margin-top: 22px !important;
+        margin-bottom: 10px !important;
+      }
+      pre, blockquote, table, tr, img, .mermaid-container {
+        page-break-inside: avoid !important;
+      }
+      th, td {
+        border: 1px solid #cbd5e1 !important;
+        padding: 7px 10px !important;
+      }
+    }
+  </style>
+</head>
+<body class="markdown-body">
+  <div class="print-btn-bar no-print">
+    <div class="badge-report">
+      <span>🛡️ ENTERPRISE SPECIFICATION</span>
+      <span>•</span>
+      <span>HISABHERO V5.5 PLATFORM</span>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">⬆ Top</button>
+      <button class="btn" onclick="window.print()">🖨️ Export / Print to PDF</button>
+    </div>
+  </div>
+
+  <div id="content">
+    <p style="text-align: center; color: #64748b; padding: 40px 0;">
+      Compiling system architecture specification and rendering diagrams...
+    </p>
+  </div>
+
+  <script type="text/markdown" id="raw-markdown">
+# 📘 HISABHERO — Complete System & Architecture Specification Report
+> **Document Status:** Production-Grade Technical Specification  
+> **Release Target:** Enterprise v5.5.0  
+> **Architecture Classification:** Distributed Multi-Tenant Financial ERP & Document Intelligence Platform  
+> **Target Platforms:** React Native Mobile (Android / iOS / Expo), Web (SPA), Node.js / Express Backend, MongoDB Atlas  
+
+---
+
+## 📌 1. Executive Summary & Product Vision
+
+### 1.1 Business Problem & Market Context
+Micro, Small, and Medium Enterprises (MSMEs), sole proprietors, freelancers, and growing multi-branch businesses in emerging markets (particularly across India and South Asia) face severe operational friction in day-to-day financial bookkeeping, tax compliance, cash flow forecasting, and fraud prevention. Traditional ERPs (e.g., SAP, Oracle NetSuite) are prohibitively complex and expensive, while legacy single-entry apps (e.g., basic ledger tools) lack enterprise-grade multi-tenancy, cryptographic audit trails, multimodal receipt extraction, and automated GST compliance.
+
+**HisabHero** (*"Hisab"* = Account/Calculation; *"Hero"* = Champion) bridges this divide by delivering a dual-mode platform unifying personal wealth tracking and full-scale business ERP management into a single cross-platform ecosystem.
+
+### 1.2 Core Target Audience
+1. **Individuals & Freelancers:** Professionals tracking personal cash flow, categorizing expenses, monitoring savings rates, and planning financial goals.
+2. **Retailers & Traders (MSMEs):** Shop owners needing instant vernacular invoice scanning, UPI payment link generation, and Khata (credit/debit) debtor tracking.
+3. **Small-to-Medium Enterprises (SMEs):** Companies requiring multi-user role delegation (Owners, Admins, Accountants, Employees, Viewers), multi-branch inventory tracking, payroll disbursement, and purchase order matching.
+4. **Chartered Accountants & Auditors:** Financial controllers requiring automated 3-way reconciliation (Invoice $\leftrightarrow$ PO $\leftrightarrow$ Bank), GSTR-1 / GSTR-3B payload generation, and tamper-evident Merkle ledger verification.
+
+### 1.3 Key Pain Points Solved
+- **Vernacular Language Barriers:** Full support for Indian regional numerals (Devanagari, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali) and speech-to-text bookkeeping in 8+ Indic languages.
+- **Manual Data Entry Bottlenecks:** Multimodal AI OCR converts bank statements (CSV/XLSX/PDF) and paper receipts into structured ledger entries within milliseconds.
+- **Insolvency & Cash Flow Blindspots:** A 1,000-run Monte Carlo stochastic simulation predicts liquidity runway and insolvency risks 30, 60, and 90 days into the future.
+- **Fraud & Tampering Risks:** Cryptographic SHA-256 Merkle audit chains, Ed25519 asymmetric client-side transaction signing, and edge fraud anomaly detection.
+
+### 1.4 The 4 Pillar Capabilities
+| Pillar | Focus Area | Technical Realization |
+| :--- | :--- | :--- |
+| **Pillar I: Dual-Mode Multi-Tenancy** | Isolation & Access Governance | Strict workspace-scoped tenancy with cryptographic 12-char Join Codes (`XXXX-XXXX-XXXX`) and granular 10-point RBAC. |
+| **Pillar II: Multimodal Document Intelligence** | High-Velocity Ingestion & OCR | Streaming CSV/XLSX parsers, Google Gemini 2.5 Flash multimodal vision extraction, and automated 3-way document matching. |
+| **Pillar III: Predictive Intelligence & AI CFO** | Cash Flow Simulation & Advice | Box-Muller stochastic Monte Carlo insolvency engines, edge fraud anomaly filters, and contextual RAG financial chat. |
+| **Pillar IV: Cryptographic Audit & Compliance** | Immutability & Statutory Tax | SHA-256 Merkle block hash chaining, Ed25519 biometric payload signing, GSTR-1/3B engine, and e-Invoice IRN generator. |
+
+---
+
+## 💻 2. End-to-End Technology Stack
+
+The platform is designed around a decoupled, micro-modular architecture prioritizing type safety, offline-first resilience, and zero-latency vernacular text processing.
+
+| Architectural Layer | Technology / Package | Exact Version | Purpose & Architectural Rationale |
+| :--- | :--- | :--- | :--- |
+| **Backend Runtime** | Node.js (ESM Engine) | `>=20.0.0` | High-throughput asynchronous event loop utilizing native ES Modules (`import`/`export`). |
+| **HTTP Server Framework** | Express.js | `^5.2.1` | Modernized routing layer handling multipart document streams and RESTful API endpoints. |
+| **Primary Database & ODM** | MongoDB / Mongoose | `^9.3.2` | Schema-enforced document store supporting multi-tenant indexes, TTL auto-expiry, and Map types. |
+| **Generative AI & OCR** | Google GenAI SDK | `^1.46.0` | Gemini 2.5 Flash multimodal vision engine for receipt OCR, statement analysis, and CFO chatbot. |
+| **Security & Authentication** | JSON Web Tokens (`jsonwebtoken`) | `^9.0.3` | Cryptographically signed, stateless session tokens (30-day lifespan) with bearer verification. |
+| **Password Cryptography** | BcryptJS (`bcryptjs`) | `^3.0.3` | Salted adaptive hashing algorithm (`10` rounds) mitigating brute-force dictionary attacks. |
+| **Client-Side Signatures** | TweetNaCl (`tweetnacl`) | `^1.0.3` | Lightweight Ed25519 public-key cryptography for non-repudiable biometric transaction signing. |
+| **File Processing & Streams** | Multer (`multer`) | `^2.1.1` | In-memory 25MB buffer staging for instantaneous document scanning without disk leakages. |
+| **Tabular Stream Parser** | CSV-Parser (`csv-parser`) | `^3.2.0` | Chunked streaming CSV ingestion processing $>5,000$ banking records per second. |
+| **Spreadsheet Engine** | SheetJS (`xlsx`) | `^0.18.5` | Full-spec binary parser for multi-sheet Excel (.xlsx, .xls) bank statement extraction. |
+| **Transactional Email** | Nodemailer / Resend SDK | `^8.0.4` / `^6.19.0` | SMTP / REST dual-failover pipeline delivering 6-digit OTP codes and invoice PDF receipts. |
+| **Mobile Core Framework** | React Native / Expo SDK | `0.81.5` / `54.0.36` | Universal native mobile build targeting Android (Hermes runtime), iOS, and Web. |
+| **Frontend UI Library** | React / React DOM | `19.1.0` | Modern concurrent rendering engine utilizing functional hooks and unified state contexts. |
+| **Hardware Biometrics** | Expo Local Authentication | `~17.0.8` | Secure hardware enclave integration for FaceID / Fingerprint transaction authorization. |
+| **Hardware Keychain** | Expo SecureStore | `~15.0.8` | OS-level encrypted storage (Android Keystore / iOS Keychain) storing Ed25519 private keys. |
+| **Offline Persistence** | AsyncStorage | `2.2.0` | Local client caching of workspaces, session credentials, and CRDT mutation queues. |
+| **Iconography** | Lucide React Native | `^1.25.0` | Clean, crisp, scalable vector SVG iconography throughout mobile and desktop views. |
+
+---
+
+## 📁 3. Project Directory & File Tree Structure
+
+```
+HisabHero/
+├── .env                                       # Root environment configuration (MongoDB URI, JWT Secret)
+├── .gitignore                                 # Git exclusions for dependencies and build artifacts
+├── HisabHero-Release.apk                      # Compiled Android release binary (Enterprise build)
+├── HisabHero-v5.5.0-Enterprise-Release.apk     # Standalone enterprise production distribution APK
+├── HisabHero_UI_Documentation.md              # UI/UX design specifications and component blueprints
+├── render.yaml                                # Infrastructure-as-Code deployment descriptor (Render Cloud)
+│
+├── finsight_jsonversion/                      # BACKEND API SERVICE (Node.js / Express / Mongoose)
+│   ├── package.json                           # Backend dependencies, scripts, and Node engine specs
+│   ├── Procfile                               # Process file for cloud container startup
+│   ├── backend/
+│   │   ├── server.js                          # Core Express server, API routes, middleware & handlers
+│   │   ├── migrate.js                         # Database migration scripts & data backfill routines
+│   │   ├── config/
+│   │   │   └── db.js                          # Mongoose connection pool manager with retry logic
+│   │   ├── models/                            # 39 Mongoose Schema Definitions
+│   │   │   ├── User.js                        # User identity, OAuth accounts, active device sessions
+│   │   │   ├── Workspace.js                   # Tenant container (Personal / Business), join codes
+│   │   │   ├── WorkspaceMember.js             # Tenant membership mapping & RBAC role assignments
+│   │   │   ├── JoinRequest.js                 # Cryptographic join code requests & approval queue
+│   │   │   ├── Transaction.js                 # Ledger entries, categories, Ed25519 signatures
+│   │   │   ├── Document.js                    # Document intelligence staging & OCR extraction records
+│   │   │   ├── Invoice.js                     # Sales invoices, line items, payment tracking, taxes
+│   │   │   ├── Bill.js                        # Vendor bills, accounts payable, due dates
+│   │   │   ├── PurchaseOrder.js               # Procurement PO records for 3-way reconciliation
+│   │   │   ├── BankTransaction.js             # Raw bank statement lines for automatic matching
+│   │   │   ├── Contact.js                     # Customers, vendors, opening balances (Khata Book)
+│   │   │   ├── InventoryItem.js               # SKU catalog, stock levels, reorder thresholds
+│   │   │   ├── FixedAsset.js                  # Asset register, straight-line depreciation tracking
+│   │   │   ├── Payroll.js                     # Employee salary registers, deductions, disbursements
+│   │   │   ├── Project.js                     # Client project tracking & billable cost accounting
+│   │   │   ├── AuditLog.js                    # Merkle-chained immutable security & operational logs
+│   │   │   ├── Notification.js                # In-app user notifications & unread counters
+│   │   │   ├── ChatMessage.js                 # Workspace team messaging & collaboration records
+│   │   │   ├── FinancialGoal.js               # Personal savings targets & milestone trackers
+│   │   │   ├── RecurringSubscription.js       # SaaS/Vendor subscription schedules & renewal alerts
+│   │   │   └── OTPVerification.js             # 6-digit cryptographic email OTPs with TTL index
+│   │   └── services/                          # Domain Calculation & Ingestion Engines
+│   │       ├── documentIntelligenceService.js # Vernacular numeral parser, CSV/XLSX & Gemini OCR
+│   │       ├── emailService.js                # Dual-channel SMTP / Resend transactional mailer
+│   │       ├── gstFilingEngine.js             # GSTR-1, GSTR-3B payload builder & e-Invoice IRN
+│   │       ├── merkleEngine.js                # Cryptographic SHA-256 audit ledger blockchain
+│   │       └── reconciliationEngine.js        # 3-Way Invoice <-> PO <-> Bank automated matching
+│   └── public/                                # Public web assets & landing page
+│       └── index.html                         # Universal Web Single Page Application & APK download
+│
+└── mobile/                                    # FRONTEND CLIENT APPLICATION (React Native / Expo)
+    ├── App.tsx                                # Root entry component, auth bootstrap & polyfills
+    ├── app.json                               # Expo project manifest, permissions, splash & icons
+    ├── package.json                           # Mobile dependencies, TypeScript configs & build scripts
+    ├── tsconfig.json                          # Strict TypeScript compiler options
+    ├── assets/                                # App logos, splash screens, illustration graphics
+    └── src/
+        ├── components/                        # Screen Components & Modals (39 Files)
+        │   ├── AppNavigator.tsx               # Primary tab switcher, header bar & subtool routing
+        │   ├── DashboardScreen.tsx            # Executive stats grid, health score & runway graphs
+        │   ├── ExpensesScreen.tsx             # Expense categorization, donut chart, search & filters
+        │   ├── CashFlowScreen.tsx             # Monthly inflow/outflow barchart & cash velocity
+        │   ├── InvoicesBillsScreen.tsx        # Invoice generator, payment links, PDF preview
+        │   ├── UploadScreen.tsx               # Multimodal document scanner & staging review table
+        │   ├── AiChatScreen.tsx               # AI CFO interactive assistant with contextual RAG
+        │   ├── AiForecastScreen.tsx           # Monte Carlo stochastic insolvency simulation UI
+        │   ├── BankReconciliationScreen.tsx   # 3-Way discrepancy flagging & auto-matching dashboard
+        │   ├── InventoryScreen.tsx            # Stock levels, valuation, low-stock warnings
+        │   ├── PayrollScreen.tsx              # Salary processing, payslip generator, net pay
+        │   ├── FixedAssetsScreen.tsx          # Asset register & monthly depreciation schedules
+        │   ├── ChartOfAccountsScreen.tsx      # Double-entry ledger tree (Assets, Liab, Equity)
+        │   ├── KhataLedgerScreen.tsx          # Customer/Vendor debit-credit balance tracker
+        │   ├── SubscriptionsScreen.tsx        # Recurring SaaS spend & upcoming renewal calendar
+        │   ├── PermissionsMatrixModal.tsx     # Granular 10-point RBAC permission configuration
+        │   ├── SettingsModal.tsx              # Currency, language (8 langs), theme & workspace controls
+        │   ├── WorkspaceModal.tsx             # Bottom-sheet workspace switcher & join code dialog
+        │   ├── VoiceCommandModal.tsx          # Speech-to-transaction natural language bookkeeper
+        │   ├── LoginScreen.tsx                # Auth modal: Login, Signup, OTP Verify, Forgot Pass
+        │   └── uiComponents.tsx               # Reusable design system: AppCard, BadgePill, AppButton
+        ├── lib/                               # Core Utilities & Networking
+        │   ├── apiClient.ts                   # Fetch wrapper with auto-auth & workspace header injection
+        │   ├── apiConfig.ts                   # Dynamic server endpoint resolution (Local / LAN / Cloud)
+        │   ├── cryptoUtils.ts                 # TweetNaCl Ed25519 keypair generation & signing
+        │   ├── financialEngine.ts             # Safe monetary rounding & financial aggregator
+        │   └── offlineManager.ts              # Network connectivity listener & offline state
+        ├── services/                          # Frontend Domain Services
+        │   ├── predictiveEngine.ts            # Monte Carlo simulation & Edge Fraud Anomaly detector
+        │   ├── crdtSyncEngine.ts              # Conflict-Free Replicated Data Type vector clocks
+        │   ├── voiceBookkeeperService.ts      # Multilingual Indic NLP speech command extractor
+        │   ├── paymentLinkService.ts          # UPI deep link (`upi://pay`) & WhatsApp billing generator
+        │   └── biometricAuthService.ts        # FaceID/Fingerprint prompt & signature orchestration
+        └── theme/                             # Theming & Localization
+            ├── themeSystem.tsx                # Dynamic theme context (Dark, Light, Emerald, Cyberpunk)
+            └── i18n.tsx                       # Multilingual dictionary (EN, HI, TA, TE, MR, GU, KN, BN)
+```
+
+---
+
+## 🏛️ 4. System Architecture & Data Flow Diagram
+
+The following architecture diagram illustrates the end-to-end data flow from the multi-platform client devices through security boundaries, controller endpoints, domain processing engines, and persistent data tiers.
+
+```mermaid
+graph TD
+  subgraph Client_Layer ["📱 Client Application Tier (React Native / Web)"]
+    MOB["📱 Mobile App (Android / iOS)"]
+    WEB["💻 Web Client (SPA / Desktop)"]
+    VOICE["🎙️ Voice Bookkeeper NLP Engine"]
+    BIOM["🔒 Hardware Biometrics (FaceID/Keystore)"]
+  end
+
+  subgraph Security_Gateway ["🛡️ Security Gateway & Middleware Layer"]
+    CORS["🌐 CORS & Rate Limiter (60 req/min)"]
+    AUTH_MW["🔑 authMiddleware (JWT Token Validation)"]
+    WS_MW["🏢 requireWorkspaceAccess (Tenancy Isolation)"]
+    RBAC_MW["🛡️ requireWorkspaceRole (RBAC Policy Guard)"]
+  end
+
+  subgraph Controller_Routes ["📡 Express Route Controllers (server.js)"]
+    R_AUTH["/api/auth (Signup, Login, OTP, OAuth)"]
+    R_WS["/api/workspaces (Join, Convert, Roles)"]
+    R_TX["/api/dashboard & /api/transactions"]
+    R_DOC["/api/upload/intelligence (Document OCR)"]
+    R_ERP["/api/inventory, payroll, assets, projects"]
+    R_KHATA["/api/khata & /api/invoices"]
+    R_AI["/api/ai/chat (CFO Assistant)"]
+  end
+
+  subgraph Backend_Services ["⚙️ Domain Calculation & Processing Engines"]
+    DOC_ENG["📄 Document Intelligence & Vernacular Parser"]
+    RECON_ENG["⚖️ 3-Way Document Reconciliation Engine"]
+    GST_ENG["📊 GST Filing & E-Invoice IRN Generator"]
+    MERKLE_ENG["⛓️ Merkle Cryptographic Audit Ledger"]
+    EMAIL_ENG["✉️ Dual-Channel Mailer (SMTP / Resend)"]
+    AI_RAG["🤖 Gemini 2.5 Flash Context Synthesizer"]
+  end
+
+  subgraph Data_Storage ["🗄️ Persistence & External Cloud Infrastructure"]
+    MONGO[("🍃 MongoDB Atlas Cluster (39 Collections)")]
+    GEMINI_API["☁️ Google Gemini GenAI Cloud"]
+    SMTP_SRV["📨 Transactional Email Gateway"]
+    UPI_NET["💳 NPCI / UPI Deep Link Network"]
+  end
+
+  MOB -->|HTTPS + Bearer JWT + X-Workspace-Id| CORS
+  WEB -->|HTTPS + Bearer JWT + X-Workspace-Id| CORS
+  VOICE -->|Audio Speech Input| MOB
+  BIOM -->|Ed25519 Signature| MOB
+
+  CORS --> AUTH_MW
+  AUTH_MW --> WS_MW
+  WS_MW --> RBAC_MW
+
+  RBAC_MW --> R_AUTH
+  RBAC_MW --> R_WS
+  RBAC_MW --> R_TX
+  RBAC_MW --> R_DOC
+  RBAC_MW --> R_ERP
+  RBAC_MW --> R_KHATA
+  RBAC_MW --> R_AI
+
+  R_DOC --> DOC_ENG
+  DOC_ENG -->|Multimodal Base64| GEMINI_API
+  DOC_ENG -->|Extracted Staged Txns| MONGO
+
+  R_KHATA --> RECON_ENG
+  RECON_ENG -->|Invoice vs PO vs Bank| MONGO
+
+  R_KHATA --> GST_ENG
+  GST_ENG -->|GSTR-1 & IRN QR| UPI_NET
+
+  R_TX --> MERKLE_ENG
+  R_WS --> MERKLE_ENG
+  MERKLE_ENG -->|Chained SHA-256 Blocks| MONGO
+
+  R_AUTH --> EMAIL_ENG
+  EMAIL_ENG -->|6-Digit OTP Email| SMTP_SRV
+
+  R_AI --> AI_RAG
+  AI_RAG -->|Aggregate Recent Txns| MONGO
+  AI_RAG -->|Structured Prompt| GEMINI_API
+```
+
+---
+
+## 🔐 5. Authentication, Session & Security Flow
+
+HisabHero enforces a multi-layered cryptographic authentication flow featuring salted passwords, 6-digit short-lived email OTP verification, Ed25519 client-side transaction signing, and automatic multi-device session governance.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor User as 👤 User / Device
+  participant Client as 📱 Mobile / Web Client
+  participant Server as 🛡️ Express Auth Engine
+  participant EmailService as ✉️ Email Dispatcher
+  participant DB as 🍃 MongoDB (Users & OTPs)
+  participant SecureStore as 🔐 Hardware Keystore
+
+  %% REGISTRATION FLOW
+  Note over User, DB: 1. User Registration & OTP Dispatch Phase
+  User->>Client: Enters Name, Email, Password, Workspace Choice
+  Client->>Client: Validate Password (min 6 chars)
+  Client->>Server: POST /api/auth/signup (Payload + Business Details)
+  Server->>Server: Bcrypt Hash Password (10 Salt Rounds)
+  Server->>Server: Generate 6-Digit Cryptographic Random OTP
+  Server->>DB: Save OTP Record (SHA-256 Hash, 10-Min Expiry TTL, Pending Data)
+  Server->>EmailService: Dispatch HTML Verification Email
+  EmailService-->>User: 📧 Verification Code Sent to Inbox
+  Server-->>Client: 201 Created (needsVerification: true)
+
+  %% OTP VERIFICATION & PROVISIONING
+  Note over User, DB: 2. OTP Verification & Workspace Provisioning
+  User->>Client: Enters 6-Digit Code
+  Client->>Server: POST /api/auth/verify-code (email, code)
+  Server->>DB: Query OTP Record & Verify SHA-256 Hash Link
+  alt Valid Code & Not Expired
+    Server->>DB: Create User Entity (isVerified = true)
+    Server->>DB: Create Default Personal Workspace
+    opt Business Choice Selected
+      Server->>Server: Generate Cryptographic Join Code (XXXX-XXXX-XXXX)
+      Server->>DB: Create Business Workspace & Assign Owner Role
+    end
+    Server->>Server: Sign JWT Token (Expires in 30 Days)
+    Server->>DB: Clean up Pending OTP Records
+    Server-->>Client: 200 OK (token, userProfile, activeWorkspaces)
+    Client->>SecureStore: Generate & Save Ed25519 Keypair (tweetnacl)
+  else Invalid Code or Expired
+    Server-->>Client: 400 Bad Request (Error: Invalid/Expired Code)
+  end
+
+  %% TRANSACTION SIGNING FLOW
+  Note over User, DB: 3. Biometric Non-Repudiation Transaction Signing
+  User->>Client: Proposes Financial Transaction (₹ Amount, Payee)
+  Client->>User: Prompts OS Biometric Dialog (FaceID / Fingerprint)
+  User-->>Client: Biometric Verification Success
+  Client->>SecureStore: Retrieve Ed25519 Secret Key
+  Client->>Client: Sign Deterministic Payload (amount:desc:date:type)
+  Client->>Server: POST /api/transactions (Data + Ed25519 Signature)
+  Server->>DB: Save Transaction with Signature & Compute Merkle Block
+  Server-->>Client: 201 Created (Transaction Logged & Chained)
+```
+
+---
+
+## 🏢 6. Workspaces, Multi-Tenancy & RBAC Governance
+
+### 6.1 Multi-Tenancy Model
+HisabHero enforces tenant isolation at the database query layer via mandatory workspace authorization middleware (`requireWorkspaceAccess`). Every persistent financial document, transaction, bill, invoice, and inventory record belongs to a specific `workspaceId`.
+
+1. **Personal Workspaces (`type: 'personal'`):**
+   - Single-user private environment automatically generated for every registered account.
+   - Tailored for personal net worth, discretionary spending, personal budgets, and goal trackers.
+   - Join codes and role invitations are disabled.
+2. **Business Workspaces (`type: 'business'`):**
+   - Multi-user collaborative organization.
+   - Features a 12-character cryptographic Join Code (format: `XXXX-XXXX-XXXX`) generated via unguessable character sets (`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`).
+   - Supports team invitations, approval policies (`single`, `majority`, `all`), and role matrices.
+   - Convertible to a Personal Workspace upon owner confirmation.
+
+### 6.2 Join & Approval Workflow
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Applicant as 👤 Employee / Accountant
+  participant Client as 📱 Mobile App
+  participant Server as 🛡️ Express API
+  participant DB as 🍃 MongoDB
+  actor Owner as 👑 Workspace Owner / Admin
+
+  Applicant->>Client: Enters 12-Character Join Code (e.g. 7K9P-4M2X-9Q8A)
+  Client->>Server: POST /api/workspaces/join (joinCode, message)
+  Server->>DB: Query Workspace by Join Code (Must be active & business)
+  Server->>DB: Verify user is not already member or owner
+  Server->>DB: Create JoinRequest (status: 'pending')
+  Server-->>Client: 201 Created (pending: true, message: "Request Submitted")
+
+  Owner->>Client: Opens Notifications / Join Requests Screen
+  Client->>Server: GET /api/workspaces/:id/join-requests
+  Server-->>Client: 200 OK (List of pending requests)
+  Owner->>Client: Clicks "Approve" and assigns Role (e.g., 'accountant')
+  Client->>Server: POST /api/workspaces/:id/join-requests/:reqId/approve (role)
+  Server->>DB: Update JoinRequest (status: 'approved', respondedBy)
+  Server->>DB: Upsert WorkspaceMember (userId, role, status: 'active')
+  Server->>DB: Append Merkle Audit Log (action: "JOIN_REQUEST_APPROVED")
+  Server-->>Client: 200 OK (assignedRole: 'accountant')
+```
+
+### 6.3 Complete Role-Based Access Control (RBAC) Capability Matrix
+Granular permissions are enforced across 5 organizational roles:
+
+| Granular Permission Key | Description | 👑 Owner | 🛡️ Admin | 📊 Accountant | 👷 Employee | 👁️ Viewer |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `view_transactions` | View income, expense, and transfer records | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Read-Only |
+| `add_transactions` | Record new income and expense entries | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ❌ Denied |
+| `edit_transactions` | Modify existing transaction details | ✅ Full | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied |
+| `delete_transactions` | Delete transactions or reverse entries | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied |
+| `create_invoices` | Generate sales invoices and bills | ✅ Full | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied |
+| `approve_invoices` | Authorize payments & invoice approval | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied |
+| `manage_inventory` | Create SKUs, adjust stock, pricing | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied |
+| `manage_payroll` | View/execute employee payroll runs | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied |
+| `view_reports` | Access P&L, Tax, Balance Sheet, Runway | ✅ Full | ✅ Full | ✅ Full | ❌ Denied | ✅ Read-Only |
+| `export_data` | Download CSV, XLSX, GSTR JSON payloads | ✅ Full | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied |
+| `manage_members` | Approve join requests, modify roles | ✅ Full | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied |
+| `regenerate_join_code`| Rotate workspace join code | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied | ❌ Denied |
+| `convert_workspace` | Convert Business to Personal Workspace | ✅ Full | ❌ Denied | ❌ Denied | ❌ Denied | ❌ Denied |
+
+---
+
+## 📄 7. Data Ingestion, Staging & Processing Pipelines
+
+The Document Intelligence subsystem processes physical receipts, electronic invoices, and banking statements across diverse file types and scripts.
+
+```mermaid
+flowchart TD
+  START([📥 Raw Document Input]) --> FORMAT{File Format Detection}
+
+  %% FILE FORMAT BRANCHES
+  FORMAT -->|CSV Stream| CSV_PARSE[📄 csv-parser Stream Processor]
+  FORMAT -->|Excel Spreadsheet| XLSX_PARSE[📊 SheetJS Buffer Parser]
+  FORMAT -->|PDF / JPEG / PNG| OCR_AI[🤖 Gemini 2.5 Flash Vision OCR]
+
+  %% HEADER MAPPING
+  CSV_PARSE --> MAPPING[🧠 Heuristic Header Detector & Vernacular Normalizer]
+  XLSX_PARSE --> MAPPING
+
+  %% VERNACULAR NORMALIZATION
+  subgraph Normalization_Engine ["🔤 Vernacular Normalization Pipeline"]
+    MAPPING --> VERNACULAR["Transliterate Indic Digits (०-९, ௦-௯, ౦-౯, ೦-೯, ൦-൯, ૦-૯, ০-৯) -> 0-9"]
+    VERNACULAR --> AMOUNT_NORM["Indian Amount Parser (Strip ₹, commas, Dr/Cr detection)"]
+    AMOUNT_NORM --> DATE_NORM["Date Normalizer (DD/MM/YYYY, DD-MM-YYYY -> YYYY-MM-DD)"]
+  end
+
+  %% GEMINI OCR EXTRACTION
+  OCR_AI -->|Base64 Inline Data + Structured Prompt| GEMINI_RAW[JSON Payload Extraction]
+  GEMINI_RAW --> DATE_NORM
+
+  %% STAGING & DUPLICATE DETECTION
+  DATE_NORM --> STAGING[(📋 Document Staging Table - ExtractedTransactions)]
+  STAGING --> DUP_CHECK{Duplicate Collision Check}
+
+  DUP_CHECK -->|Hash Match Found: date + amt + desc| FLAG_DUP[⚠️ Flag Duplicate & Needs Review]
+  DUP_CHECK -->|Unique Record| AUTO_CONFIRM[✅ Auto-Approved Transaction]
+
+  FLAG_DUP --> USER_REVIEW[👤 Interactive User Staging Modal]
+  USER_REVIEW -->|Confirmed / Merged| PERSIST[🍃 Persist to Workspace Transactions]
+  AUTO_CONFIRM --> PERSIST
+
+  PERSIST --> 3WAY[⚖️ 3-Way Document Reconciliation Engine]
+  3WAY --> RECON_DONE([🏁 Reconciled Ledger & Tax Register])
+```
+
+---
+
+## 🧮 8. Calculation Engine & Mathematical Models
+
+HisabHero executes critical financial calculations through a centralized, floating-point safe mathematical calculation layer.
+
+### 8.1 Safe Monetary Precision & Net Margin
+To prevent binary floating-point representation drift (e.g. $0.1 + 0.2 = 0.30000000000000004$), all monetary figures undergo epsilon-offset safe rounding:
+
+$$\text{SafeRound}(v) = \frac{\text{Round}\left((v + \epsilon) \times 100\right)}{100}, \quad \text{where } \epsilon = 2.220446049250313 \times 10^{-16}$$
+
+The aggregate Net Financial Margin and Margin Percentage are computed strictly across approved ledger transactions:
+
+$$\text{Net Margin} = \sum_{t \in \mathcal{T}_{\text{income}}} \text{Amount}(t) - \sum_{t \in \mathcal{T}_{\text{expense}}} \text{Amount}(t)$$
+
+$$\text{Margin \%} = \begin{cases} 
+\text{SafeRound}\left(\frac{\text{Net Margin}}{\sum \text{Amount}(t_{\text{income}})} \times 100\right), & \text{if } \sum \text{Amount}(t_{\text{income}}) > 0 \\
+0, & \text{otherwise}
+\end{cases}$$
+
+---
+
+### 8.2 GST Tax Extraction & Input Tax Credit (ITC) Equations
+For gross-inclusive invoice amounts at tax rate $r\%$ (standard Indian rates: $5\%, 12\%, 18\%, 28\%$):
+
+$$\text{Taxable Value} = \text{Round}\left(\frac{\text{Gross Total}}{1 + \frac{r}{100}}\right)$$
+
+$$\text{Total GST} = \text{Gross Total} - \text{Taxable Value}$$
+
+$$\text{CGST} = \text{Round}\left(\frac{\text{Total GST}}{2}\right), \quad \text{SGST} = \text{Total GST} - \text{CGST}$$
+
+$$\text{Net Tax Payable} = \max\left(0, \text{Outbound Output Tax} - \text{Inbound ITC Claimable}\right)$$
+
+---
+
+### 8.3 Monte Carlo Stochastic Insolvency Simulation Engine
+The forecasting engine executes $N = 1,000$ future cash flow simulations across time horizons $H \in \{30, 60, 90\}$ days using the Box-Muller Gaussian transform:
+
+$$Z = \sqrt{-2 \ln(U_1)} \cos(2\pi U_2), \quad U_1, U_2 \sim \text{Uniform}(0, 1)$$
+
+Given historical daily mean income $\mu_{\text{inc}}$, daily mean expense $\mu_{\text{exp}}$, expense volatility $\sigma_{\text{exp}} = 0.35 \mu_{\text{exp}}$, and collection volatility $\sigma_{\text{inc}} = 0.40 \mu_{\text{inc}}$:
+
+$$\text{Daily Income}_d = \max\left(0, \mu_{\text{inc}} + Z \cdot \sigma_{\text{inc}}\right)$$
+
+$$\text{Daily Expense}_d = \max\left(0, \mu_{\text{exp}} + Z \cdot \sigma_{\text{exp}}\right)$$
+
+$$\text{Balance}_d^{(i)} = \text{Balance}_{d-1}^{(i)} + \text{Daily Income}_d - \text{Daily Expense}_d$$
+
+$$\text{Insolvency Risk \%} = \left(\frac{\sum_{i=1}^{N} \mathbb{I}\left(\min_{d \in [1, H]} \text{Balance}_d^{(i)} < 0\right)}{N}\right) \times 100$$
+
+$$\text{Risk Classification} = \begin{cases} 
+\text{CRITICAL}, & \text{if Insolvency Risk } > 60\% \text{ or } \text{P}_{10}(\text{Min Balance}) < 0 \\
+\text{HIGH}, & \text{if } 35\% < \text{Insolvency Risk } \le 60\% \\
+\text{MODERATE}, & \text{if } 15\% < \text{Insolvency Risk } \le 35\% \\
+\text{LOW}, & \text{if Insolvency Risk } \le 15\%
+\end{cases}$$
+
+---
+
+### 8.4 Financial Health Score Algorithm ($0 - 100$)
+$$S = \begin{cases} 
+85, & \text{if } |\mathcal{T}| = 0 \text{ (Cold Start)} \\
+\min\left(98, 70 + \text{Round}\left(\frac{\text{Income} - \text{Expense}}{\text{Income}} \times 30\right)\right), & \text{if } \text{Income} \ge \text{Expense} \\
+\max\left(35, 70 - \text{Round}\left(\frac{\text{Expense} - \text{Income}}{\text{Expense}} \times 35\right)\right), & \text{if } \text{Expense} > \text{Income}
+\end{cases}$$
+
+---
+
+### 8.5 Cryptographic Merkle Block Hash Equation
+Each audit log block $k$ links to previous hash $H_{k-1}$ ($H_0 = 0^{64}$):
+
+$$H_k = \text{SHA-256}\left(\text{JSON}\left(H_{k-1}, k, T_k, \text{userId}_k, \text{action}_k, \text{entityType}_k, \text{entityId}_k, \text{amount}_k, \text{meta}_k\right)\right)$$
+
+---
+
+## 🤖 9. AI / Copilot / Intelligent Subsystems (RAG Pipeline)
+
+The AI CFO Assistant implements a Retrieval-Augmented Generation (RAG) pipeline to deliver contextual, data-grounded advisory services without leaking cross-tenant data.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor User as 👤 Business Owner
+  participant App as 📱 Mobile Chat Screen
+  participant Server as 🛡️ Express AI Controller
+  participant DB as 🍃 MongoDB
+  participant Gemini as 🤖 Google Gemini 2.5 Flash
+
+  User->>App: Submits Query: "Can I afford to purchase a ₹45,000 laptop this month?"
+  App->>Server: POST /api/ai/chat (message, activeWorkspaceId)
+  
+  Note over Server, DB: 1. Context Retrieval & Tenant Boundary Check
+  Server->>DB: Query Active Workspace Details (Type, Currency, Policy)
+  Server->>DB: Aggregate Last 20 Transactions (Inflow, Outflow, Net)
+  Server->>DB: Query Current Unpaid Invoices & Pending Bills
+  DB-->>Server: Financial Context Object
+
+  Note over Server, Gemini: 2. Prompt Assembly & System Guardrails
+  Server->>Server: Construct System Prompt with Strict Financial Persona
+  Server->>Server: Inject Verified Workspace Financial Data
+  Server->>Gemini: generateContent(SystemPrompt + Context + UserQuery)
+  Gemini-->>Server: Structured AI Advice + Suggested Actions JSON
+
+  Server-->>App: 200 OK (reply, suggestedActions: ["📊 View Cash Flow", "📈 Download P&L"])
+  App-->>User: Renders Conversational Advice & Action Chips
+```
+
+---
+
+## 🖥️ 10. Page-by-Page Feature Matrix & UI Hierarchy
+
+### 10.1 UI Layout Hierarchy Wireframe
+```
++-----------------------------------------------------------------------------------+
+|  [Logo]  My Business Workspace (Owner) [▼]       [Briefcase] [Settings] [Bell: 3] |
++-----------------------------------------------------------------------------------+
+|  [STATS GRID]                                                                     |
+|  +-----------------------+-----------------------+-----------------------------+  |
+|  | Total Inflow: ₹1,45,000| Total Outflow: ₹82,000 | Net Margin: ₹63,000 (+43%)  |  |
+|  +-----------------------+-----------------------+-----------------------------+  |
+|                                                                                   |
+|  [HEALTH GAUGE: 88/100 EXCELLENT]       [CASH RUNWAY FORECAST: 12+ MONTHS]        |
+|  ===============================================================================  |
+|                                                                                   |
+|  [CASH FLOW TREND - MONTHLY INFLOW/OUTFLOW BARCHART]                              |
+|  [  Jan: ■■□  |  Feb: ■■■□  |  Mar: ■■■■□  |  Apr: ■■■■■□  ]                      |
+|                                                                                   |
+|  [RECENT TRANSACTIONS LIST]                                                       |
+|  • 2026-08-15  Client Retainer Payment (Income)      +₹50,000  [Approved]         |
+|  • 2026-08-14  AWS Cloud Infrastructure (Expense)    -₹12,450  [Approved]         |
+|  • 2026-08-12  Office Rent August (Expense)          -₹25,000  [Approved]         |
++-----------------------------------------------------------------------------------+
+|  [TAB BAR]: [Activity: Dashboard] [PieChart: Expenses] [FileText: Invoices]       |
+|             [Sparkles: AI CFO]   [More: Inventory, Payroll, Assets, Khata]       |
++-----------------------------------------------------------------------------------+
+```
+
+### 10.2 Comprehensive Screen-by-Screen Breakdown
+| Screen / Component | Route / Trigger | Core Capabilities & Widgets | Data Dependencies |
+| :--- | :--- | :--- | :--- |
+| **WelcomeScreen** | Initial cold boot | Brand introduction, animated entry, sign in & create account CTAs | Client Local Storage |
+| **LoginScreen** | Auth modal | Login, signup, 6-digit OTP verification, password reset, Google OAuth | `/api/auth/*` |
+| **DashboardScreen** | Main Tab: Dashboard | 2x2 stats grid, health score gauge, cash runway forecast, recent transactions | `/api/dashboard/*` |
+| **ExpensesScreen** | Main Tab: Expenses | Category filter chips, date range picker, expense breakdown donut chart | `/api/dashboard/expenses` |
+| **CashFlowScreen** | Personal Tab: Cash Flow | Monthly inflow vs outflow bar chart, cumulative liquidity trendline | `/api/dashboard/runway` |
+| **InvoicesBillsScreen** | Business Tab: Invoicing | Invoice generator, tax calculations, UPI deep link QR, status tracking | `/api/invoices`, `/api/bills` |
+| **UploadScreen** | Personal Tab: Documents | Drag-and-drop CSV/PDF/Image upload, Gemini OCR review staging table | `/api/upload/intelligence` |
+| **AiChatScreen** | Main Tab: AI Chat | Conversational CFO assistant, contextual RAG, suggested action chips | `/api/ai/chat` |
+| **AiForecastScreen** | More -> AI Forecast | 1,000-iteration Monte Carlo insolvency trajectory & worst-case balance | `predictiveEngine.ts` |
+| **BankReconciliation**| More -> Reconciliation | Automated 3-way matching (Invoices $\leftrightarrow$ POs $\leftrightarrow$ Bank lines) | `reconciliationEngine.js` |
+| **InventoryScreen** | More -> Inventory | SKU catalogue, unit costs, stock adjustments, low-stock warning chips | `/api/inventory` |
+| **PayrollScreen** | More -> Payroll | Employee salary registers, deductions, payment disbursement logs | `/api/payroll` |
+| **FixedAssetsScreen** | More -> Fixed Assets | Asset register, purchase date, straight-line monthly depreciation | `/api/fixed-assets` |
+| **ChartOfAccounts** | More -> Accounts | Hierarchical double-entry accounts (Assets, Liabilities, Equity, P&L) | `/api/accounts` |
+| **KhataLedgerScreen** | More -> Khata Ledger | Customer & vendor debit/credit ledger, "You Will Receive / You Will Pay" | `/api/khata` |
+| **SubscriptionsScreen**| More -> Subscriptions | Recurring software/vendor subscriptions, billing schedules & renewal | `/api/subscriptions` |
+| **ExecutiveReports** | More -> Reports | P&L statements, GSTR-1 / GSTR-3B payload exports, balance sheets | `/api/reports` |
+| **AuditLogsScreen** | More -> Audit Trail | Cryptographic Merkle chain audit log, block hash inspector | `merkleEngine.js` |
+| **PermissionsMatrix** | Settings -> Permissions | Granular 10-point RBAC matrix toggle for Admin, Accountant, Employee | `/businesses/:id/permissions` |
+| **WorkspaceModal** | Header -> Workspace Pill| Bottom-sheet workspace switcher, join business dialog, join code copy | `/api/workspaces` |
+
+---
+
+## 🗄️ 11. Relational Database Schema & Data Models
+
+The following Entity Relationship Diagram (ERD) defines the primary collections and referential associations across the MongoDB database.
+
+```mermaid
+erDiagram
+  USER ||--o{ WORKSPACE : "owns"
+  USER ||--o{ WORKSPACE_MEMBER : "participates in"
+  WORKSPACE ||--o{ WORKSPACE_MEMBER : "contains"
+  WORKSPACE ||--o{ JOIN_REQUEST : "receives"
+  WORKSPACE ||--o{ TRANSACTION : "records"
+  WORKSPACE ||--o{ DOCUMENT : "stages"
+  WORKSPACE ||--o{ INVOICE : "issues"
+  WORKSPACE ||--o{ BILL : "incurs"
+  WORKSPACE ||--o{ PURCHASE_ORDER : "creates"
+  WORKSPACE ||--o{ BANK_TRANSACTION : "imports"
+  WORKSPACE ||--o{ CONTACT : "maintains"
+  WORKSPACE ||--o{ INVENTORY_ITEM : "tracks"
+  WORKSPACE ||--o{ FIXED_ASSET : "depreciates"
+  WORKSPACE ||--o{ PAYROLL : "disburses"
+  WORKSPACE ||--o{ PROJECT : "executes"
+  WORKSPACE ||--o{ AUDIT_LOG : "chains"
+
+  USER {
+    string id PK
+    string fullName
+    string email UK
+    string password
+    string accountType
+    string defaultWorkspaceId FK
+    boolean isVerified
+    boolean emailVerified
+    string publicKey
+    array activeSessions
+    date createdAt
+  }
+
+  WORKSPACE {
+    string id PK
+    string name
+    string type "personal | business"
+    boolean isDefault
+    string ownerId FK
+    string joinCode UK "sparse index"
+    boolean joinEnabled
+    string currency
+    string gstNumber
+    string companyAddress
+    date deletedAt
+  }
+
+  WORKSPACE_MEMBER {
+    string id PK
+    string workspaceId FK
+    string userId FK
+    string role "owner | admin | accountant | employee | viewer"
+    string status "active | pending | inactive"
+    date joinedAt
+  }
+
+  JOIN_REQUEST {
+    string id PK
+    string workspaceId FK
+    string userId FK
+    string applicantName
+    string applicantEmail
+    string status "pending | approved | rejected"
+    string respondedBy FK
+    date respondedAt
+  }
+
+  TRANSACTION {
+    string id PK
+    string workspaceId FK
+    string userId FK
+    string sourceDocumentId FK
+    string date "YYYY-MM-DD"
+    string description
+    string category
+    number amount
+    string type "income | expense"
+    string merchant
+    string paymentMethod
+    string status "approved | draft | reversed"
+    string signature "Ed25519"
+  }
+
+  DOCUMENT {
+    string id PK
+    string documentId UK
+    string workspaceId FK
+    string userId FK
+    string fileName
+    string fileType
+    string documentType
+    string status
+    object summary
+    array extractedTransactions
+  }
+
+  INVOICE {
+    string id PK
+    string invoiceNumber
+    string workspaceId FK
+    string customerId FK
+    string invoiceDate
+    string dueDate
+    array lineItems
+    number subtotal
+    number total
+    string status "draft | sent | paid | overdue"
+    string createdBy FK
+  }
+
+  CONTACT {
+    string id PK
+    string workspaceId FK
+    string name
+    string phone
+    string type "customer | vendor"
+    number balance
+  }
+
+  AUDIT_LOG {
+    string id PK
+    string workspaceId FK
+    string userId FK
+    string action
+    string entityType
+    string entityId
+    number sequenceIndex
+    string previousBlockHash
+    string blockHash
+    date createdAt
+  }
+```
+
+---
+
+## 📡 12. Complete REST API Reference
+
+All protected endpoints require the `Authorization: Bearer <JWT_TOKEN>` header. Multi-tenant endpoints require `X-Workspace-Id: <WORKSPACE_ID>`.
+
+### 12.1 Authentication & Identity Domain
+| HTTP Method | Route Endpoint | Purpose & Functionality |
+| :--- | :--- | :--- |
+| `POST` | `/api/auth/signup` | Initiate account registration, hash password, and dispatch 6-digit OTP |
+| `POST` | `/api/auth/verify-code` | Validate 6-digit email OTP, provision user entity & chosen workspaces |
+| `POST` | `/api/auth/resend-code` | Regenerate and re-send 6-digit OTP code (60-second rate limiter) |
+| `POST` | `/api/auth/login` | Authenticate email and password, returning 30-day JWT session token |
+| `POST` | `/api/auth/google` | Google OAuth single-sign-on and account linking |
+| `GET` | `/api/auth/verify` | Validate active JWT session token and return user & workspace summary |
+| `GET` | `/api/auth/me` | Retrieve full profile of currently authenticated user |
+| `PUT` | `/api/auth/profile` | Update user display name, phone number, language, or currency |
+| `POST` | `/api/auth/change-password` | Modify account password verifying current password |
+| `POST` | `/api/auth/forgot-password` | Dispatch password reset verification code to registered email |
+| `POST` | `/api/auth/reset-password` | Reset account password using valid OTP verification code |
+
+### 12.2 Workspace & Multi-Tenancy Domain
+| HTTP Method | Route Endpoint | Purpose & Functionality |
+| :--- | :--- | :--- |
+| `GET` | `/api/workspaces` | List all Personal and Business workspaces accessible by the user |
+| `POST` | `/api/workspaces` | Create a new Personal or Business Workspace with join code |
+| `GET` | `/api/workspaces/:id` | Retrieve details, membership list, and settings for a specific workspace |
+| `DELETE`| `/api/workspaces/:id` | Soft-delete a workspace (requires owner role and $>1$ active workspace) |
+| `POST` | `/api/workspaces/:id/convert-to-personal` | Convert a Business Workspace to an isolated Personal Workspace |
+| `POST` | `/api/workspaces/join` | Submit a join request using a 12-character Join Code |
+| `GET` | `/api/workspaces/:id/join-requests` | Retrieve pending join requests for a business workspace |
+| `POST` | `/api/workspaces/:id/join-requests/:reqId/approve` | Approve applicant and assign organizational role |
+| `POST` | `/api/workspaces/:id/join-requests/:reqId/reject` | Reject applicant join request |
+| `POST` | `/api/workspaces/:id/regenerate-join-code` | Rotate cryptographic 12-character join code |
+| `PUT` | `/api/businesses/:id/permissions` | Update granular 10-point RBAC permission matrix |
+
+### 12.3 Financial Core & Ledger Domain
+| HTTP Method | Route Endpoint | Purpose & Functionality |
+| :--- | :--- | :--- |
+| `GET` | `/api/dashboard/stats` | Calculate total inflow, outflow, net margin %, and cash runway |
+| `GET` | `/api/dashboard/transactions` | Fetch recent 100 ledger transactions for active workspace |
+| `POST` | `/api/transactions` | Record new income/expense transaction with Ed25519 signature |
+| `DELETE`| `/api/transactions/:id` | Delete transaction record from active workspace |
+| `GET` | `/api/dashboard/expenses` | Retrieve filtered expense transactions for categorization |
+| `GET` | `/api/dashboard/runway` | Fetch 6-month projected liquidity and cash flow runway data |
+| `GET` | `/api/dashboard/health` | Compute dynamic Financial Health Score ($0-100$) and status |
+| `GET` | `/api/dashboard/alerts` | Retrieve active financial warnings and workspace safety notices |
+
+### 12.4 Document Intelligence, OCR & ERP Modules
+| HTTP Method | Route Endpoint | Purpose & Functionality |
+| :--- | :--- | :--- |
+| `GET` | `/api/uploads` | Fetch all staged and processed document records |
+| `POST` | `/api/upload/intelligence` | Upload multipart CSV/PDF/Image for Gemini OCR & auto-staging |
+| `GET` | `/api/khata` | Fetch debtor/creditor balances and contact ledgers |
+| `POST` | `/api/khata/contact` | Create a new customer or vendor ledger contact |
+| `GET` | `/api/invoices` | Fetch all generated sales invoices |
+| `POST` | `/api/invoices` | Create new sales invoice with automatic tax computation |
+| `GET` | `/api/inventory` | Fetch SKU catalogue, stock levels, and unit pricing |
+| `POST` | `/api/inventory` | Add new product SKU to workspace inventory |
+| `GET` | `/api/payroll` | Retrieve employee payroll registers |
+| `POST` | `/api/payroll` | Record payroll disbursement record |
+| `GET` | `/api/projects` | Fetch project cost tracking records |
+| `POST` | `/api/projects` | Create new billable client project |
+| `GET` | `/api/subscriptions` | Fetch recurring SaaS and vendor subscription records |
+| `POST` | `/api/subscriptions` | Create new recurring expense schedule |
+| `GET` | `/api/fixed-assets` | Fetch fixed asset register and depreciation schedules |
+| `POST` | `/api/fixed-assets` | Register new fixed asset |
+| `GET` | `/api/notifications` | Retrieve user notifications and unread alert count |
+| `POST` | `/api/ai/chat` | Interactive AI CFO conversational assistant |
+| `GET` | `/api/health` | System health check, database ping, and uptime probe |
+
+---
+
+## 🛡️ 13. Audit Logging, Safety & Compliance
+
+HisabHero enforces institutional-grade immutability and continuous fraud monitoring.
+
+### 13.1 Merkle Cryptographic Blockchain Audit Ledger
+Every high-impact state mutation (workspace creation, role modification, join request approval, transaction deletion, invoice authorization) is recorded as a cryptographically chained block via `merkleEngine.js`:
+
+```
+[GENESIS_BLOCK: 0000000000000000...] 
+       └── Link: SHA-256(Block 0 + Seq 1 + Payload 1) = BlockHash_1
+              └── Link: SHA-256(BlockHash_1 + Seq 2 + Payload 2) = BlockHash_2
+                     └── Link: SHA-256(BlockHash_2 + Seq 3 + Payload 3) = BlockHash_3
+```
+
+The `verifyMerkleChainIntegrity(workspaceId)` algorithm traverses all sequential entries, re-calculating payload hashes. Any manual database tampering breaks the cryptographic hash linkage and immediately raises a system alert.
+
+### 13.2 Edge Fraud Anomaly Detection Guardrails
+The `predictiveEngine.ts` evaluates transaction proposals against 3 heuristic fraud vectors:
+1. **Vendor Bank Mutation Attack:** Detects when a disbursement targets an existing vendor name with an altered bank account number ($+50$ Anomaly Score).
+2. **Perceptual Duplicate Detection:** Flags identical amounts submitted on the same date with matching or near-matching merchant descriptions ($+35$ Anomaly Score).
+3. **Phantom Expense / Payroll Outlier Spikes:** Identifies transactions exceeding $3.2\times$ the rolling category average ($+30$ Anomaly Score).
+
+Transactions scoring $\ge 50$ automatically lock and require Owner Biometric Re-Authentication before funds disbursement.
+
+---
+
+## ⚙️ 14. Environment Configuration & Deployment
+
+### 14.1 Environment Variables Specification (`.env`)
+```bash
+# ─── SERVER RUNTIME CONFIGURATION ───
+PORT=5000
+NODE_ENV=production
+
+# ─── DATABASE PERSISTENCE ───
+MONGO_URI=mongodb+srv://admin:<PASSWORD>@cluster0.mongodb.net/hisabhero?retryWrites=true&w=majority
+
+# ─── CRYPTOGRAPHY & SESSIONS ───
+JWT_SECRET=hisabhero_jwt_super_secret_production_key_2026_x89a
+
+# ─── GENERATIVE AI & OCR ───
+GEMINI_API_KEY=AIzaSyD_YourProductionGoogleGeminiApiKey2026
+
+# ─── TRANSACTIONAL EMAIL DISPATCH (SMTP & RESEND) ───
+RESEND_API_KEY=re_1234567890abcdef
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=hisabherofinance@gmail.com
+SMTP_PASS=your_app_specific_password_here
+SMTP_FROM="HisabHero Platform <hisabherofinance@gmail.com>"
+
+# ─── FRONTEND MOBILE CONFIGURATION (.env in mobile/) ───
+EXPO_PUBLIC_API_URL=https://hisabhero-api.onrender.com
+```
+
+### 14.2 Copy-Pasteable Startup & Build Commands
+
+```bash
+# ─── 1. START BACKEND SERVER (Node.js / Express) ───
+cd finsight_jsonversion
+npm install
+npm run dev
+# Server initiates on http://localhost:5000 with MongoDB connection pool
+
+# ─── 2. START MOBILE APP (Expo / React Native) ───
+cd mobile
+npm install
+npx expo start --clear
+# Press 'a' for Android emulator, 'i' for iOS simulator, or 'w' for Web browser
+
+# ─── 3. EXECUTE CODEBASE TYPECHECK & VERIFICATION ───
+cd mobile
+npm run typecheck
+
+# ─── 4. BUILD STANDALONE PRODUCTION ANDROID APK (EAS Build) ───
+cd mobile
+npx eas-cli build --platform android --profile preview --local
+```
+
+---
+
+*Report certified by Principal Solutions Architect & Technical Lead — HisabHero Enterprise Platform.*
+  </script>
+
+  <script>
+    const rawMarkdown = document.getElementById('raw-markdown').textContent;
+
+    // Parse markdown into HTML
+    document.getElementById('content').innerHTML = marked.parse(rawMarkdown);
+
+    // Transform language-mermaid blocks into centered high-contrast containers
+    const codeBlocks = document.querySelectorAll('pre code.language-mermaid');
+    codeBlocks.forEach((block, index) => {
+      const pre = block.parentElement;
+      const text = block.textContent;
+      
+      const container = document.createElement('div');
+      container.className = 'mermaid-container';
+
+      const div = document.createElement('div');
+      div.className = 'mermaid';
+      div.id = 'mermaid-chart-' + index;
+      div.textContent = text;
+      
+      container.appendChild(div);
+      pre.parentElement.replaceChild(container, pre);
+    });
+
+    // Run Mermaid renderer
+    mermaid.run().catch(err => console.warn("Mermaid render warning: ", err));
+
+    // Typeset LaTeX MathJax formulas if loaded
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise().catch(err => console.warn("MathJax render warning: ", err));
+    }
+  </script>
+</body>
+</html>

@@ -46,6 +46,7 @@ import {
   EyeOff,
   Home,
   PlusCircle,
+  Bot,
 } from 'lucide-react-native';
 
 const SearchIcon = Search as any;
@@ -53,6 +54,7 @@ const EyeIcon = Eye as any;
 const EyeOffIcon = EyeOff as any;
 const HomeIcon = Home as any;
 const PlusCircleIcon = PlusCircle as any;
+const BotIcon = (Bot || Sparkles) as any;
 
 import { authenticateWithBiometrics } from '../services/biometricAuthService';
 
@@ -118,7 +120,7 @@ type AppNavigatorProps = {
 
 type PersonalTab = 'dashboard' | 'expenses' | 'cashflow' | 'aichat' | 'upload';
 type BusinessTab = 'dashboard' | 'expenses' | 'invoicing' | 'aichat' | 'more';
-type SubTool = 'inventory' | 'payroll' | 'accounts' | 'projects' | 'assets' | 'calendar' | 'insights' | 'analytics' | 'goals' | 'auditlogs' | 'khata' | 'subscriptions' | 'reports' | 'merkle' | 'team' | null;
+type SubTool = 'inventory' | 'payroll' | 'accounts' | 'projects' | 'assets' | 'calendar' | 'insights' | 'analytics' | 'goals' | 'auditlogs' | 'khata' | 'subscriptions' | 'reports' | 'merkle' | 'team' | 'upload' | 'ocr' | 'statement' | 'more_hub' | null;
 
 import { DesktopHeaderBar } from './uiComponents';
 
@@ -146,6 +148,7 @@ export function AppNavigator({
   const [workspaceModalVisible, setWorkspaceModalVisible] = useState(false);
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [tourVisible, setTourVisible] = useState(false);
+  const [floatingAiModalVisible, setFloatingAiModalVisible] = useState(false);
 
   // 🌿 Simple / Vyapar Mode State (Default true for ordinary users)
   const [isSimpleMode, setIsSimpleMode] = useState<boolean>(true);
@@ -226,12 +229,16 @@ export function AppNavigator({
   const { theme, setAccentId, dynamicAiTheme, accentHex } = useTheme();
   const { t } = useTranslation();
 
-  const isBusinessView = activeWorkspaceId !== 'personal';
+  const [activeWorkspaceType, setActiveWorkspaceType] = useState<'personal' | 'business'>('personal');
+  const isBusinessView = activeWorkspaceType === 'business' || (activeWorkspaceId !== 'personal' && activeWorkspaceType !== 'personal');
 
   useEffect(() => {
     const initWorkspace = async () => {
       try {
         const storedId = await AsyncStorage.getItem('activeWorkspaceId');
+        const storedType = (await AsyncStorage.getItem('activeWorkspaceType')) as 'personal' | 'business' | null;
+        if (storedType) setActiveWorkspaceType(storedType);
+
         const res = await apiClient.get('/workspaces');
         if (res.ok) {
           const data = await res.json();
@@ -242,11 +249,14 @@ export function AppNavigator({
             const targetId = selected.id || selected._id || 'personal';
             const targetName = selected.name || selected.workspaceName || 'Personal Finance';
             const targetRole = selected.role || 'owner';
+            const targetType: 'personal' | 'business' = selected.type === 'business' ? 'business' : (targetId === 'personal' || targetName.toLowerCase().includes('personal') ? 'personal' : 'business');
 
             setActiveWorkspaceId(targetId);
             setActiveWorkspaceName(targetName);
             setActiveWorkspaceRole(targetRole);
+            setActiveWorkspaceType(targetType);
             await AsyncStorage.setItem('activeWorkspaceId', targetId);
+            await AsyncStorage.setItem('activeWorkspaceType', targetType);
             return;
           }
         }
@@ -261,17 +271,20 @@ export function AppNavigator({
     initWorkspace();
   }, [authToken]);
 
-  const handleSwitchWorkspace = async (workspaceId: string, name: string, role: string) => {
+  const handleSwitchWorkspace = async (workspaceId: string, name: string, role: string, type?: 'personal' | 'business') => {
+    const effectiveType: 'personal' | 'business' = type || (workspaceId === 'personal' || name.toLowerCase().includes('personal') ? 'personal' : 'business');
     setActiveWorkspaceId(workspaceId);
     setActiveWorkspaceName(name);
     setActiveWorkspaceRole(role);
+    setActiveWorkspaceType(effectiveType);
     setSubTool(null);
     try {
       await AsyncStorage.setItem('activeWorkspaceId', workspaceId);
+      await AsyncStorage.setItem('activeWorkspaceType', effectiveType);
     } catch (e) {
       console.warn('Failed to save active workspace to storage:', e);
     }
-    if (workspaceId === 'personal' || name.toLowerCase().includes('personal')) {
+    if (effectiveType === 'personal') {
       setActivePersonalTab('dashboard');
     } else {
       setActiveBusinessTab('dashboard');
@@ -363,7 +376,11 @@ export function AppNavigator({
           onPress={() => setWorkspaceModalVisible(true)}
           activeOpacity={0.7}
         >
-          <Image source={require('../../assets/logo_transparent.png')} style={styles.headerLogo} resizeMode="contain" />
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.headerLogo}
+            resizeMode="cover"
+          />
           <View style={{ flexDirection: 'column', flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={[styles.userName, { color: theme.text }]} numberOfLines={1}>{headerTitle}</Text>
@@ -555,6 +572,24 @@ export function AppNavigator({
   // ─── PERSONAL CONTENT RENDERER ──────────────────────────────────────────────
   const renderPersonalContent = () => {
     if (subTool) {
+      if (subTool === 'more_hub') {
+        return renderMoreFeaturesHub();
+      }
+      if (subTool === 'upload' || subTool === 'ocr' || subTool === 'statement') {
+        return (
+          <UploadScreen
+            uploads={uploads}
+            apiBaseUrl={apiBaseUrl}
+            authToken={authToken}
+            loadingHistory={loading}
+            onRefreshData={loadFinancialData}
+            activeWorkspaceId="personal"
+            activeWorkspaceRole="owner"
+            initialSubTab={subTool === 'ocr' ? 'ocr' : 'statement'}
+            onBack={() => setSubTool(null)}
+          />
+        );
+      }
       return renderBusinessContent();
     }
 
@@ -575,7 +610,14 @@ export function AppNavigator({
             onOpenWorkspaceSwitcher={() => setWorkspaceModalVisible(true)}
             activeWorkspaceId="personal"
             activeWorkspaceRole="owner"
-            onNavigateToTool={(tool) => setSubTool(tool as any)}
+            onNavigateToTool={(tool) => {
+              if (tool === 'upload' || tool === 'statement' || tool === 'ocr') {
+                setActivePersonalTab('upload');
+                setSubTool(null);
+              } else {
+                setSubTool(tool as any);
+              }
+            }}
             isStealthMode={isStealthMode}
             onOpenTour={() => setTourVisible(true)}
             isSimpleMode={isSimpleMode}
@@ -621,8 +663,160 @@ export function AppNavigator({
     }
   };
 
+  const renderMoreFeaturesHub = () => {
+    return (
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
+        {subTool === 'more_hub' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <TouchableOpacity onPress={() => setSubTool(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} activeOpacity={0.7}>
+              <ChevronLeftIcon color={theme.text} size={20} />
+              <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>Back to Home</Text>
+            </TouchableOpacity>
+            <View style={{ backgroundColor: `${accentHex}20`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+              <Text style={{ color: accentHex, fontSize: 11, fontWeight: '800' }}>EXPLORE ALL</Text>
+            </View>
+          </View>
+        )}
+        <Text style={[styles.moreHeader, { color: theme.text }]}>Platform Features Hub</Text>
+        <Text style={[styles.moreSubHeader, { color: theme.textSecondary }]}>
+          Explore all enterprise financial, ledger, AI & compliance tools just like the web platform.
+        </Text>
+
+        <View style={styles.grid}>
+          {/* 1. Bank Statements & OCR Vision */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#0284c750' }]} onPress={() => setSubTool('upload')}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <UploadIcon color="#0284c7" size={26} />
+              <View style={{ backgroundColor: '#0284c720', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ color: '#0284c7', fontSize: 10, fontWeight: '800' }}>AI OCR</Text>
+              </View>
+            </View>
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Bank Statements & OCR Vision</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Auto-parse PDF/CSV/Excel bank statements (SBI, HDFC, ICICI, etc.) & AI Camera Receipt Scanner.</Text>
+          </TouchableOpacity>
+
+          {/* 2. Merkle Audit Ledger */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#10b98140' }]} onPress={() => setSubTool('merkle')}>
+            <ShieldIcon color="#10b981" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Merkle Audit Ledger</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>SHA-256 cryptographic chain proofs & tamper integrity verification.</Text>
+          </TouchableOpacity>
+
+          {/* 3. Team & Join Codes */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#38bdf840' }]} onPress={() => setSubTool('team')}>
+            <UsersIcon color="#38bdf8" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Team & Join Codes</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>12-char workspace join code, member roster & RBAC matrix.</Text>
+          </TouchableOpacity>
+
+          {/* 4. Khata Book Ledger */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#10b98140' }]} onPress={() => setSubTool('khata')}>
+            <UsersIcon color="#10b981" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Khata Book Ledger</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Customer & Vendor debit/credit balances & WhatsApp reminders.</Text>
+          </TouchableOpacity>
+
+          {/* 5. Recurring Subscriptions */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#8b5cf640' }]} onPress={() => setSubTool('subscriptions')}>
+            <ActivityIcon color="#8b5cf6" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Recurring Subscriptions</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>SaaS tools, utilities, rent schedules & burn rate analytics.</Text>
+          </TouchableOpacity>
+
+          {/* 6. Executive P&L Reports */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#38bdf840' }]} onPress={() => setSubTool('reports')}>
+            <FileTextIcon color="#38bdf8" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Executive P&L Reports</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>P&L statements, multi-currency FX & AI tax optimization.</Text>
+          </TouchableOpacity>
+
+          {/* 7. Inventory & Stock */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#f59e0b40' }]} onPress={() => setSubTool('inventory')}>
+            <PackageIcon color="#f59e0b" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Inventory & Stock</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Products, SKU levels, reorder alerts & valuations.</Text>
+          </TouchableOpacity>
+
+          {/* 8. Payroll Slips */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#06b6d440' }]} onPress={() => setSubTool('payroll')}>
+            <UsersIcon color="#06b6d4" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Payroll Slips</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Employee profiles, salary slips & payout history.</Text>
+          </TouchableOpacity>
+
+          {/* 9. Fixed Assets & Depreciation */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#f43f5e40' }]} onPress={() => setSubTool('assets')}>
+            <TrendingDownIcon color="#f43f5e" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Fixed Assets & Depreciation</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Asset registry & Straight-Line depreciation engine.</Text>
+          </TouchableOpacity>
+
+          {/* 10. Business Calendar */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#22c55e40' }]} onPress={() => setSubTool('calendar')}>
+            <ActivityIcon color="#22c55e" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Business Calendar</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>GST deadlines, payroll dates & custom milestones.</Text>
+          </TouchableOpacity>
+
+          {/* 11. Audit Logs Vault */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#64748b40' }]} onPress={() => setSubTool('auditlogs')}>
+            <ShieldIcon color="#64748b" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Audit Logs Vault</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Merkle-tree chained immutable security audit logs.</Text>
+          </TouchableOpacity>
+
+          {/* 12. Chart of Accounts */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#0ea5e940' }]} onPress={() => setSubTool('accounts')}>
+            <FileTextIcon color="#0ea5e9" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Chart of Accounts</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Double-entry ledger tree, debit/credit classes & COA hierarchy.</Text>
+          </TouchableOpacity>
+
+          {/* 13. Projects & Cost Centers */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#a855f740' }]} onPress={() => setSubTool('projects')}>
+            <PackageIcon color="#a855f7" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Projects & Cost Centers</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Project budget tracking, milestone burns & department cost codes.</Text>
+          </TouchableOpacity>
+
+          {/* 14. Personal Goals */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#ec489940' }]} onPress={() => setSubTool('goals')}>
+            <ActivityIcon color="#ec4899" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>Personal Goals & Savings</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Milestone savings targets, emergency fund & budget envelopes.</Text>
+          </TouchableOpacity>
+
+          {/* 15. AI CFO Copilot */}
+          <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#6366f140' }]} onPress={() => { setSubTool(null); if (isBusinessView) setActiveBusinessTab('aichat'); else setActivePersonalTab('aichat'); }}>
+            <SparklesIcon color="#6366f1" size={26} style={{ marginBottom: 10 }} />
+            <Text style={[styles.toolCardTitle, { color: theme.text }]}>AI CFO Assistant</Text>
+            <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Grounded financial AI answering runway, taxation & spending questions.</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  };
+
   // ─── BUSINESS CONTENT RENDERER ──────────────────────────────────────────────
   const renderBusinessContent = () => {
+    if (subTool === 'upload' || subTool === 'ocr' || subTool === 'statement') {
+      return (
+        <UploadScreen
+          uploads={uploads}
+          apiBaseUrl={apiBaseUrl}
+          authToken={authToken}
+          loadingHistory={loading}
+          onRefreshData={loadFinancialData}
+          activeWorkspaceId={activeWorkspaceId}
+          activeWorkspaceRole={activeWorkspaceRole}
+          initialSubTab={subTool === 'ocr' ? 'ocr' : 'statement'}
+          onBack={() => setSubTool(null)}
+        />
+      );
+    }
+    if (subTool === 'more_hub') {
+      return renderMoreFeaturesHub();
+    }
     if (subTool === 'merkle') {
       return (
         <MerkleLedgerScreen
@@ -747,6 +941,17 @@ export function AppNavigator({
             <Text style={[styles.moreSubHeader, { color: theme.textSecondary }]}>Full suite of financial, ledger, compliance & operational tools.</Text>
 
             <View style={styles.grid}>
+              <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#0284c750' }]} onPress={() => setSubTool('upload')}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <UploadIcon color="#0284c7" size={26} />
+                  <View style={{ backgroundColor: '#0284c720', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: '#0284c7', fontSize: 10, fontWeight: '800' }}>AI OCR</Text>
+                  </View>
+                </View>
+                <Text style={[styles.toolCardTitle, { color: theme.text }]}>Bank Statements & OCR Vision</Text>
+                <Text style={[styles.toolCardDesc, { color: theme.textSecondary }]}>Auto-parse PDF/CSV/Excel bank statements (SBI, HDFC, ICICI, etc.) & AI Camera Receipt Scanner.</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={[styles.toolCard, { backgroundColor: theme.card, borderColor: '#10b98140' }]} onPress={() => setSubTool('merkle')}>
                 <ShieldIcon color="#10b981" size={26} style={{ marginBottom: 10 }} />
                 <Text style={[styles.toolCardTitle, { color: theme.text }]}>Merkle Audit Ledger</Text>
@@ -820,7 +1025,7 @@ export function AppNavigator({
         { key: 'expenses' as PersonalTab, icon: PieChartIcon, label: t('expenses') },
         { key: 'cashflow' as PersonalTab, icon: ArrowUpDownIcon, label: t('cashflow') },
         { key: 'aichat' as PersonalTab, icon: SparklesIcon, label: t('ai_chat') },
-        { key: 'upload' as PersonalTab, icon: UploadIcon, label: t('document_centre') },
+        { key: 'upload' as PersonalTab, icon: UploadIcon, label: 'Statements & OCR' },
       ]).map(tab => {
         const isActive = activePersonalTab === tab.key;
         const Icon = tab.icon;
@@ -875,6 +1080,7 @@ export function AppNavigator({
   const renderSimpleTabBar = () => {
     const isKhataActive = subTool === 'khata';
     const isBillsActive = (activeBusinessTab === 'invoicing') && !isKhataActive;
+    const isMoreActive = subTool === 'more_hub';
     const isDashboardActive = (activeBusinessTab === 'dashboard' || activePersonalTab === 'dashboard') && !subTool;
 
     return (
@@ -942,20 +1148,70 @@ export function AppNavigator({
           </Text>
         </TouchableOpacity>
 
-        {/* 5. Settings */}
+        {/* 5. More (replaces Settings) */}
         <TouchableOpacity
           style={styles.tabItem}
           activeOpacity={0.7}
-          onPress={() => setSettingsVisible(true)}
+          onPress={() => setSubTool('more_hub')}
         >
-          <View style={styles.tabIconWrapper}>
-            <SettingsIcon color={theme.textMuted} size={20} />
+          <View style={[styles.tabIconWrapper, isMoreActive && { backgroundColor: `${accentHex}20` }]}>
+            <MoreHorizontalIcon color={isMoreActive ? accentHex : theme.textMuted} size={20} />
           </View>
-          <Text style={[styles.tabLabel, { color: theme.textMuted, fontWeight: '500' }]}>
-            Settings
+          <Text style={[styles.tabLabel, { color: isMoreActive ? accentHex : theme.textMuted, fontWeight: isMoreActive ? '800' : '500' }]}>
+            More
           </Text>
         </TouchableOpacity>
       </View>
+    );
+  };
+
+  // ─── 🤖 FLOATING AI ASSISTANT TRIGGER & MODAL ──────────────────────────────
+  const renderFloatingAi = (isDesktopView: boolean = false) => {
+    const isAiTabActive = (isBusinessView ? activeBusinessTab : activePersonalTab) === 'aichat' && !subTool;
+
+    return (
+      <>
+        {!isAiTabActive && (
+          <TouchableOpacity
+            style={[
+              styles.floatingAiBot,
+              {
+                backgroundColor: '#0f172a',
+                borderColor: accentHex,
+                shadowColor: accentHex,
+                bottom: isDesktopView ? 24 : Math.max(bottomInset, 8) + 68,
+                right: isDesktopView ? 24 : 16,
+              },
+            ]}
+            onPress={() => setFloatingAiModalVisible(true)}
+            activeOpacity={0.85}
+            accessibilityLabel="Ask HisabHero AI Assistant"
+          >
+            <View style={[styles.floatingAiIconBox, { backgroundColor: `${accentHex}25` }]}>
+              <BotIcon color={accentHex} size={18} />
+            </View>
+            <Text style={styles.floatingAiText}>{isDesktopView ? 'Ask Hero AI' : 'AI'}</Text>
+            <View style={styles.floatingAiPulseDot} />
+          </TouchableOpacity>
+        )}
+
+        {/* 🤖 FLOATING AI ASSISTANT MODAL (Full Screen / Slide-up on any page) */}
+        <Modal
+          visible={floatingAiModalVisible}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setFloatingAiModalVisible(false)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+            <AiChatScreen
+              apiBaseUrl={apiBaseUrl}
+              authToken={authToken}
+              financialContext={stats}
+              onClose={() => setFloatingAiModalVisible(false)}
+            />
+          </SafeAreaView>
+        </Modal>
+      </>
     );
   };
 
@@ -996,6 +1252,9 @@ export function AppNavigator({
 
         {/* Permissions Matrix Modal */}
         <PermissionsMatrixModal visible={permissionsModalVisible} onClose={() => setPermissionsModalVisible(false)} activeWorkspaceId={activeWorkspaceId} />
+
+        {/* 🤖 Floating AI Assistant for Desktop */}
+        {renderFloatingAi(true)}
       </SafeAreaView>
     );
   }
@@ -1125,6 +1384,8 @@ export function AppNavigator({
           </TouchableOpacity>
         </View>
       )}
+      {/* 🤖 Floating AI Assistant for Mobile */}
+      {renderFloatingAi(false)}
     </SafeAreaView>
   );
 }
@@ -1133,7 +1394,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06111f' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 1 },
   headerTitleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
-  headerLogo: { width: 32, height: 32, marginRight: 10 },
+  headerLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    marginRight: 10,
+    backgroundColor: '#0f172a',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+  },
   userName: { fontSize: 15, fontWeight: '800' },
   companyName: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1149,6 +1419,42 @@ const styles = StyleSheet.create({
   toolCard: { width: '48%', borderRadius: 18, borderWidth: 1, padding: 16 },
   toolCardTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
   toolCardDesc: { fontSize: 11, lineHeight: 15 },
+
+  // Floating AI Assistant Styles
+  floatingAiBot: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+    gap: 7,
+    zIndex: 9999,
+  },
+  floatingAiIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingAiText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  floatingAiPulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#10b981',
+  },
 
   // Desktop Sidebar Styles
   desktopSidebar: { width: 260, borderRightWidth: 1, padding: 16, flexDirection: 'column' },

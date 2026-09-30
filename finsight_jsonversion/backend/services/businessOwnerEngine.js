@@ -288,39 +288,37 @@ export function reconcileGstr2bItc(purchaseBills = []) {
 
 // ─── 5. STAFF ATTENDANCE, DAILY WAGE ADVANCES & PAGAR KHATA ──────────────────
 export function calculatePagarKhata({ staffMembers = [] }) {
-  const defaultStaff = [
-    { id: 'stf_1', name: 'Ramesh Kumar', role: 'Head Mason', baseSalary: 24000, dailyWage: 800, daysPresent: 22, halfDays: 2, overtimeHours: 8, advances: [{ amount: 4000, date: '2026-09-05', note: 'Emergency Advance' }, { amount: 1500, date: '2026-09-14', note: 'Medical' }] },
-    { id: 'stf_2', name: 'Sunil Verma', role: 'Forklift Operator', baseSalary: 18000, dailyWage: 600, daysPresent: 24, halfDays: 0, overtimeHours: 12, advances: [{ amount: 2000, date: '2026-09-10', note: 'Advance' }] },
-    { id: 'stf_3', name: 'Deepak Sharma', role: 'Store Keeper', baseSalary: 21000, dailyWage: 700, daysPresent: 25, halfDays: 1, overtimeHours: 0, advances: [] }
-  ];
-
-  const staff = staffMembers.length > 0 ? staffMembers : [];
+  const staff = Array.isArray(staffMembers) ? staffMembers : [];
 
   const records = staff.map(s => {
-    const presentDays = Number(s.daysPresent || 0);
-    const halfDays = Number(s.halfDays || 0);
-    const otHours = Number(s.overtimeHours || 0);
-    const daily = Number(s.dailyWage || (s.baseSalary / 30));
-    const hourlyRate = daily / 8;
+    const presentDays = Number(s.daysPresent ?? s.attendance?.present ?? 0);
+    const halfDays = Number(s.halfDays ?? s.attendance?.halfDay ?? 0);
+    const otHours = Number(s.overtimeHours ?? s.attendance?.overtimeDays ?? 0);
+    const monthlySalary = Number(s.monthlySalary || s.baseSalary || 0);
+    const daily = Number(s.dailyWage || (monthlySalary / 30) || 0);
+    const hourlyRate = daily > 0 ? daily / 8 : 0;
 
     const baseEarned = (presentDays * daily) + (halfDays * daily * 0.5);
-    const otEarned = otHours * hourlyRate * 1.5; // 1.5x Overtime multiplier
+    const otEarned = otHours * hourlyRate * 1.5;
     const totalEarned = Math.round(baseEarned + otEarned);
 
-    const totalAdvances = (s.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
-    const netPayable = Math.max(0, totalEarned - totalAdvances);
+    const totalAdvances = (s.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0) || Number(s.advancesDrawn || 0);
+    const netPayable = Math.max(0, (totalEarned > 0 ? totalEarned : monthlySalary) - totalAdvances);
 
-    const slipMessage = `*PAYSLIP: ${s.name}* (HisabHero Payroll)\nRole: ${s.role}\nDays Worked: ${presentDays} days (${halfDays} half-days)\nOvertime: ${otHours} hrs (₹${Math.round(otEarned)})\n------------------------\nTotal Earned: ₹${totalEarned.toLocaleString('en-IN')}\nLess Cash Advances: -₹${totalAdvances.toLocaleString('en-IN')}\n*NET PAYABLE*: ₹${netPayable.toLocaleString('en-IN')}\n\nGenerated with Merkle Audit on HisabHero.`;
+    const slipMessage = `*PAYSLIP: ${s.name}* (HisabHero Payroll)\nRole: ${s.role || s.designation || 'Staff'}\nDays Worked: ${presentDays} days (${halfDays} half-days)\nOvertime: ${otHours} hrs (₹${Math.round(otEarned)})\n------------------------\nTotal Earned: ₹${(totalEarned > 0 ? totalEarned : monthlySalary).toLocaleString('en-IN')}\nLess Cash Advances: -₹${totalAdvances.toLocaleString('en-IN')}\n*NET PAYABLE*: ₹${netPayable.toLocaleString('en-IN')}\n\nGenerated with Merkle Audit on HisabHero.`;
 
     return {
-      id: s.id,
+      id: s.id || s._id,
       name: s.name,
-      role: s.role,
+      role: s.role || s.designation || 'Staff',
+      monthlySalary,
+      attendance: s.attendance || { present: presentDays, absent: Number(s.attendance?.absent || 0), halfDay: halfDays, overtimeDays: otHours },
       daysPresent: presentDays,
       halfDays,
       overtimeHours: otHours,
-      totalEarned,
+      totalEarned: totalEarned > 0 ? totalEarned : monthlySalary,
       totalAdvances,
+      advancesDrawn: totalAdvances,
       netPayable,
       advances: s.advances || [],
       payslipText: slipMessage,
@@ -330,12 +328,20 @@ export function calculatePagarKhata({ staffMembers = [] }) {
 
   const totalPayrollBudget = records.reduce((sum, r) => sum + r.netPayable, 0);
   const totalAdvancesDeducted = records.reduce((sum, r) => sum + r.totalAdvances, 0);
+  const grossSalary = records.reduce((sum, r) => sum + r.totalEarned, 0);
 
   return {
     staffCount: records.length,
     totalPayrollBudget,
     totalAdvancesDeducted,
-    records
+    records,
+    staff: records,
+    summary: {
+      totalStaff: records.length,
+      totalDisbursed: grossSalary,
+      totalAdvancesGiven: totalAdvancesDeducted,
+      netPayable: totalPayrollBudget
+    }
   };
 }
 

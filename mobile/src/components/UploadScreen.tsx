@@ -29,6 +29,7 @@ import {
   Edit2,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { apiClient } from '../lib/apiClient';
 import { useTheme } from '../theme/themeSystem';
@@ -51,6 +52,7 @@ const XIcon = X as any;
 const Edit2Icon = Edit2 as any;
 const ArrowDownRightIcon = ArrowDownRight as any;
 const ArrowUpRightIcon = ArrowUpRight as any;
+const ArrowLeftIcon = ArrowLeft as any;
 
 import { BankReconciliationScreen } from './BankReconciliationScreen';
 
@@ -62,6 +64,8 @@ type UploadScreenProps = {
   onRefreshData: () => void;
   activeWorkspaceId?: string;
   activeWorkspaceRole?: string;
+  initialSubTab?: SubTabType;
+  onBack?: () => void;
 };
 
 type SubTabType = 'statement' | 'ocr' | 'reconcile';
@@ -74,10 +78,18 @@ export function UploadScreen({
   onRefreshData,
   activeWorkspaceId = 'personal',
   activeWorkspaceRole = 'owner',
+  initialSubTab = 'statement',
+  onBack,
 }: UploadScreenProps) {
   const { theme, accentHex } = useTheme();
   const { t } = useTranslation();
-  const [activeSubTab, setActiveSubTab] = useState<SubTabType>('statement');
+  const [activeSubTab, setActiveSubTab] = useState<SubTabType>(initialSubTab);
+
+  React.useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   
   // Statement Upload States
   const [uploading, setUploading] = useState(false);
@@ -101,8 +113,216 @@ export function UploadScreen({
   const [ocrResult, setOcrResult] = useState<any | null>(null);
   const [savingOcr, setSavingOcr] = useState(false);
 
-  // Categories list
-  const CATEGORIES = ['Rent', 'Payroll', 'Utilities', 'Marketing', 'Travel', 'Office', 'Food', 'Other'];
+  // Categories list with user-specified standard categories
+  const DEFAULT_CATEGORIES = [
+    'Rent',
+    'Groceries',
+    'Dairy',
+    'Food & Dining',
+    'Utilities',
+    'Salaries & Wages',
+    'Travel & Transport',
+    'Shopping',
+    'Healthcare',
+    'Software & SaaS',
+    'Office Supplies',
+    'Investment',
+    'Entertainment',
+    'Product Sales',
+    'General',
+    'Other'
+  ];
+
+  const [availableCategories, setAvailableCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [expandedCategoryRowIdx, setExpandedCategoryRowIdx] = useState<number | null>(null);
+  const [customCategoryInputRowIdx, setCustomCategoryInputRowIdx] = useState<number | null>(null);
+  const [customCategoryText, setCustomCategoryText] = useState('');
+  const [pendingMerchantRules, setPendingMerchantRules] = useState<any[]>([]);
+  const [pendingBatchCategoryState, setPendingBatchCategoryState] = useState<{
+    visible: boolean;
+    rowIdx: number;
+    personName: string;
+    newCategory: string;
+    matchingIndices: number[];
+  } | null>(null);
+
+  const extractPersonName = (desc: string, merchant?: string): string => {
+    if (merchant && merchant.trim().length > 1) return merchant.trim();
+    if (!desc) return '';
+    const d = desc.trim();
+    const m = d.match(/(?:received\s+from|payment\s+from|from|paid\s+to|payment\s+to|transfer\s+to|to)\s+([A-Za-z0-9\s&.'-]+)/i);
+    if (m && m[1]) {
+      let clean = m[1].split(/[-–—/()]/)[0].trim();
+      if (clean.length >= 2) return clean;
+    }
+    return d;
+  };
+
+  const handleSelectCategory = (rowIdx: number, newCategory: string) => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    const currentTx = activeDocument.extractedTransactions[rowIdx];
+    if (!currentTx) return;
+
+    // Collapse expansion
+    setExpandedCategoryRowIdx(null);
+    setCustomCategoryInputRowIdx(null);
+
+    const personName = extractPersonName(currentTx.description || '', currentTx.merchant || currentTx.merchantName);
+    const targetKey = personName.toLowerCase().trim();
+
+    // Check if other transactions in statement match this person or merchant
+    const matchingIndices: number[] = [];
+    if (targetKey && targetKey.length >= 3) {
+      activeDocument.extractedTransactions.forEach((t: any, otherIdx: number) => {
+        if (otherIdx !== rowIdx) {
+          const key = (t.description || t.merchant || t.merchantName || '').toLowerCase().trim();
+          if (key.includes(targetKey) && t.category !== newCategory) {
+            matchingIndices.push(otherIdx);
+          }
+        }
+      });
+    }
+
+    if (matchingIndices.length > 0) {
+      // Show confirmation prompt banner and native alert just like on website
+      setPendingBatchCategoryState({
+        visible: true,
+        rowIdx,
+        personName,
+        newCategory,
+        matchingIndices
+      });
+
+      Alert.alert(
+        '💡 Apply to Matching Transactions?',
+        `Would you like to categorize all ${matchingIndices.length} other transaction(s) for "${personName}" as "${newCategory}" too?`,
+        [
+          {
+            text: '✕ Only This One',
+            style: 'cancel',
+            onPress: () => {
+              handleUpdateRowField(rowIdx, 'category', newCategory);
+              setPendingBatchCategoryState(null);
+            }
+          },
+          {
+            text: `✓ Yes, Apply to All (${matchingIndices.length})`,
+            onPress: () => {
+              applyBatchCategoryConfirmed(rowIdx, newCategory, personName, matchingIndices);
+            }
+          }
+        ]
+      );
+    } else {
+      handleUpdateRowField(rowIdx, 'category', newCategory);
+    }
+  };
+
+  const applyBatchCategoryConfirmed = (
+    rowIdx: number,
+    newCategory: string,
+    personName: string,
+    matchingIndices: number[]
+  ) => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    const updated = [...activeDocument.extractedTransactions];
+    updated[rowIdx].category = newCategory;
+    updated[rowIdx].userEdited = true;
+
+    matchingIndices.forEach(idx => {
+      if (updated[idx]) {
+        updated[idx].category = newCategory;
+        updated[idx].userEdited = true;
+      }
+    });
+
+    setActiveDocument({ ...activeDocument, extractedTransactions: updated });
+    setPendingBatchCategoryState(null);
+
+    setPendingMerchantRules(prev => [
+      ...prev,
+      { pattern: personName, category: newCategory, cleanMerchant: personName }
+    ]);
+
+    Alert.alert(
+      '✓ Batch Categorized',
+      `Applied "${newCategory}" to ${matchingIndices.length + 1} transactions for "${personName}".`
+    );
+  };
+
+  const autoCategorizeRule = (desc: string, type: string = 'expense'): string => {
+    if (!desc) return type === 'income' ? 'Product Sales' : 'General & Admin';
+    const l = desc.toLowerCase();
+
+    // Income rules
+    if (type === 'income' || l.includes('received from') || l.includes('inflow') || l.includes('deposit') || l.includes('credit') || l.includes('upi/cr')) {
+      if (l.includes('retainer') || l.includes('client') || l.includes('project')) return 'Client Retainer';
+      if (l.includes('salary') || l.includes('payout')) return 'Salaries & Wages';
+      if (l.includes('consulting') || l.includes('advisory')) return 'Consulting Income';
+      return 'Product Sales';
+    }
+
+    // Expense rules
+    if (l.includes('swiggy') || l.includes('zomato') || l.includes('food') || l.includes('cafe') || l.includes('tea') || l.includes('coffee') || l.includes('restaurant') || l.includes('lunch') || l.includes('dinner') || l.includes('starbucks') || l.includes('bakery')) {
+      return 'Food & Dining';
+    }
+    if (l.includes('uber') || l.includes('ola') || l.includes('rapido') || l.includes('flight') || l.includes('petrol') || l.includes('fuel') || l.includes('diesel') || l.includes('irctc') || l.includes('travel') || l.includes('toll') || l.includes('fastag') || l.includes('cab')) {
+      return 'Travel & Transport';
+    }
+    if (l.includes('aws') || l.includes('google') || l.includes('microsoft') || l.includes('github') || l.includes('vercel') || l.includes('adobe') || l.includes('canva') || l.includes('slack') || l.includes('zoom') || l.includes('saas') || l.includes('software') || l.includes('domain') || l.includes('hosting')) {
+      return 'Software & SaaS';
+    }
+    if (l.includes('rent') || l.includes('lease') || l.includes('landlord') || l.includes('wework') || l.includes('coworking') || l.includes('workspace')) {
+      return 'Rent & Facilities';
+    }
+    if (l.includes('salary') || l.includes('payroll') || l.includes('wages') || l.includes('stipend') || l.includes('bonus')) {
+      return 'Salaries & Wages';
+    }
+    if (l.includes('electricity') || l.includes('bescom') || l.includes('tneb') || l.includes('water') || l.includes('broadband') || l.includes('wifi') || l.includes('airtel') || l.includes('jio') || l.includes('utility') || l.includes('gas') || l.includes('lpg')) {
+      return 'Utilities & Bills';
+    }
+    if (l.includes('croma') || l.includes('reliance') || l.includes('laptop') || l.includes('apple') || l.includes('hardware') || l.includes('equipment') || l.includes('monitor')) {
+      return 'Equipment & Hardware';
+    }
+    if (l.includes('meta') || l.includes('facebook') || l.includes('adwords') || l.includes('marketing') || l.includes('ads') || l.includes('promotion')) {
+      return 'Marketing & Ads';
+    }
+    if (l.includes('stationery') || l.includes('amazon') || l.includes('flipkart') || l.includes('paper') || l.includes('printer') || l.includes('office')) {
+      return 'Office Supplies';
+    }
+    if (l.includes('gst') || l.includes('tax') || l.includes('tds') || l.includes('challan') || l.includes('audit') || l.includes('legal') || l.includes('compliance')) {
+      return 'Tax & Compliance';
+    }
+    if (l.includes('charge') || l.includes('fee') || l.includes('penalty') || l.includes('sms')) {
+      return 'Bank Charges & Fees';
+    }
+
+    return 'General & Admin';
+  };
+
+  const handleAutoCategorizeRow = (index: number) => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    const row = activeDocument.extractedTransactions[index];
+    if (!row) return;
+    const cat = autoCategorizeRule(row.description || '', row.type || 'expense');
+    handleUpdateRowField(index, 'category', cat);
+    Alert.alert('✨ Auto-Categorized', `Row #${index + 1} categorized as "${cat}" based on description.`);
+  };
+
+  const handleAutoCategorizeAll = () => {
+    if (!activeDocument || !activeDocument.extractedTransactions) return;
+    let updatedCount = 0;
+    const updated = activeDocument.extractedTransactions.map((tx: any) => {
+      const detected = autoCategorizeRule(tx.description || '', tx.type || 'expense');
+      if (tx.category !== detected) {
+        updatedCount++;
+        return { ...tx, category: detected, userEdited: true };
+      }
+      return tx;
+    });
+    setActiveDocument({ ...activeDocument, extractedTransactions: updated });
+    Alert.alert('✨ Auto-Categorization Complete', `Categorized ${updatedCount} transactions using financial keyword intelligence.`);
+  };
   const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
 
   // Document Intelligence Pipeline States
@@ -232,11 +452,12 @@ export function UploadScreen({
         fileName: activeDocument.fileName || 'Uploaded Statement',
         parserUsed: activeDocument.parserUsed || 'Statement Parser',
         transactions: approvedTxs.length > 0 ? approvedTxs : activeDocument.extractedTransactions,
-        merchantRules: []
+        merchantRules: pendingMerchantRules
       });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
+        setPendingMerchantRules([]);
         Alert.alert(
           'Import Complete 🎉',
           `${data.importedCount || data.count || approvedTxs.length} verified transactions saved to your ledger! Financial dashboards and cash flow metrics have been updated.`
@@ -407,12 +628,13 @@ export function UploadScreen({
         throw new Error(data.error || 'Failed to scan receipt image.');
       }
 
+      const first = (data.transactions && data.transactions[0]) || (data.document?.extractedTransactions && data.document?.extractedTransactions[0]) || {};
       setOcrResult({
-        date: data.date || new Date().toISOString().split('T')[0],
-        description: data.description || '',
-        category: data.category || 'Other',
-        amount: String(data.amount || ''),
-        type: data.type || 'expense',
+        date: data.date || first.date || new Date().toISOString().split('T')[0],
+        description: data.description || first.description || 'Scanned Receipt',
+        category: data.category || first.category || 'Other',
+        amount: String(data.amount !== undefined && data.amount !== '' ? data.amount : (first.amount !== undefined ? first.amount : '')),
+        type: data.type || first.type || 'expense',
       });
     } catch (err: any) {
       console.error(err);
@@ -461,14 +683,27 @@ export function UploadScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      {/* Back button bar when accessed as a subtool */}
+      {onBack && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.card, borderBottomWidth: 1, borderBottomColor: theme.cardBorder }}>
+          <TouchableOpacity onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} activeOpacity={0.7}>
+            <ArrowLeftIcon color={theme.text} size={20} />
+            <Text style={{ color: theme.text, fontSize: 16, fontWeight: '800' }}>Back</Text>
+          </TouchableOpacity>
+          <View style={{ backgroundColor: `${accentHex}20`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+            <Text style={{ color: accentHex, fontSize: 11, fontWeight: '800' }}>AI INTELLIGENCE</Text>
+          </View>
+        </View>
+      )}
+
       {/* Segmented Sub Tabs */}
       <View style={[styles.subTabBar, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
         <TouchableOpacity
           style={[styles.subTab, activeSubTab === 'statement' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
           onPress={() => setActiveSubTab('statement')}
         >
-          <Text style={[styles.subTabText, { color: activeSubTab === 'statement' ? theme.text : theme.textSecondary }]}>
-            Statements Import
+          <Text style={[styles.subTabText, { color: activeSubTab === 'statement' ? theme.text : theme.textSecondary, fontWeight: activeSubTab === 'statement' ? '800' : '600' }]}>
+            📄 Bank Statements
           </Text>
         </TouchableOpacity>
 
@@ -476,8 +711,8 @@ export function UploadScreen({
           style={[styles.subTab, activeSubTab === 'ocr' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
           onPress={() => setActiveSubTab('ocr')}
         >
-          <Text style={[styles.subTabText, { color: activeSubTab === 'ocr' ? theme.text : theme.textSecondary }]}>
-            Receipt OCR
+          <Text style={[styles.subTabText, { color: activeSubTab === 'ocr' ? theme.text : theme.textSecondary, fontWeight: activeSubTab === 'ocr' ? '800' : '600' }]}>
+            📷 Receipt OCR Vision
           </Text>
         </TouchableOpacity>
 
@@ -486,8 +721,8 @@ export function UploadScreen({
             style={[styles.subTab, activeSubTab === 'reconcile' && { borderBottomWidth: 2, borderBottomColor: accentHex }]}
             onPress={() => setActiveSubTab('reconcile')}
           >
-            <Text style={[styles.subTabText, { color: activeSubTab === 'reconcile' ? theme.text : theme.textSecondary }]}>
-              Reconciliation
+            <Text style={[styles.subTabText, { color: activeSubTab === 'reconcile' ? theme.text : theme.textSecondary, fontWeight: activeSubTab === 'reconcile' ? '800' : '600' }]}>
+              ⚖️ Reconciliation
             </Text>
           </TouchableOpacity>
         )}
@@ -914,17 +1149,86 @@ export function UploadScreen({
 
               {/* Action Toolbar */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ color: theme.text, fontSize: 14, fontWeight: '800' }}>Extracted Transactions ({activeDocument.extractedTransactions?.filter((t: any) => t.approved !== false).length || 0} approved)</Text>
-                <TouchableOpacity onPress={handleApproveHighConfidence} style={{ backgroundColor: accentHex + '20', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: accentHex }}>
-                  <Text style={{ color: accentHex, fontSize: 11, fontWeight: '700' }}>Approve High Confidence ✓</Text>
-                </TouchableOpacity>
+                <Text style={{ color: theme.text, fontSize: 13, fontWeight: '800' }}>Extracted ({activeDocument.extractedTransactions?.filter((t: any) => t.approved !== false).length || 0} approved)</Text>
+                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={handleAutoCategorizeAll} style={{ backgroundColor: '#8b5cf620', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#8b5cf6' }}>
+                    <Text style={{ color: '#8b5cf6', fontSize: 11, fontWeight: '700' }}>✨ Auto-All</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleApproveHighConfidence} style={{ backgroundColor: accentHex + '20', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: accentHex }}>
+                    <Text style={{ color: accentHex, fontSize: 11, fontWeight: '700' }}>Approve High ✓</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
+              {/* SMART BATCH CATEGORIZATION PROMPT BANNER (Just like Website) */}
+              {pendingBatchCategoryState && pendingBatchCategoryState.visible && (
+                <View style={{
+                  backgroundColor: '#10b98120',
+                  borderWidth: 1.5,
+                  borderColor: '#10b981',
+                  borderRadius: 14,
+                  padding: 12,
+                  marginBottom: 12,
+                  gap: 8
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <SparklesIcon color="#10b981" size={16} />
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                      Apply category "{pendingBatchCategoryState.newCategory}" to all other {pendingBatchCategoryState.matchingIndices.length} transaction(s) for "{pendingBatchCategoryState.personName}"?
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleUpdateRowField(pendingBatchCategoryState.rowIdx, 'category', pendingBatchCategoryState.newCategory);
+                        setPendingBatchCategoryState(null);
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: theme.cardBorder,
+                        backgroundColor: theme.card
+                      }}
+                    >
+                      <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: '700' }}>✕ Only this one</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => {
+                        applyBatchCategoryConfirmed(
+                          pendingBatchCategoryState.rowIdx,
+                          pendingBatchCategoryState.newCategory,
+                          pendingBatchCategoryState.personName,
+                          pendingBatchCategoryState.matchingIndices
+                        );
+                      }}
+                      style={{
+                        paddingHorizontal: 14,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        backgroundColor: '#10b981'
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>
+                        ✓ Yes, Apply to All ({pendingBatchCategoryState.matchingIndices.length})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               {/* Transactions List */}
-              <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
                 {activeDocument.extractedTransactions?.map((item: any, idx: number) => {
                   const isApproved = item.approved !== false;
-                  const isHighConf = item.confidenceScore >= 0.90 && !item.needsReview;
+                  const rawScore = typeof item.confidenceScore === 'number' && !isNaN(item.confidenceScore)
+                    ? Math.round(item.confidenceScore * 100)
+                    : (item.needsReview ? 68 : 95);
+                  const isHighConf = (rawScore >= 85) && !item.needsReview;
+                  const isExpanded = expandedCategoryRowIdx === idx;
+
                   return (
                     <View key={item.tempId || idx} style={{ backgroundColor: theme.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: isApproved ? (item.isDuplicate ? '#e74c3c' : theme.cardBorder) : '#444', marginBottom: 10, opacity: isApproved ? 1 : 0.5 }}>
                       
@@ -945,7 +1249,7 @@ export function UploadScreen({
                           )}
                           <View style={{ backgroundColor: isHighConf ? '#2ecc7120' : '#f39c1220', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: isHighConf ? '#2ecc71' : '#f39c12' }}>
                             <Text style={{ color: isHighConf ? '#2ecc71' : '#f39c12', fontSize: 10, fontWeight: '800' }}>
-                              {Math.round(item.confidenceScore * 100)}% {isHighConf ? '✓' : '⚠ Review'}
+                              {rawScore}% {isHighConf ? '✓' : '⚠ Review'}
                             </Text>
                           </View>
                         </View>
@@ -970,7 +1274,7 @@ export function UploadScreen({
                         />
                       </View>
 
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <TextInput
                           style={{ width: 110, backgroundColor: theme.inputBg, borderWidth: 1, borderColor: theme.inputBorder, borderRadius: 8, paddingHorizontal: 10, height: 32, color: theme.textSecondary, fontSize: 11 }}
                           value={item.date}
@@ -988,6 +1292,170 @@ export function UploadScreen({
                           </Text>
                         </TouchableOpacity>
                       </View>
+
+                      {/* Category Selector Button */}
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setExpandedCategoryRowIdx(isExpanded ? null : idx);
+                            setCustomCategoryInputRowIdx(null);
+                            setCustomCategoryText('');
+                          }}
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: theme.inputBg,
+                            borderWidth: 1,
+                            borderColor: item.category ? accentHex + '70' : theme.inputBorder,
+                            borderRadius: 8,
+                            paddingHorizontal: 10,
+                            height: 36,
+                          }}
+                        >
+                          <Text style={{ color: item.category ? theme.text : theme.textMuted, fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                            🏷️ {item.category || 'Select Category'}
+                          </Text>
+                          <ChevronDownIcon
+                            color={isExpanded ? accentHex : theme.textMuted}
+                            size={15}
+                            style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => handleAutoCategorizeRow(idx)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#8b5cf620',
+                            borderWidth: 1,
+                            borderColor: '#8b5cf6',
+                            borderRadius: 8,
+                            paddingHorizontal: 9,
+                            height: 36,
+                            gap: 4,
+                          }}
+                        >
+                          <SparklesIcon color="#8b5cf6" size={13} />
+                          <Text style={{ color: '#8b5cf6', fontSize: 11, fontWeight: '700' }}>Auto</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Expanding Category Tray (Rent, Groceries, Dairy, Other/Custom) */}
+                      {isExpanded && (
+                        <View style={{
+                          marginTop: 8,
+                          padding: 10,
+                          backgroundColor: theme.bg,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: accentHex + '50'
+                        }}>
+                          <Text style={{ color: theme.textSecondary, fontSize: 10, fontWeight: '800', marginBottom: 8, letterSpacing: 0.5 }}>
+                            TAP TO SELECT CATEGORY:
+                          </Text>
+
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            {availableCategories.map((cat) => {
+                              const isSelected = item.category === cat;
+                              return (
+                                <TouchableOpacity
+                                  key={cat}
+                                  onPress={() => handleSelectCategory(idx, cat)}
+                                  style={{
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    borderRadius: 8,
+                                    borderWidth: 1,
+                                    borderColor: isSelected ? accentHex : theme.cardBorder,
+                                    backgroundColor: isSelected ? accentHex + '25' : theme.card
+                                  }}
+                                >
+                                  <Text style={{
+                                    color: isSelected ? accentHex : theme.text,
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? '800' : '600'
+                                  }}>
+                                    {isSelected ? '✓ ' : ''}{cat}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+
+                            {/* Write Custom Category Button */}
+                            <TouchableOpacity
+                              onPress={() => {
+                                setCustomCategoryInputRowIdx(customCategoryInputRowIdx === idx ? null : idx);
+                                setCustomCategoryText('');
+                              }}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: customCategoryInputRowIdx === idx ? '#38bdf8' : '#38bdf860',
+                                backgroundColor: '#38bdf815',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>
+                                ✍️ + Write Custom...
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Inline Custom Category Input */}
+                          {customCategoryInputRowIdx === idx && (
+                            <View style={{ marginTop: 10, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                              <TextInput
+                                style={{
+                                  flex: 1,
+                                  backgroundColor: theme.card,
+                                  borderWidth: 1.5,
+                                  borderColor: '#38bdf8',
+                                  borderRadius: 8,
+                                  paddingHorizontal: 10,
+                                  height: 36,
+                                  color: theme.text,
+                                  fontSize: 12
+                                }}
+                                value={customCategoryText}
+                                onChangeText={setCustomCategoryText}
+                                placeholder="Type category name (e.g. Dairy, Rent...)"
+                                placeholderTextColor={theme.textMuted}
+                                autoFocus={true}
+                              />
+                              <TouchableOpacity
+                                onPress={() => {
+                                  const trimmed = customCategoryText.trim();
+                                  if (trimmed) {
+                                    if (!availableCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                                      setAvailableCategories(prev => [...prev, trimmed]);
+                                    }
+                                    handleSelectCategory(idx, trimmed);
+                                    setCustomCategoryInputRowIdx(null);
+                                    setCustomCategoryText('');
+                                  }
+                                }}
+                                style={{
+                                  backgroundColor: '#38bdf8',
+                                  paddingHorizontal: 14,
+                                  height: 36,
+                                  borderRadius: 8,
+                                  justifyContent: 'center',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>Save</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      )}
 
                     </View>
                   );
@@ -1019,6 +1487,8 @@ export function UploadScreen({
           </View>
         </Modal>
       )}
+
+
     </View>
   );
 }

@@ -12,6 +12,7 @@ import {
   Modal,
   Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Sparkles,
   Plus,
@@ -125,7 +126,26 @@ export function DashboardScreen({
 }: DashboardScreenProps) {
   const { theme, accentHex } = useTheme();
   const { t } = useTranslation();
-  const [showChecklistCard, setShowChecklistCard] = useState(true);
+  const [showChecklistCard, setShowChecklistCard] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('hisabhero_hide_onboarding_guide').then((val) => {
+      if (val !== 'true') {
+        setShowChecklistCard(true);
+      }
+    }).catch(() => {
+      setShowChecklistCard(true);
+    });
+  }, []);
+
+  const handleDismissChecklist = async () => {
+    setShowChecklistCard(false);
+    try {
+      await AsyncStorage.setItem('hisabhero_hide_onboarding_guide', 'true');
+    } catch (e) {
+      console.error('Failed to save onboarding guide state:', e);
+    }
+  };
   const [addTxVisible, setAddTxVisible] = useState(false);
   const [reportVisible, setReportVisible] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
@@ -725,16 +745,16 @@ export function DashboardScreen({
           </View>
 
           
-          {/* 🌿 DAILY HISAB & CASH FLOW HUB (Instant 1-Tap Ordinary User Friendly) */}
-          <View style={{ backgroundColor: theme.card, borderRadius: 20, borderWidth: 1, borderColor: theme.cardBorder, padding: 16, marginBottom: 14 }}>
+          {/* 🌿 CLEAN FINTECH HERO CASH POSITION & QUICK ACTION BAR */}
+          <View style={{ backgroundColor: theme.card, borderRadius: 24, borderWidth: 1, borderColor: theme.cardBorder, padding: 18, marginBottom: 14 }}>
             {/* Header: Date + Mode Badge */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <View>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>
-                  Daily Hisab &amp; Cash Flow
+                <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  Net Cash Position
                 </Text>
-                <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '500' }}>
-                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
+                <Text style={{ fontSize: 26, fontWeight: '900', color: todayNet >= 0 ? '#10b981' : '#f43f5e', marginTop: 2 }}>
+                  {isStealthMode ? '••••••••' : formatCurrencyINR(todayNet)}
                 </Text>
               </View>
               {onToggleSimpleMode && (
@@ -742,102 +762,118 @@ export function DashboardScreen({
                   onPress={onToggleSimpleMode}
                   activeOpacity={0.7}
                   style={{
-                    backgroundColor: isSimpleMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                    backgroundColor: isSimpleMode ? 'rgba(16, 185, 129, 0.12)' : 'rgba(56, 189, 248, 0.12)',
                     borderWidth: 1,
-                    borderColor: isSimpleMode ? '#10b981' : '#38bdf8',
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
+                    borderColor: isSimpleMode ? '#10b98150' : '#38bdf850',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
                     borderRadius: 12,
                   }}
                 >
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: isSimpleMode ? '#10b981' : '#38bdf8' }}>
-                    {isSimpleMode ? '🌿 Simple Mode' : '⚡ Pro Mode'}
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isSimpleMode ? '#10b981' : '#38bdf8' }}>
+                    {isSimpleMode ? '🌿 Simple' : '⚡ Pro'}
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* 3 Large Metric Boxes */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              {/* + Got Today */}
-              <View style={{ flex: 1, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.25)', borderRadius: 14, padding: 10, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#10b981', textTransform: 'uppercase', marginBottom: 4 }}>
-                  + Got Today
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: '#10b981' }} numberOfLines={1}>
-                  {isStealthMode ? '••••••' : formatCurrencyINR(todayIncome)}
-                </Text>
+            {/* Inflow vs Outflow Mini-Chips */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981', marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: theme.textSecondary }}>+ Got Today</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#10b981' }} numberOfLines={1}>
+                    {isStealthMode ? '••••••' : formatCurrencyINR(todayIncome)}
+                  </Text>
+                </View>
               </View>
 
-              {/* - Spent Today */}
-              <View style={{ flex: 1, backgroundColor: 'rgba(244, 63, 94, 0.1)', borderWidth: 1, borderColor: 'rgba(244, 63, 94, 0.25)', borderRadius: 14, padding: 10, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#f43f5e', textTransform: 'uppercase', marginBottom: 4 }}>
-                  - Spent Today
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: '#f43f5e' }} numberOfLines={1}>
-                  {isStealthMode ? '••••••' : formatCurrencyINR(todayExpense)}
-                </Text>
-              </View>
-
-              {/* Net Balance */}
-              <View style={{ flex: 1, backgroundColor: 'rgba(56, 189, 248, 0.1)', borderWidth: 1, borderColor: 'rgba(56, 189, 248, 0.25)', borderRadius: 14, padding: 10, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#38bdf8', textTransform: 'uppercase', marginBottom: 4 }}>
-                  Net Balance
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: '#38bdf8' }} numberOfLines={1}>
-                  {isStealthMode ? '••••••' : formatCurrencyINR(todayNet)}
-                </Text>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(244, 63, 94, 0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: 'rgba(244, 63, 94, 0.2)' }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#f43f5e', marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: theme.textSecondary }}>- Spent Today</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#f43f5e' }} numberOfLines={1}>
+                    {isStealthMode ? '••••••' : formatCurrencyINR(todayExpense)}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* Quick 1-Tap Action Buttons Row */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {/* Sleek 4-Action Quick Bar */}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
               {/* + Got Money */}
               <TouchableOpacity
                 onPress={() => onOpenAddTx ? onOpenAddTx('income') : setAddTxVisible(true)}
                 activeOpacity={0.8}
-                style={{ flex: 1, minWidth: '47%', backgroundColor: '#10b981', paddingVertical: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#10b981',
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>+ Got Money</Text>
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 12 }}>+ Got</Text>
               </TouchableOpacity>
 
               {/* - Spent Money */}
               <TouchableOpacity
                 onPress={() => onOpenAddTx ? onOpenAddTx('expense') : setAddTxVisible(true)}
                 activeOpacity={0.8}
-                style={{ flex: 1, minWidth: '47%', backgroundColor: '#f43f5e', paddingVertical: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#f43f5e',
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>- Gave Money</Text>
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 12 }}>- Spent</Text>
               </TouchableOpacity>
 
-              {/* 📒 Customer Khata */}
+              {/* 📄 Bank Statement */}
               <TouchableOpacity
-                onPress={() => onNavigateToTool ? onNavigateToTool('khata') : null}
+                onPress={() => onNavigateToTool ? onNavigateToTool('statement') : null}
                 activeOpacity={0.7}
-                style={{ flex: 1, minWidth: '30%', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.cardBorder, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}
+                style={{
+                  flex: 1.1,
+                  backgroundColor: theme.bg,
+                  borderWidth: 1,
+                  borderColor: '#0284c760',
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 4,
+                }}
               >
-                <Text style={{ fontSize: 12 }}>📒</Text>
-                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 11 }}>Khata</Text>
+                <Text style={{ fontSize: 12 }}>📄</Text>
+                <Text style={{ color: '#0284c7', fontWeight: '800', fontSize: 11 }}>Statement</Text>
               </TouchableOpacity>
 
-              {/* 🧾 Bills & Invoices */}
+              {/* 📷 OCR Vision */}
               <TouchableOpacity
-                onPress={() => onNavigateToTool ? onNavigateToTool('invoicing') : null}
+                onPress={() => onNavigateToTool ? onNavigateToTool('ocr') : null}
                 activeOpacity={0.7}
-                style={{ flex: 1, minWidth: '30%', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.cardBorder, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}
+                style={{
+                  flex: 1.1,
+                  backgroundColor: theme.bg,
+                  borderWidth: 1,
+                  borderColor: '#7c3aed60',
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 4,
+                }}
               >
-                <Text style={{ fontSize: 12 }}>🧾</Text>
-                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 11 }}>Bills</Text>
-              </TouchableOpacity>
-
-              {/* ⚙️ Settings */}
-              <TouchableOpacity
-                onPress={onOpenSettings}
-                activeOpacity={0.7}
-                style={{ flex: 1, minWidth: '30%', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.cardBorder, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}
-              >
-                <Text style={{ fontSize: 12 }}>⚙️</Text>
-                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 11 }}>Settings</Text>
+                <Text style={{ fontSize: 12 }}>📷</Text>
+                <Text style={{ color: '#7c3aed', fontWeight: '800', fontSize: 11 }}>OCR Vision</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -854,7 +890,7 @@ export function DashboardScreen({
                   <View style={{ backgroundColor: `${accentHex}25`, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
                     <Text style={{ color: accentHex, fontSize: 10, fontWeight: '800' }}>50% COMPLETE</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setShowChecklistCard(false)} style={{ padding: 2 }}>
+                  <TouchableOpacity onPress={handleDismissChecklist} style={{ padding: 2 }}>
                     <Text style={{ color: theme.textSecondary, fontSize: 14 }}>✕</Text>
                   </TouchableOpacity>
                 </View>
@@ -950,31 +986,7 @@ export function DashboardScreen({
             </TouchableOpacity>
           </View>
 
-          {/* Dynamic Workspace Presets (Section 10.1: Executive, Analyst, Operations) */}
-          <View style={{ flexDirection: 'row', backgroundColor: theme.card, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 14, padding: 4, marginBottom: 14 }}>
-            <TouchableOpacity
-              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: dashboardPreset === 'executive' ? accentHex : 'transparent' }}
-              onPress={() => setDashboardPreset('executive')}
-            >
-              <Text style={{ color: dashboardPreset === 'executive' ? '#ffffff' : theme.textSecondary, fontSize: 12, fontWeight: '700' }}>Executive</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: dashboardPreset === 'analyst' ? accentHex : 'transparent' }}
-              onPress={() => setDashboardPreset('analyst')}
-            >
-              <Text style={{ color: dashboardPreset === 'analyst' ? '#ffffff' : theme.textSecondary, fontSize: 12, fontWeight: '700' }}>Analyst</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: dashboardPreset === 'operations' ? accentHex : 'transparent' }}
-              onPress={() => setDashboardPreset('operations')}
-            >
-              <Text style={{ color: dashboardPreset === 'operations' ? '#ffffff' : theme.textSecondary, fontSize: 12, fontWeight: '700' }}>Operations</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 🛡️ Dual-Signatory Maker-Checker High-Value Outflow Gate (Business Mode) */}
+                    {/* 🛡️ Dual-Signatory Maker-Checker High-Value Outflow Gate (Business Mode) */}
           {pendingHighValueTxs.length > 0 && (
             <View style={{ backgroundColor: '#f59e0b15', borderWidth: 1.5, borderColor: '#f59e0b', borderRadius: 16, padding: 14, marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

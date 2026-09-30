@@ -79,7 +79,8 @@ const defaultData = {
   otp_verifications: [],
   merchant_mappings: [],
   inventory_items: [],
-  subscriptions: []
+  subscriptions: [],
+  workspace_members: []
 };
 
 let db = { ...defaultData };
@@ -205,7 +206,73 @@ export const localDb = {
 
   findWorkspacesByOwner(ownerId) {
     if (!ownerId) return [];
-    return db.workspaces.filter(w => w.owner_id === ownerId || w.ownerId === ownerId);
+    return this.findWorkspacesForUser(ownerId);
+  },
+
+  findWorkspacesForUser(userId) {
+    if (!userId) return [];
+    const uIdStr = String(userId);
+    const owned = db.workspaces.filter(w => String(w.owner_id || w.ownerId) === uIdStr);
+    const memberRecords = (db.workspace_members || []).filter(m => String(m.userId) === uIdStr && m.status === 'active');
+    const memberWsIds = memberRecords.map(m => String(m.workspaceId));
+    const memberWs = db.workspaces.filter(w => memberWsIds.includes(String(w.id || w._id)));
+
+    const result = [...owned];
+    for (const mw of memberWs) {
+      if (!result.some(w => String(w.id || w._id) === String(mw.id || mw._id))) {
+        result.push(mw);
+      }
+    }
+    return result;
+  },
+
+  upgradeWorkspaceToBusiness(workspaceId) {
+    if (!workspaceId) return null;
+    const ws = this.findWorkspaceById(workspaceId);
+    if (!ws) return null;
+
+    ws.type = 'business';
+    if (ws.name && /personal/i.test(ws.name)) {
+      ws.name = ws.name.replace(/personal/i, 'Business');
+    }
+    ws.business_name = ws.name;
+    ws.businessName = ws.name;
+    ws.updated_at = new Date().toISOString();
+    ws.updatedAt = new Date().toISOString();
+    saveDb();
+    return ws;
+  },
+
+  addWorkspaceMember({ workspaceId, userId, role = 'employee', status = 'active', fullName = '', email = '' }) {
+    if (!db.workspace_members) db.workspace_members = [];
+    const wsIdStr = String(workspaceId);
+    const uIdStr = String(userId);
+    let member = db.workspace_members.find(m => String(m.workspaceId) === wsIdStr && String(m.userId) === uIdStr);
+    if (member) {
+      member.role = role;
+      member.status = status;
+      member.updatedAt = new Date().toISOString();
+    } else {
+      member = {
+        id: generateUUID(),
+        workspaceId: wsIdStr,
+        userId: uIdStr,
+        role,
+        status,
+        fullName,
+        email,
+        joinedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      db.workspace_members.push(member);
+    }
+    saveDb();
+    return member;
+  },
+
+  getWorkspaceMembers(workspaceId) {
+    if (!db.workspace_members) return [];
+    return db.workspace_members.filter(m => String(m.workspaceId) === String(workspaceId));
   },
 
   createWorkspace(wsData) {

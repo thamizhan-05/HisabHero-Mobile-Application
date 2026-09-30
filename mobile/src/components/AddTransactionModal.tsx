@@ -12,8 +12,10 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  Alert,
 } from 'react-native';
-import { X, TrendingDown, TrendingUp, Calendar, Tag, FileText, ShoppingBag, CreditCard, Percent, Sparkles, Wand2 } from 'lucide-react-native';
+import { X, TrendingDown, TrendingUp, Calendar, Tag, FileText, ShoppingBag, CreditCard, Percent, Sparkles, Wand2, Camera } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../lib/apiClient';
 import { signTransactionPayload } from '../lib/cryptoUtils';
 import { parseNLPQuickLog } from '../lib/financialEngine';
@@ -29,6 +31,7 @@ const CreditCardIcon = CreditCard as any;
 const PercentIcon = Percent as any;
 const SparklesIcon = Sparkles as any;
 const Wand2Icon = Wand2 as any;
+const CameraIcon = Camera as any;
 
 type AddTransactionModalProps = {
   visible: boolean;
@@ -66,6 +69,7 @@ export function AddTransactionModal({
   const [taxAmount, setTaxAmount] = useState('');
   
   const [loading, setLoading] = useState(false);
+  const [scanningReceipt, setScanningReceipt] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Sync state when visible or editTransaction changes
@@ -116,6 +120,96 @@ export function AddTransactionModal({
     if (parsed.date) setDate(parsed.date);
     if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod);
     setNlpInput('');
+  };
+
+  const handleScanReceiptModal = async () => {
+    try {
+      Alert.alert(
+        '📷 Scan Receipt with AI Vision',
+        'Choose source for receipt image:',
+        [
+          {
+            text: 'Camera',
+            onPress: async () => {
+              const perm = await ImagePicker.requestCameraPermissionsAsync();
+              if (!perm.granted) {
+                Alert.alert('Permission Denied', 'Camera permission is required.');
+                return;
+              }
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.7,
+              });
+              if (!res.canceled && res.assets && res.assets.length > 0) {
+                processReceiptImage(res.assets[0]);
+              }
+            }
+          },
+          {
+            text: 'Photo Gallery',
+            onPress: async () => {
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.7,
+              });
+              if (!res.canceled && res.assets && res.assets.length > 0) {
+                processReceiptImage(res.assets[0]);
+              }
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not launch scanner');
+    }
+  };
+
+  const processReceiptImage = async (asset: any) => {
+    setScanningReceipt(true);
+    setErrorMsg(null);
+    try {
+      const formData = new FormData();
+      const fileName = asset.fileName || 'receipt.jpg';
+      if (Platform.OS === 'web') {
+        if (asset.file) {
+          formData.append('file', asset.file);
+        } else if (asset.uri && (asset.uri.startsWith('blob:') || asset.uri.startsWith('data:'))) {
+          const blob = await fetch(asset.uri).then((r) => r.blob());
+          formData.append('file', blob, fileName);
+        } else {
+          formData.append('file', { uri: asset.uri, name: fileName, type: asset.mimeType || 'image/jpeg' } as any);
+        }
+      } else {
+        formData.append('file', { uri: asset.uri, name: fileName, type: asset.mimeType || 'image/jpeg' } as any);
+      }
+
+      const res = await apiClient.upload('/upload/receipt', formData);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to analyze receipt.');
+
+      const first = (data.transactions && data.transactions[0]) || (data.document?.extractedTransactions && data.document?.extractedTransactions[0]) || {};
+      const extractedAmt = data.amount !== undefined && data.amount !== '' ? data.amount : first.amount;
+      const extractedDesc = data.description || first.description || first.merchantName || 'Scanned Receipt';
+      const extractedCat = data.category || first.category || 'Other';
+      const extractedDate = data.date || first.date || TODAY;
+      const extractedType = data.type || first.type || 'expense';
+
+      if (extractedAmt) setAmount(String(extractedAmt));
+      if (extractedDesc) {
+        setDescription(extractedDesc);
+        setMerchant(extractedDesc);
+      }
+      if (extractedCat) setCategory(extractedCat);
+      if (extractedDate) setDate(extractedDate);
+      if (extractedType) setType(extractedType);
+
+      Alert.alert('✨ Receipt Analyzed', `Extracted ₹${extractedAmt || 0} for ${extractedDesc}`);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Receipt OCR failed');
+    } finally {
+      setScanningReceipt(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -248,6 +342,35 @@ export function AddTransactionModal({
                     </View>
                   </View>
                 )}
+
+                {/* 📷 Scan Receipt with OCR Vision Action Button */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleScanReceiptModal}
+                  disabled={scanningReceipt}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+                    borderWidth: 1.5,
+                    borderColor: '#7c3aed',
+                    borderRadius: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    marginBottom: 16,
+                    gap: 8
+                  }}
+                >
+                  {scanningReceipt ? (
+                    <ActivityIndicator size="small" color="#7c3aed" />
+                  ) : (
+                    <CameraIcon size={18} color="#a855f7" />
+                  )}
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+                    {scanningReceipt ? 'AI Vision Scanning Receipt...' : '📷 Scan Receipt (AI Vision OCR Auto-Fill)'}
+                  </Text>
+                </TouchableOpacity>
 
                 {/* Type Selection Toggle */}
                 <Text style={styles.sectionLabel}>Transaction Type</Text>

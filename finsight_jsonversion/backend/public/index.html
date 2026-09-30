@@ -6587,8 +6587,8 @@
         personalList.innerHTML = '';
         businessList.innerHTML = '';
 
-        const personals = data.personal || [];
-        const businesses = data.business || [];
+        const personals = data.personal || allWorkspaces.filter(w => w.type === 'personal');
+        const businesses = data.business || allWorkspaces.filter(w => w.type === 'business');
 
         personals.forEach(ws => {
           const isAct = ws.id === currentActiveWorkspaceId || (currentActiveWorkspaceId === 'personal' && ws.isDefault);
@@ -6648,17 +6648,19 @@
       const joinBox = document.getElementById('settingsJoinCodeBox');
       const convBox = document.getElementById('convertFeatureBox');
 
+      joinBox.style.display = 'block';
+      document.getElementById('settingsWsJoinCode').value = currentActiveWorkspace.joinCode || 'N/A';
+      const teamCode = document.getElementById('teamJoinCodeDisplay');
+      if (teamCode) teamCode.textContent = currentActiveWorkspace.joinCode || 'N/A';
+
       if (isBiz) {
-        joinBox.style.display = 'block';
-        convBox.style.display = 'block';
-        document.getElementById('settingsWsJoinCode').value = currentActiveWorkspace.joinCode || 'N/A';
-        const teamCode = document.getElementById('teamJoinCodeDisplay');
-        if (teamCode) teamCode.textContent = currentActiveWorkspace.joinCode || 'N/A';
+        if (convBox) convBox.style.display = 'block';
+        const hint = document.getElementById('settingsJoinCodeHint');
+        if (hint) hint.textContent = 'Share this code with employees to join your Business Workspace.';
       } else {
-        joinBox.style.display = 'none';
-        convBox.style.display = 'none';
-        const teamCode = document.getElementById('teamJoinCodeDisplay');
-        if (teamCode) teamCode.textContent = 'N/A (Personal Workspace)';
+        if (convBox) convBox.style.display = 'none';
+        const hint = document.getElementById('settingsJoinCodeHint');
+        if (hint) hint.textContent = '⚡ Share this code with team members. When an employee joins using this code, this workspace will automatically upgrade to a Business Workspace!';
       }
     }
 
@@ -8837,8 +8839,12 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          alert('🚀 ' + data.message);
+          alert((data.autoUpgraded ? '🎉 ' : '🚀 ') + data.message);
           closeModals();
+          await loadWorkspacesList();
+          if (data.workspace && (data.workspace.id || data.workspace._id)) {
+            switchActiveWorkspace(data.workspace.id || data.workspace._id);
+          }
         } else {
           alert('Error: ' + (data.error || 'Failed to submit join request.'));
         }

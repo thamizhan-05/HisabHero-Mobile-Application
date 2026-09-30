@@ -120,7 +120,7 @@ type SettingsModalProps = {
   activeWorkspaceRole?: string;
   currentUser?: any;
   onLogout?: () => void;
-  onSwitchWorkspace?: (workspaceId: string, name: string, role: string) => void;
+  onSwitchWorkspace?: (workspaceId: string, name: string, role: string, type?: 'personal' | 'business') => void;
   onOpenTour?: () => void;
 };
 
@@ -476,10 +476,28 @@ export function SettingsModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        const ws = data.workspace || {};
+        const wId = ws.id || ws._id;
+        const wName = ws.name || 'Business Workspace';
+        const isUpgraded = !!data.autoUpgraded;
+
         Alert.alert(
-          'Request Sent 🚀',
-          data.message || 'Your request has been sent to the workspace owner. You will be notified once it is approved.',
-          [{ text: 'OK', onPress: () => { setInputJoinCode(''); setJoinNote(''); setSection('main'); } }]
+          isUpgraded ? '🎉 Auto-Upgraded to Business!' : 'Joined Workspace 🚀',
+          data.message || (isUpgraded
+            ? `Workspace "${wName}" was auto-upgraded to a Business Workspace!\nYou have joined as an employee with full access to Invoicing, Khata, Inventory, and Business Suite.`
+            : `You have joined "${wName}" successfully!`),
+          [{
+            text: 'Open Workspace 🏢',
+            onPress: () => {
+              setInputJoinCode('');
+              setJoinNote('');
+              setSection('main');
+              if (wId && onSwitchWorkspace) {
+                onSwitchWorkspace(wId, wName, ws.role || 'employee', 'business');
+              }
+              onClose();
+            }
+          }]
         );
       } else {
         Alert.alert('Join Request Failed', data.error || 'Invalid join code.');
@@ -1027,7 +1045,11 @@ export function SettingsModal({
                         )}
                       </TouchableOpacity>
                     )}
-                    <Text style={[styles.joinCodeHint, { color: theme.textMuted }]}>Share this code with team members to join your workspace</Text>
+                    <Text style={[styles.joinCodeHint, { color: theme.textMuted }]}>
+                      {isBusinessUser
+                        ? 'Share this code with employees to join your Business Workspace'
+                        : '⚡ Share this code with team members. Adding an employee will auto-upgrade this to a Business Workspace!'}
+                    </Text>
                   </View>
 
                   {(activeWorkspaceRole?.toLowerCase() === 'owner' || workspace?.isPrimaryOwner || workspace?.myRole === 'owner') && (

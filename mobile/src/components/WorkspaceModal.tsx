@@ -48,7 +48,7 @@ type WorkspaceModalProps = {
   visible: boolean;
   onClose: () => void;
   activeWorkspaceId: string;
-  onSwitchWorkspace: (workspaceId: string, name: string, role: string) => void;
+  onSwitchWorkspace: (workspaceId: string, name: string, role: string, type?: 'personal' | 'business') => void;
 };
 
 export function WorkspaceModal({ visible, onClose, activeWorkspaceId, onSwitchWorkspace }: WorkspaceModalProps) {
@@ -130,10 +130,10 @@ export function WorkspaceModal({ visible, onClose, activeWorkspaceId, onSwitchWo
     }
   }, [visible]);
 
-  // Handle Join Workspace using Code — creates PENDING request, does NOT grant immediate access
+  // Handle Join Workspace using Code — auto-upgrades personal workspace to business
   const handleJoinWorkspace = async () => {
     if (!joinCodeInput.trim()) {
-      Alert.alert('Required Field', 'Please enter a valid workspace join code (e.g. ABCD-EFGH-IJKL).');
+      Alert.alert('Required Field', 'Please enter a valid workspace join code (e.g. HERO-WS-XXXXXX).');
       return;
     }
 
@@ -146,16 +146,37 @@ export function WorkspaceModal({ visible, onClose, activeWorkspaceId, onSwitchWo
 
       const data = await res.json();
       if ((res.ok || res.status === 201) && data.success) {
+        const ws = data.workspace || {};
+        const wId = ws.id || ws._id;
+        const wName = ws.name || 'Business Workspace';
+        const isUpgraded = !!data.autoUpgraded;
+
         Alert.alert(
-          '🚀 Join Request Sent!',
-          data.message || `Your request has been sent to the workspace owner for review.\n\nYou will receive a notification once the owner approves or declines your request.\n\nIMPORTANT: You do NOT have access yet — access is granted only after Owner approval.`,
-          [{ text: 'Got it!', onPress: () => { setShowJoinForm(false); setJoinCodeInput(''); setJoinMessage(''); } }]
+          isUpgraded ? '🎉 Auto-Upgraded to Business!' : '🚀 Joined Workspace!',
+          data.message || (isUpgraded 
+            ? `Workspace "${wName}" was auto-upgraded to a Business Workspace!\nYou have joined as an employee with full access to Invoicing, Khata, Inventory, and Business Suite.`
+            : `You have joined "${wName}" successfully!`),
+          [{
+            text: 'Open Workspace 🏢',
+            onPress: async () => {
+              setShowJoinForm(false);
+              setJoinCodeInput('');
+              setJoinMessage('');
+              if (wId) {
+                await AsyncStorage.setItem('activeWorkspaceId', wId);
+                await AsyncStorage.setItem('activeWorkspaceType', 'business');
+                onSwitchWorkspace(wId, wName, ws.role || 'employee', 'business');
+              }
+              await fetchWorkspaces();
+              onClose();
+            }
+          }]
         );
       } else {
-        Alert.alert('Request Failed', data.error || 'Invalid join code or failed to submit join request. Please check the code and try again.');
+        Alert.alert('Request Failed', data.error || 'Invalid join code or failed to join workspace. Please check the code and try again.');
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Server error while submitting join request.');
+      Alert.alert('Error', err.message || 'Server error while joining workspace.');
     } finally {
       setJoining(false);
     }
@@ -290,8 +311,10 @@ export function WorkspaceModal({ visible, onClose, activeWorkspaceId, onSwitchWo
 
   const handleSelectWorkspace = async (w: any) => {
     const targetId = w.id || w._id || 'personal';
+    const effectiveType: 'personal' | 'business' = w.type === 'business' ? 'business' : (w.isPersonal || targetId === 'personal' || w.name?.toLowerCase().includes('personal') ? 'personal' : 'business');
     await AsyncStorage.setItem('activeWorkspaceId', targetId);
-    onSwitchWorkspace(targetId, w.name, w.role || 'owner');
+    await AsyncStorage.setItem('activeWorkspaceType', effectiveType);
+    onSwitchWorkspace(targetId, w.name, w.role || 'owner', effectiveType);
     onClose();
   };
 
@@ -329,35 +352,64 @@ export function WorkspaceModal({ visible, onClose, activeWorkspaceId, onSwitchWo
                 const targetId = w.id || w._id || 'personal';
                 const isActive = targetId === activeWorkspaceId;
                 const isDefault = w.isDefault || targetId === 'personal';
+                const isOwner = (w.role || 'owner').toLowerCase() === 'owner';
 
                 return (
-                  <TouchableOpacity
-                    key={targetId}
-                    style={[
-                      styles.workspaceItem,
-                      { backgroundColor: theme.bg, borderColor: theme.cardBorder },
-                      isActive && { backgroundColor: accentHex + '22', borderColor: accentHex },
-                    ]}
-                    onPress={() => handleSelectWorkspace(w)}
-                  >
-                    <View style={styles.workspaceInfo}>
-                      <UserIcon color={isActive ? accentHex : '#38bdf8'} size={20} style={{ marginRight: 12 }} />
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={[styles.workspaceName, { color: theme.text }, isActive && { color: accentHex, fontWeight: '800' }]}>
-                            {w.name}
-                          </Text>
-                          {isDefault && (
-                            <View style={[styles.badge, { backgroundColor: '#38bdf822', borderColor: '#38bdf866' }]}>
-                              <Text style={[styles.badgeText, { color: '#38bdf8' }]}>Default</Text>
-                            </View>
-                          )}
+                  <View key={targetId}>
+                    <TouchableOpacity
+                      style={[
+                        styles.workspaceItem,
+                        { backgroundColor: theme.bg, borderColor: theme.cardBorder },
+                        isActive && { backgroundColor: accentHex + '22', borderColor: accentHex },
+                      ]}
+                      onPress={() => handleSelectWorkspace(w)}
+                    >
+                      <View style={styles.workspaceInfo}>
+                        <UserIcon color={isActive ? accentHex : '#38bdf8'} size={20} style={{ marginRight: 12 }} />
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.workspaceName, { color: theme.text }, isActive && { color: accentHex, fontWeight: '800' }]}>
+                              {w.name}
+                            </Text>
+                            {isDefault && (
+                              <View style={[styles.badge, { backgroundColor: '#38bdf822', borderColor: '#38bdf866' }]}>
+                                <Text style={[styles.badgeText, { color: '#38bdf8' }]}>Default</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[styles.workspaceRole, { color: theme.textSecondary }]}>Private Personal Finance</Text>
                         </View>
-                        <Text style={[styles.workspaceRole, { color: theme.textSecondary }]}>Private Personal Finance</Text>
                       </View>
-                    </View>
-                    {isActive && <CheckIcon color={accentHex} size={20} />}
-                  </TouchableOpacity>
+                      {isActive && <CheckIcon color={accentHex} size={20} />}
+                    </TouchableOpacity>
+
+                    {/* Show shareable join code for personal workspace owners */}
+                    {isOwner && w.joinCode && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eff6ff', borderRadius: 8, borderWidth: 1, borderColor: '#38bdf833', paddingHorizontal: 10, paddingVertical: 6, marginTop: -4, marginBottom: 8 }}>
+                        <KeyRoundIcon color="#38bdf8" size={13} style={{ marginRight: 6 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: '#0369a1', fontSize: 13, fontWeight: '800', letterSpacing: 1.5, fontFamily: 'monospace' }}>
+                            {w.joinCode}
+                          </Text>
+                          <Text style={{ color: '#0284c7', fontSize: 9 }}>
+                            ⚡ Adding an employee with this code auto-upgrades to Business!
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            try {
+                              await ExpoClipboard.setStringAsync(w.joinCode);
+                              Alert.alert('✅ Code Copied!', `Join Code "${w.joinCode}" copied. When an employee joins using this code, your workspace will automatically upgrade to Business Workspace!`);
+                            } catch (e) {}
+                          }}
+                          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#0284c7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}
+                        >
+                          <ClipboardIconComp color="#fff" size={11} style={{ marginRight: 3 }} />
+                          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 10 }}>Share Code</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 );
               })}
 

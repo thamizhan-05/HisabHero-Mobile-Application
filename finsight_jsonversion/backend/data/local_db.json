@@ -67,14 +67,99 @@
       "auth_providers": [],
       "created_at": "2026-09-19T18:17:25.780Z",
       "updated_at": "2026-09-19T18:17:25.780Z"
+    },
+    {
+      "id": "e92e3b59-6d80-4237-a459-82214ddaceed",
+      "_id": "e92e3b59-6d80-4237-a459-82214ddaceed",
+      "email": "testuser_1790735549660@example.com",
+      "full_name": "Test Business Owner",
+      "fullName": "Test Business Owner",
+      "password": "210000:57e822aab7a7f39c3e7ef257db32a919:cbbf3f600cca6304641def243c1056a9eaff6e13e0bfdd283c815b1b4df315304843acd56e48af2ac1e298e1012269625271c97046e6690de72ec284564e042d",
+      "passwordHash": "210000:57e822aab7a7f39c3e7ef257db32a919:cbbf3f600cca6304641def243c1056a9eaff6e13e0bfdd283c815b1b4df315304843acd56e48af2ac1e298e1012269625271c97046e6690de72ec284564e042d",
+      "role": "owner",
+      "account_type": "business",
+      "accountType": "business",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-30T02:32:30.018Z",
+      "updated_at": "2026-09-30T02:32:30.018Z"
+    },
+    {
+      "id": "90377b70-b289-48e4-9531-61c1027c6fcd",
+      "_id": "90377b70-b289-48e4-9531-61c1027c6fcd",
+      "email": "owner_1790737488618@test.com",
+      "full_name": "Owner Alice",
+      "fullName": "Owner Alice",
+      "password": "210000:c2ed939c6a1a95e5f3956abb8afcbde7:972834bc085b8a9596d5082dacff4e3d2b38c72e2eff5f3a94d8bb382d943117324b60908ee23f328b4e4e8b096f70cb60639e68c18adb6d276f6116de701ce3",
+      "passwordHash": "210000:c2ed939c6a1a95e5f3956abb8afcbde7:972834bc085b8a9596d5082dacff4e3d2b38c72e2eff5f3a94d8bb382d943117324b60908ee23f328b4e4e8b096f70cb60639e68c18adb6d276f6116de701ce3",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-30T03:04:49.045Z",
+      "updated_at": "2026-09-30T03:04:49.045Z"
+    },
+    {
+      "id": "9e23ac79-1f6f-4b8e-aec7-6719bbf71e49",
+      "_id": "9e23ac79-1f6f-4b8e-aec7-6719bbf71e49",
+      "email": "employee_1790737489172@test.com",
+      "full_name": "Bob Employee",
+      "fullName": "Bob Employee",
+      "password": "210000:bc826f1f0efdcd466198c331cd7213fd:0e07feecc75e001ff595de0e00f466ec55dd3a3784b6337090b4f7827f788a4eca91f27b7c144a5b16db4a616bc63d09376bce3b23084ae27f85f1a69a70fab4",
+      "passwordHash": "210000:bc826f1f0efdcd466198c331cd7213fd:0e07feecc75e001ff595de0e00f466ec55dd3a3784b6337090b4f7827f788a4eca91f27b7c144a5b16db4a616bc63d09376bce3b23084ae27f85f1a69a70fab4",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-30T03:04:49.410Z",
+      "updated_at": "2026-09-30T03:04:49.410Z"
+    },
+    {
+      "id": "ad48f1d7-1945-47fc-a996-aaec295c550d",
+      "_id": "ad48f1d7-1945-47fc-a996-aaec295c550d",
+      "email": "owner_1790737794592@test.com",
+      "full_name": "Owner Alice",
+      "fullName": "Owner Alice",
+      "password": "210000:48f3e07b014fa69d3e0049c14ff6e8ee:d31b5d6b373a7d4ae762400f6c1b67df45258be353389bc9d896bb961c29b8d32f60e899eb413cb50ab7c471f47ef4c69fb34b79ea68a90102bc332698e82228",
+      "passwordHash": "210000:48f3e07b014fa69d3e0049c14ff6e8ee:d31b5d6b373a7d4ae762400f6c1b67df45258be353389bc9d896bb961c29b8d32f60e899eb413cb50ab7c471f47ef4c69fb34b79ea68a90102bc332698e82228",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-30T03:09:54.935Z",
+      "updated_at": "2026-09-30T03:09:54.935Z"
+    },
+    {
+      "id": "8f11441c-9ba6-43fc-808e-bacfe36faebb",
+      "_id": "8f11441c-9ba6-43fc-808e-bacfe36faebb",
+      "email": "employee_1790737795038@test.com",
+      "full_name": "Bob Employee",
+      "fullName": "Bob Employee",
+      "password": "210000:65990f34469db8ae109235e6a02aeb6d:44bcd7ed6ee91e9f2f74ee3c76091a0aaa05dfd07cc68e2f1ba221895302f513406e751ac71e33941b194f96211e2db547878558115c9d2e740cf6d885a20d87",
+      "passwordHash": "210000:65990f34469db8ae109235e6a02aeb6d:44bcd7ed6ee91e9f2f74ee3c76091a0aaa05dfd07cc68e2f1ba221895302f513406e751ac71e33941b194f96211e2db547878558115c9d2e740cf6d885a20d87",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-09-30T03:09:55.249Z",
+      "updated_at": "2026-09-30T03:09:55.249Z"
     }
   ],
   "workspaces": [
     {
       "id": "6a982bb9-0fad-4fc4-b3e2-199100000002",
       "_id": "6a982bb9-0fad-4fc4-b3e2-199100000002",
-      "name": "Selva's Personal Finance",
-      "type": "personal",
+      "name": "Selva's Business Finance",
+      "type": "business",
       "owner_id": "6a982bb9-0fad-4fc4-b3e2-199100000001",
       "ownerId": "6a982bb9-0fad-4fc4-b3e2-199100000001",
       "currency": "INR",
@@ -88,7 +173,10 @@
         "startingBalance": 0
       },
       "created_at": "2026-09-19T05:59:57.274Z",
-      "updated_at": "2026-09-19T05:59:57.274Z"
+      "updated_at": "2026-09-30T03:09:55.416Z",
+      "business_name": "Selva's Business Finance",
+      "businessName": "Selva's Business Finance",
+      "updatedAt": "2026-09-30T03:09:55.416Z"
     },
     {
       "id": "02841b67-8628-4b94-9c9f-16af64802a6c",
@@ -188,6 +276,206 @@
       },
       "created_at": "2026-09-19T18:17:25.780Z",
       "updated_at": "2026-09-19T18:17:25.780Z"
+    },
+    {
+      "id": "cbc39172-698c-42db-9e01-e5fa9c4c9dbd",
+      "_id": "cbc39172-698c-42db-9e01-e5fa9c4c9dbd",
+      "name": "Test Business Owner's Personal Workspace",
+      "type": "personal",
+      "owner_id": "e92e3b59-6d80-4237-a459-82214ddaceed",
+      "ownerId": "e92e3b59-6d80-4237-a459-82214ddaceed",
+      "currency": "INR",
+      "join_code": "HERO-T7FMB",
+      "joinCode": "HERO-RFKGR",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T02:32:30.018Z",
+      "updated_at": "2026-09-30T02:32:30.018Z"
+    },
+    {
+      "id": "ab08aff6-c114-4b1c-bc8e-f6801ab90f09",
+      "_id": "ab08aff6-c114-4b1c-bc8e-f6801ab90f09",
+      "name": "Omega Supermarket",
+      "type": "business",
+      "owner_id": "6abc74bd852f49ad0c3da4d6",
+      "ownerId": "6abc74bd852f49ad0c3da4d6",
+      "business_name": "Omega Supermarket",
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-WS-HDKEZG",
+      "joinCode": "HERO-WS-HDKEZG",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T02:32:30.054Z",
+      "updated_at": "2026-09-30T02:32:30.054Z"
+    },
+    {
+      "id": "e96c71e7-872e-4c86-825e-a5abe9fe3f2d",
+      "_id": "e96c71e7-872e-4c86-825e-a5abe9fe3f2d",
+      "name": "Owner Alice's Personal Workspace",
+      "type": "personal",
+      "owner_id": "90377b70-b289-48e4-9531-61c1027c6fcd",
+      "ownerId": "90377b70-b289-48e4-9531-61c1027c6fcd",
+      "currency": "INR",
+      "join_code": "HERO-I0OCC",
+      "joinCode": "HERO-CS000",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:04:49.045Z",
+      "updated_at": "2026-09-30T03:04:49.045Z"
+    },
+    {
+      "id": "15de5d68-1bb8-4c7a-83c9-bd10e215b5cc",
+      "_id": "15de5d68-1bb8-4c7a-83c9-bd10e215b5cc",
+      "name": "Owner Alice's Workspace",
+      "type": "personal",
+      "owner_id": "6abc7c5121e57a8677aca853",
+      "ownerId": "6abc7c5121e57a8677aca853",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-WS-T3TWK5",
+      "joinCode": "HERO-WS-T3TWK5",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:04:49.070Z",
+      "updated_at": "2026-09-30T03:04:49.070Z"
+    },
+    {
+      "id": "6726d02d-468a-42be-b710-43d3af5ba6b7",
+      "_id": "6726d02d-468a-42be-b710-43d3af5ba6b7",
+      "name": "Bob Employee's Personal Workspace",
+      "type": "personal",
+      "owner_id": "9e23ac79-1f6f-4b8e-aec7-6719bbf71e49",
+      "ownerId": "9e23ac79-1f6f-4b8e-aec7-6719bbf71e49",
+      "currency": "INR",
+      "join_code": "HERO-FJRVS",
+      "joinCode": "HERO-R9F7R",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:04:49.410Z",
+      "updated_at": "2026-09-30T03:04:49.410Z"
+    },
+    {
+      "id": "d3e5fc15-88b5-4d4d-becb-aa2dad7f7966",
+      "_id": "d3e5fc15-88b5-4d4d-becb-aa2dad7f7966",
+      "name": "Bob Employee's Workspace",
+      "type": "personal",
+      "owner_id": "6abc7c5121e57a8677aca855",
+      "ownerId": "6abc7c5121e57a8677aca855",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-WS-4T5KGF",
+      "joinCode": "HERO-WS-4T5KGF",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:04:49.429Z",
+      "updated_at": "2026-09-30T03:04:49.429Z"
+    },
+    {
+      "id": "cbfd7a1e-edba-4123-b669-02c941a84de2",
+      "_id": "cbfd7a1e-edba-4123-b669-02c941a84de2",
+      "name": "Owner Alice's Personal Workspace",
+      "type": "personal",
+      "owner_id": "ad48f1d7-1945-47fc-a996-aaec295c550d",
+      "ownerId": "ad48f1d7-1945-47fc-a996-aaec295c550d",
+      "currency": "INR",
+      "join_code": "HERO-JTN16",
+      "joinCode": "HERO-1JMFY",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:09:54.935Z",
+      "updated_at": "2026-09-30T03:09:54.935Z"
+    },
+    {
+      "id": "4bfcf7dc-b959-400d-87a5-8960a5a8bc5b",
+      "_id": "4bfcf7dc-b959-400d-87a5-8960a5a8bc5b",
+      "name": "Owner Alice's Workspace",
+      "type": "personal",
+      "owner_id": "6abc7d8221e57a8677aca857",
+      "ownerId": "6abc7d8221e57a8677aca857",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-WS-NH89FG",
+      "joinCode": "HERO-WS-NH89FG",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:09:54.950Z",
+      "updated_at": "2026-09-30T03:09:54.950Z"
+    },
+    {
+      "id": "ec74a4de-10eb-4646-9c04-6c17c6ad5795",
+      "_id": "ec74a4de-10eb-4646-9c04-6c17c6ad5795",
+      "name": "Bob Employee's Personal Workspace",
+      "type": "personal",
+      "owner_id": "8f11441c-9ba6-43fc-808e-bacfe36faebb",
+      "ownerId": "8f11441c-9ba6-43fc-808e-bacfe36faebb",
+      "currency": "INR",
+      "join_code": "HERO-UPYC2",
+      "joinCode": "HERO-14FY3",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:09:55.249Z",
+      "updated_at": "2026-09-30T03:09:55.249Z"
+    },
+    {
+      "id": "16cbfd2d-e562-4105-92a3-4ceafe7f9473",
+      "_id": "16cbfd2d-e562-4105-92a3-4ceafe7f9473",
+      "name": "Bob Employee's Workspace",
+      "type": "personal",
+      "owner_id": "6abc7d8321e57a8677aca859",
+      "ownerId": "6abc7d8321e57a8677aca859",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-WS-TT64EJ",
+      "joinCode": "HERO-WS-TT64EJ",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-09-30T03:09:55.269Z",
+      "updated_at": "2026-09-30T03:09:55.269Z"
     }
   ],
   "transactions": [
@@ -955,6 +1243,23 @@
       "payment_method": "UPI / Bank Transfer",
       "source": "Statement Parser",
       "created_at": "2026-09-19T06:10:39.041Z"
+    },
+    {
+      "id": "b6350ac5-ffa7-4b52-b985-157de59a8001",
+      "_id": "b6350ac5-ffa7-4b52-b985-157de59a8001",
+      "workspace_id": "6abc74be852f49ad0c3da4d7",
+      "workspaceId": "6abc74be852f49ad0c3da4d7",
+      "user_id": "6abc74bd852f49ad0c3da4d6",
+      "userId": "6abc74bd852f49ad0c3da4d6",
+      "description": "Inventory Purchase - Steel Cables",
+      "amount": 45000,
+      "type": "expense",
+      "category": "Inventory",
+      "date": "2026-09-30",
+      "merchant": "Steel Corp India",
+      "payment_method": "Bank Transfer",
+      "source": "Manual",
+      "created_at": "2026-09-30T02:32:30.439Z"
     }
   ],
   "uploaded_documents": [
@@ -2132,6 +2437,32 @@
       "category": "Groceries",
       "confidence": 0.95,
       "created_at": "2026-09-19T06:10:39.045Z"
+    }
+  ],
+  "inventory_items": [],
+  "subscriptions": [],
+  "workspace_members": [
+    {
+      "id": "1232719b-6239-4cd9-9efa-24c290dabe52",
+      "workspaceId": "6abc7c5121e57a8677aca854",
+      "userId": "6abc7c5121e57a8677aca855",
+      "role": "employee",
+      "status": "active",
+      "fullName": "Bob Employee",
+      "email": "employee_1790737489172@test.com",
+      "joinedAt": "2026-09-30T03:04:49.603Z",
+      "updatedAt": "2026-09-30T03:04:49.603Z"
+    },
+    {
+      "id": "ec1b5e71-14e6-4b31-96b8-cf4968503071",
+      "workspaceId": "6abc7d8221e57a8677aca858",
+      "userId": "6abc7d8321e57a8677aca859",
+      "role": "employee",
+      "status": "active",
+      "fullName": "Bob Employee",
+      "email": "employee_1790737795038@test.com",
+      "joinedAt": "2026-09-30T03:09:55.441Z",
+      "updatedAt": "2026-09-30T03:09:55.441Z"
     }
   ]
 }

@@ -40,6 +40,7 @@ import {
   deviceSessionsRepo,
   otpRepo,
   merchantMappingsRepo,
+  staffRepo,
   purgeUserAccountAndAllData,
   isValidUUID
 } from './db/supabaseDb.js';
@@ -473,7 +474,15 @@ app.delete(['/api/auth/account', '/auth/account', '/api/auth/user', '/auth/user'
 app.get(['/api/workspaces', '/workspaces'], authMiddleware, async (req, res) => {
   try {
     const workspaces = await workspacesRepo.getUserWorkspaces(req.userId);
-    return res.json({ success: true, workspaces });
+    const personal = workspaces.filter(w => w.type === 'personal');
+    const business = workspaces.filter(w => w.type === 'business');
+    return res.json({
+      success: true,
+      workspaces,
+      personal,
+      business,
+      totalCount: workspaces.length
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -499,6 +508,174 @@ app.post(['/api/workspaces', '/workspaces'], authMiddleware, async (req, res) =>
   }
 });
 
+// POST /api/workspaces/join — Auto-upgrades personal workspace to business if someone joins via workspace code!
+app.post(['/api/workspaces/join', '/workspaces/join'], authMiddleware, async (req, res) => {
+  try {
+    const { joinCode, message, role = 'employee' } = req.body;
+    if (!joinCode || !joinCode.trim()) {
+      return res.status(400).json({ error: 'Please enter a valid workspace Join Code.' });
+    }
+
+    const cleanCode = joinCode.trim().toUpperCase();
+    let ws = await workspacesRepo.findByJoinCode(cleanCode);
+
+    if (!ws) {
+      return res.status(404).json({ error: "We couldn't find a workspace with that Join Code. Please check the code and try again." });
+    }
+
+    const wsId = String(ws._id || ws.id);
+    const ownerIdStr = String(ws.ownerId || ws.owner_id || '');
+    const currentUserIdStr = String(req.userId);
+
+    if (ownerIdStr === currentUserIdStr) {
+      return res.status(400).json({ error: 'You are already the owner of this workspace.' });
+    }
+
+    // Check if user is already a member
+    const existingMembers = await workspacesRepo.getMembers(wsId);
+    const alreadyMember = existingMembers.some(m => String(m.id || m.userId) === currentUserIdStr && m.status?.toLowerCase() === 'active');
+    if (alreadyMember) {
+      return res.status(400).json({ error: 'You are already an active member of this workspace.' });
+    }
+
+    // Fetch joining user profile
+    const applicant = await usersRepo.findById(req.userId);
+    const applicantName = applicant?.fullName || applicant?.name || 'Employee';
+    const applicantEmail = applicant?.email || '';
+
+    let autoUpgraded = false;
+    let effectiveType = ws.type;
+
+    // AUTO-UPGRADE LOGIC:
+    // If the workspace is personal, adding a member/employee automatically upgrades it to a business workspace!
+    if (ws.type === 'personal') {
+      const upgraded = await workspacesRepo.upgradeToBusiness(wsId);
+      if (upgraded) {
+        ws = { ...ws, ...upgraded, type: 'business' };
+      } else {
+        ws.type = 'business';
+      }
+      effectiveType = 'business';
+      autoUpgraded = true;
+      console.log(`🚀 [AutoUpgrade] Workspace "${ws.name}" (${wsId}) automatically upgraded from PERSONAL to BUSINESS because ${applicantEmail} joined with code ${cleanCode}!`);
+    }
+
+    // Add user as an active employee member
+    const memberRecord = await workspacesRepo.addMember(wsId, {
+      userId: currentUserIdStr,
+      role,
+      status: 'active',
+      message: message || '',
+      fullName: applicantName,
+      email: applicantEmail
+    });
+
+    const successMsg = autoUpgraded
+      ? `🎉 Workspace "${ws.name}" auto-upgraded to Business Workspace! You have joined as an ${role.toUpperCase()} with full Business Suite access.`
+      : `Successfully joined workspace "${ws.name}" as an ${role.toUpperCase()}.`;
+
+    return res.status(200).json({
+      success: true,
+      autoUpgraded,
+      message: successMsg,
+      workspace: {
+        id: wsId,
+        _id: wsId,
+        name: ws.name,
+        type: 'business',
+        role,
+        isOwner: false,
+        joinCode: ws.joinCode
+      },
+      member: memberRecord
+    });
+  } catch (err) {
+    console.error('[Workspace Join Error]', err);
+    return res.status(500).json({ error: 'Failed to join workspace: ' + err.message });
+  }
+});
+
+// POST /api/workspaces/:workspaceId/members — Add member directly (also auto-upgrades if personal)
+app.post(['/api/workspaces/:workspaceId/members', '/workspaces/:workspaceId/members'], authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { userId, email, role = 'employee', message = '' } = req.body;
+
+    let targetUserId = userId;
+    let targetUser = null;
+    if (email) {
+      targetUser = await usersRepo.findByEmail(email);
+      if (targetUser) targetUserId = targetUser.id || targetUser._id;
+    } else if (userId) {
+      targetUser = await usersRepo.findById(userId);
+    }
+
+    if (!targetUserId) {
+      return res.status(404).json({ error: 'User to add was not found.' });
+    }
+
+    let ws = await workspacesRepo.findById(workspaceId);
+    if (!ws) {
+      return res.status(404).json({ error: 'Workspace not found.' });
+    }
+
+    let autoUpgraded = false;
+    if (ws.type === 'personal') {
+      const upgraded = await workspacesRepo.upgradeToBusiness(workspaceId);
+      if (upgraded) ws = { ...ws, ...upgraded, type: 'business' };
+      autoUpgraded = true;
+      console.log(`🚀 [AutoUpgrade] Workspace "${ws.name}" (${workspaceId}) auto-upgraded from PERSONAL to BUSINESS upon member invite.`);
+    }
+
+    const member = await workspacesRepo.addMember(workspaceId, {
+      userId: String(targetUserId),
+      role,
+      status: 'active',
+      message,
+      fullName: targetUser?.fullName || targetUser?.name || 'Employee',
+      email: targetUser?.email || email || ''
+    });
+
+    return res.json({
+      success: true,
+      autoUpgraded,
+      message: autoUpgraded
+        ? `Member added and workspace auto-upgraded to Business Workspace!`
+        : `Member added successfully.`,
+      member,
+      workspace: ws
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET business/workspace details with members
+app.get(['/api/businesses/:businessId', '/businesses/:businessId'], authMiddleware, async (req, res) => {
+  try {
+    const { businessId } = req.params;
+    const ws = await workspacesRepo.findById(businessId);
+    if (!ws) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const members = await workspacesRepo.getMembers(businessId);
+    return res.json({
+      ...ws,
+      business: ws,
+      workspace: ws,
+      members,
+      joinCode: ws.joinCode || generateJoinCode()
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET join requests for business
+app.get(['/api/businesses/:businessId/join-requests', '/businesses/:businessId/join-requests'], authMiddleware, async (req, res) => {
+  return res.json([]);
+});
+
+// Reset workspace data
 app.post(['/api/workspaces/:workspaceId/reset-data', '/workspaces/:workspaceId/reset-data'], authMiddleware, async (req, res) => {
   try {
     const { workspaceId } = req.params;
@@ -514,18 +691,32 @@ app.post(['/api/workspaces/:workspaceId/reset-data', '/workspaces/:workspaceId/r
   }
 });
 
+app.get(['/api/workspaces/:workspaceId/members', '/workspaces/:workspaceId/members'], authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const members = await workspacesRepo.getMembers(workspaceId);
+    return res.json({ success: true, members });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── 8. TRANSACTIONS CRUD & DASHBOARD METRICS ───
-app.get(['/api/transactions', '/transactions'], authMiddleware, async (req, res) => {
+app.get(['/api/transactions', '/transactions', '/api/dashboard/transactions', '/dashboard/transactions'], authMiddleware, async (req, res) => {
   try {
     const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
     const transactions = await transactionsRepo.listByWorkspace(wsId);
+    // Return unified array format or { success: true, transactions } based on endpoint
+    if (req.path.includes('/dashboard/transactions')) {
+      return res.json(transactions);
+    }
     return res.json({ success: true, transactions });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-app.post(['/api/transactions', '/transactions'], authMiddleware, async (req, res) => {
+app.post(['/api/transactions', '/transactions', '/api/dashboard/transactions', '/dashboard/transactions'], authMiddleware, async (req, res) => {
   try {
     const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
     const { description, amount, type = 'expense', category = 'General', date, paymentMethod, merchant } = req.body;
@@ -546,13 +737,41 @@ app.post(['/api/transactions', '/transactions'], authMiddleware, async (req, res
       merchant
     });
 
-    return res.json({ success: true, message: 'Transaction recorded successfully!', transaction: tx });
+    return res.json({ success: true, message: 'Transaction recorded successfully!', transaction: tx, ...tx });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-app.delete(['/api/transactions/:id', '/transactions/:id'], authMiddleware, async (req, res) => {
+app.patch(['/api/transactions/:id', '/transactions/:id', '/api/dashboard/transactions/:id', '/dashboard/transactions/:id'], authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = { ...req.body };
+    if (updates.amount !== undefined) updates.amount = parseIndianAmount(updates.amount);
+    if (updates.date !== undefined) updates.date = normalizeDate(updates.date);
+
+    const updated = await transactionsRepo.update(id, updates);
+    return res.json({ success: true, message: 'Transaction updated successfully!', transaction: updated });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put(['/api/transactions/:id', '/transactions/:id', '/api/dashboard/transactions/:id', '/dashboard/transactions/:id'], authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = { ...req.body };
+    if (updates.amount !== undefined) updates.amount = parseIndianAmount(updates.amount);
+    if (updates.date !== undefined) updates.date = normalizeDate(updates.date);
+
+    const updated = await transactionsRepo.update(id, updates);
+    return res.json({ success: true, message: 'Transaction updated successfully!', transaction: updated });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete(['/api/transactions/:id', '/transactions/:id', '/api/dashboard/transactions/:id', '/dashboard/transactions/:id'], authMiddleware, async (req, res) => {
   try {
     await transactionsRepo.delete(req.params.id);
     return res.json({ success: true, message: 'Transaction deleted successfully.' });
@@ -581,16 +800,6 @@ app.get(['/api/dashboard/stats', '/dashboard/stats'], authMiddleware, async (req
       healthScore,
       recentTransactions: recentTxns
     });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-app.get(['/api/dashboard/transactions', '/dashboard/transactions'], authMiddleware, async (req, res) => {
-  try {
-    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
-    const transactions = await transactionsRepo.listByWorkspace(wsId);
-    return res.json(transactions);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -1109,8 +1318,20 @@ app.get(['/api/business/gstr2b-itc-safeguard', '/api/gst/itc-safeguard'], authMi
 // 5. Staff Attendance, Daily Wage Advances & Pagar Khata
 app.get(['/api/business/pagar-khata', '/api/payroll/pagar-khata'], authMiddleware, async (req, res) => {
   try {
-    const payroll = calculatePagarKhata({});
-    return res.json({ success: true, payroll });
+    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
+    const staffList = await staffRepo.listByWorkspace(wsId);
+    const payroll = calculatePagarKhata({ staffMembers: staffList });
+    return res.json({
+      success: true,
+      payroll,
+      staff: payroll.staff || [],
+      summary: payroll.summary || {
+        totalStaff: 0,
+        totalDisbursed: 0,
+        totalAdvancesGiven: 0,
+        netPayable: 0
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -1118,12 +1339,79 @@ app.get(['/api/business/pagar-khata', '/api/payroll/pagar-khata'], authMiddlewar
 
 app.post(['/api/business/pagar-khata/advance', '/api/payroll/wage-advance'], authMiddleware, async (req, res) => {
   try {
-    const { staffId, amount, note, date } = req.body;
+    const { staffId, amount, note, reason, date } = req.body;
+    if (!staffId || !amount) {
+      return res.status(400).json({ success: false, error: 'Staff ID and amount are required.' });
+    }
+    const advanceRecord = await staffRepo.addAdvance(staffId, {
+      amount: Number(amount),
+      note: note || reason || 'Advance',
+      date: date || new Date().toISOString().split('T')[0]
+    });
     return res.json({
       success: true,
       message: `Cash advance of ₹${Number(amount).toLocaleString('en-IN')} recorded for staff member.`,
-      advance: { staffId, amount: Number(amount), note, date: date || new Date().toISOString().split('T')[0] }
+      advance: advanceRecord || { staffId, amount: Number(amount), note: note || reason, date: date || new Date().toISOString().split('T')[0] }
     });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get(['/api/payroll', '/payroll'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.query.workspaceId;
+    const staffList = await staffRepo.listByWorkspace(wsId);
+    if (!staffList || staffList.length === 0) {
+      return res.json([]);
+    }
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const totalAmount = staffList.reduce((sum, s) => sum + Number(s.netPayable || s.monthlySalary || 0), 0);
+    return res.json([
+      {
+        _id: 'pay_' + currentMonth.replace('-', ''),
+        month: currentMonth,
+        status: 'Processed',
+        totalAmount,
+        records: staffList.map(s => ({
+          employeeName: s.name,
+          designation: s.role,
+          netSalary: s.netPayable || s.monthlySalary
+        }))
+      }
+    ]);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post(['/api/business/pagar-khata/staff', '/api/payroll/staff', '/api/payroll'], authMiddleware, async (req, res) => {
+  try {
+    const wsId = req.headers['x-workspace-id'] || req.body.workspaceId;
+    const { name, employeeName, role, designation, monthlySalary, basicSalary, dailyWage, phone } = req.body;
+    
+    let staffName = name || employeeName;
+    let salary = Number(monthlySalary || basicSalary || 0);
+    let desig = role || designation || 'Staff';
+
+    if (Array.isArray(req.body.records) && req.body.records.length > 0) {
+      const firstRec = req.body.records[0];
+      staffName = firstRec.employeeName || firstRec.name || staffName;
+      salary = Number(firstRec.basicSalary || firstRec.monthlySalary || salary);
+      desig = firstRec.designation || firstRec.role || desig;
+    }
+
+    if (!staffName) return res.status(400).json({ success: false, error: 'Staff name is required.' });
+
+    const newStaff = await staffRepo.create({
+      workspaceId: wsId,
+      name: staffName,
+      role: desig,
+      monthlySalary: salary,
+      dailyWage: Number(dailyWage || Math.round(salary / 30)),
+      phone
+    });
+    return res.json({ success: true, message: 'Staff member added successfully!', staff: newStaff });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

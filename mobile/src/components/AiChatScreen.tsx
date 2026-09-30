@@ -14,7 +14,7 @@ import {
   TouchableWithoutFeedback,
   SafeAreaView,
 } from 'react-native';
-import { Send, Sparkles, User } from 'lucide-react-native';
+import { Send, Sparkles, User, X } from 'lucide-react-native';
 
 import { apiClient } from '../lib/apiClient';
 import { useTheme } from '../theme/themeSystem';
@@ -24,6 +24,7 @@ import { useTranslation } from '../theme/i18n';
 const SendIcon = Send as any;
 const SparklesIcon = Sparkles as any;
 const UserIcon = User as any;
+const XIcon = X as any;
 
 type Message = {
   id: string;
@@ -36,9 +37,10 @@ type AiChatScreenProps = {
   apiBaseUrl: string;
   authToken: string | null;
   financialContext: any;
+  onClose?: () => void;
 };
 
-export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChatScreenProps) {
+export function AiChatScreen({ apiBaseUrl, authToken, financialContext, onClose }: AiChatScreenProps) {
   const { theme, accentHex } = useTheme();
   const { t, language } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([
@@ -178,8 +180,26 @@ export function AiChatScreen({ apiBaseUrl, authToken, financialContext }: AiChat
             </View>
             <View style={[styles.activeCtxBadge, { backgroundColor: '#0284c718', borderColor: '#0284c740' }]}>
               <SparklesIcon color="#38bdf8" size={11} style={{ marginRight: 4 }} />
-              <Text style={styles.activeCtxBadgeText}>Active Financial Context</Text>
+              <Text style={styles.activeCtxBadgeText}>Active Context</Text>
             </View>
+            {onClose && (
+              <TouchableOpacity
+                onPress={onClose}
+                style={{
+                  padding: 8,
+                  marginLeft: 8,
+                  borderRadius: 10,
+                  backgroundColor: theme.bg,
+                  borderWidth: 1,
+                  borderColor: theme.cardBorder,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                accessibilityLabel="Close AI Chat"
+              >
+                <XIcon color={theme.textSecondary} size={18} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Message List */}
