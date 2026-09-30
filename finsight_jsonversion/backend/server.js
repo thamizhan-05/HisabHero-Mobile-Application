@@ -684,7 +684,7 @@ app.post(['/api/workspaces/:workspaceId/reset-data', '/workspaces/:workspaceId/r
 
     return res.json({
       success: true,
-      message: `Successfully wiped ${deletedTxCount} transactions and ${deletedDocCount} uploaded statements from this workspace.`
+      message: `Successfully cleared all statements and associated transactions from this workspace.`
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });

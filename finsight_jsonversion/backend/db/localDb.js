@@ -430,6 +430,13 @@ export const localDb = {
     return true;
   },
 
+  deleteDocumentsByWorkspace(workspaceId) {
+    const before = db.uploaded_documents.length;
+    db.uploaded_documents = db.uploaded_documents.filter(d => d.workspace_id !== workspaceId && d.workspaceId !== workspaceId);
+    saveDb();
+    return before - db.uploaded_documents.length;
+  },
+
   // Invoices & Khata
   listInvoices(workspaceId) {
     return db.invoices.filter(i => !workspaceId || i.workspace_id === workspaceId || i.workspaceId === workspaceId);

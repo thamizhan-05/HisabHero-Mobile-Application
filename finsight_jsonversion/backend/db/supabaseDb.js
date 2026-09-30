@@ -6,7 +6,7 @@
 
 import { supabase } from './supabaseClient.js';
 import { localDb } from './localDb.js';
-import { mongoUsersRepo, mongoWorkspacesRepo, mongoTransactionsRepo, mongoStaffRepo, mongoOtpRepo } from './mongoDb.js';
+import { mongoUsersRepo, mongoWorkspacesRepo, mongoTransactionsRepo, mongoDocumentsRepo, mongoStaffRepo, mongoOtpRepo } from './mongoDb.js';
 
 let isSupabaseOffline = true; // Supabase project DNS is paused/offline, default to fast offline mode
 
@@ -911,6 +911,13 @@ export const transactionsRepo = {
 // ─── 4. DOCUMENTS REPOSITORY ─────────────────────────────────────────────────
 export const documentsRepo = {
   async listByWorkspace(workspaceId) {
+    try {
+      const mongoDocs = await mongoDocumentsRepo.listByWorkspace(workspaceId);
+      if (mongoDocs && mongoDocs.length > 0) return mongoDocs;
+    } catch (e) {
+      console.warn('[documentsRepo.listByWorkspace] Mongo warning:', e.message);
+    }
+
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -936,6 +943,13 @@ export const documentsRepo = {
   },
 
   async findById(id) {
+    try {
+      const mongoDoc = await mongoDocumentsRepo.findById(id);
+      if (mongoDoc) return mongoDoc;
+    } catch (e) {
+      console.warn('[documentsRepo.findById] Mongo warning:', e.message);
+    }
+
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -963,6 +977,23 @@ export const documentsRepo = {
   },
 
   async create({ workspaceId, fileName, parserUsed, summary, extractedTransactions }) {
+    // 1. Insert into persistent MongoDB Atlas
+    try {
+      const mongoDoc = await mongoDocumentsRepo.create({
+        workspaceId,
+        fileName,
+        parserUsed,
+        summary,
+        extractedTransactions
+      });
+      try {
+        localDb.createDocument({ workspaceId, fileName, parserUsed, summary, extractedTransactions });
+      } catch (e) {}
+      if (mongoDoc) return mongoDoc;
+    } catch (e) {
+      console.warn('[documentsRepo.create] Mongo error:', e.message);
+    }
+
     return safeDb(
       async () => {
         const payload = {
@@ -997,6 +1028,12 @@ export const documentsRepo = {
 
   async delete(id) {
     if (!id) return false;
+    try {
+      await mongoDocumentsRepo.delete(id);
+      try { localDb.deleteDocument(id); } catch (e) {}
+    } catch (e) {
+      console.warn('[documentsRepo.delete] Mongo error:', e.message);
+    }
 
     return safeDb(
       async () => {
@@ -1012,7 +1049,6 @@ export const documentsRepo = {
           const txList = Array.isArray(doc.extracted_transactions) ? doc.extracted_transactions : [];
 
           if (txList.length > 0) {
-            // Strategy 1: Delete by exact description + date + amount fingerprint (most precise)
             const fingerprints = txList
               .filter(t => t.description && t.date && t.amount)
               .map(t => ({
@@ -1022,9 +1058,8 @@ export const documentsRepo = {
               }));
 
             if (fingerprints.length > 0) {
-              // Build OR conditions for description+date+amount triplets
               const orFilters = fingerprints
-                .slice(0, 50) // Supabase limit safety
+                .slice(0, 50)
                 .map(f => `and(description.eq.${f.description},date.eq.${f.date},amount.eq.${f.amount})`)
                 .join(',');
 
@@ -1035,7 +1070,6 @@ export const documentsRepo = {
                   .eq('workspace_id', wsId)
                   .or(orFilters);
               } catch (e) {
-                // Fallback: delete by dates only
                 const dates = Array.from(new Set(txList.map(t => t.date).filter(Boolean)));
                 if (dates.length > 0) {
                   await supabase
@@ -1045,27 +1079,43 @@ export const documentsRepo = {
                     .in('date', dates);
                 }
               }
-            } else {
-              // Fallback: date-range delete
-              const dates = Array.from(new Set(txList.map(t => t.date).filter(Boolean)));
-              if (dates.length > 0) {
-                await supabase
-                  .from('transactions')
-                  .delete()
-                  .eq('workspace_id', wsId)
-                  .in('date', dates);
-              }
             }
           }
         }
 
-        // Delete the document record itself
         const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
         if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
         return true;
       },
       () => localDb.deleteDocument(id)
     );
+  },
+
+  async deleteByWorkspace(workspaceId) {
+    let count = 0;
+    try {
+      count = await mongoDocumentsRepo.deleteByWorkspace(workspaceId);
+      try {
+        localDb.deleteDocumentsByWorkspace(workspaceId);
+      } catch (e) {}
+    } catch (e) {
+      console.warn('[documentsRepo.deleteByWorkspace] Mongo error:', e.message);
+    }
+
+    try {
+      await safeDb(
+        async () => {
+          await supabase.from('uploaded_documents').delete().eq('workspace_id', workspaceId);
+          return true;
+        },
+        () => {
+          localDb.deleteDocumentsByWorkspace(workspaceId);
+          return true;
+        }
+      );
+    } catch (e) {}
+
+    return count;
   }
 };
 

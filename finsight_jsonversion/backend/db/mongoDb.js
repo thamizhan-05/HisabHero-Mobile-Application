@@ -728,3 +728,118 @@ export const mongoOtpRepo = {
     return true;
   }
 };
+
+// ─── DOCUMENTS REPOSITORY (ATLAS) ───────────────────────────────────────────
+export const mongoDocumentsRepo = {
+  async listByWorkspace(workspaceId) {
+    const db = await getMongoDb();
+    if (!db) return [];
+    const wsIdStr = String(workspaceId || 'personal');
+    const objId = toObjectId(workspaceId);
+    const query = {
+      $or: [
+        { workspaceId: wsIdStr },
+        ...(objId ? [{ workspaceId: objId }] : []),
+        { workspace_id: wsIdStr },
+        ...(objId ? [{ workspace_id: objId }] : []),
+        ...(wsIdStr === 'personal' || wsIdStr === '6a982bb90fad8fc4f3e21992' ? [
+          { workspaceId: 'personal' },
+          { workspaceId: '6a982bb90fad8fc4f3e21992' },
+          { workspace_id: '6a982bb90fad8fc4f3e21992' }
+        ] : [])
+      ]
+    };
+    const docs = await db.collection('documents').find(query).sort({ createdAt: -1 }).toArray();
+    return docs.map(d => ({
+      _id: String(d._id),
+      id: String(d._id),
+      workspaceId: String(d.workspaceId || d.workspace_id || wsIdStr),
+      fileName: d.fileName || d.file_name || 'Uploaded Statement',
+      parserUsed: d.parserUsed || d.parser_used || 'Statement Parser',
+      summary: d.summary || {},
+      extractedTransactions: d.extractedTransactions || d.extracted_transactions || [],
+      createdAt: d.createdAt || d.created_at || new Date().toISOString()
+    }));
+  },
+
+  async findById(id) {
+    const db = await getMongoDb();
+    if (!db || !id) return null;
+    const objId = toObjectId(id);
+    const doc = await db.collection('documents').findOne({
+      $or: [
+        ...(objId ? [{ _id: objId }] : []),
+        { _id: String(id) },
+        { id: String(id) }
+      ]
+    });
+    if (!doc) return null;
+    return {
+      _id: String(doc._id),
+      id: String(doc._id),
+      workspaceId: String(doc.workspaceId || doc.workspace_id),
+      fileName: doc.fileName || doc.file_name || 'Uploaded Statement',
+      parserUsed: doc.parserUsed || doc.parser_used || 'Statement Parser',
+      summary: doc.summary || {},
+      extractedTransactions: doc.extractedTransactions || doc.extracted_transactions || [],
+      createdAt: doc.createdAt || doc.created_at
+    };
+  },
+
+  async create(docData) {
+    const db = await getMongoDb();
+    if (!db) return null;
+    const newDoc = {
+      workspaceId: String(docData.workspaceId || 'personal'),
+      workspace_id: String(docData.workspaceId || 'personal'),
+      fileName: docData.fileName || 'Uploaded Statement',
+      parserUsed: docData.parserUsed || 'Statement Parser',
+      summary: docData.summary || {},
+      extractedTransactions: docData.extractedTransactions || [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    const res = await db.collection('documents').insertOne(newDoc);
+    const id = String(res.insertedId);
+    return {
+      _id: id,
+      id,
+      ...newDoc
+    };
+  },
+
+  async delete(id) {
+    const db = await getMongoDb();
+    if (!db || !id) return false;
+    const objId = toObjectId(id);
+    const res = await db.collection('documents').deleteOne({
+      $or: [
+        ...(objId ? [{ _id: objId }] : []),
+        { _id: String(id) },
+        { id: String(id) }
+      ]
+    });
+    return res.deletedCount > 0;
+  },
+
+  async deleteByWorkspace(workspaceId) {
+    const db = await getMongoDb();
+    if (!db) return 0;
+    const wsIdStr = String(workspaceId || 'personal');
+    const objId = toObjectId(workspaceId);
+    const res = await db.collection('documents').deleteMany({
+      $or: [
+        { workspaceId: wsIdStr },
+        ...(objId ? [{ workspaceId: objId }] : []),
+        { workspace_id: wsIdStr },
+        ...(objId ? [{ workspace_id: objId }] : []),
+        ...(wsIdStr === 'personal' || wsIdStr === '6a982bb90fad8fc4f3e21992' ? [
+          { workspaceId: 'personal' },
+          { workspaceId: '6a982bb90fad8fc4f3e21992' },
+          { workspace_id: '6a982bb90fad8fc4f3e21992' }
+        ] : [])
+      ]
+    });
+    return res.deletedCount;
+  }
+};

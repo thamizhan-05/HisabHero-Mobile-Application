@@ -18,23 +18,6 @@
       "updated_at": "2026-09-19T05:59:57.274Z"
     },
     {
-      "id": "6a982bb9-0fad-4fc4-b3e2-199100000009",
-      "_id": "6a982bb9-0fad-4fc4-b3e2-199100000009",
-      "email": "lvathevar10042005@gmail.com",
-      "full_name": "Selva",
-      "fullName": "Selva",
-      "password": "210000:4fb5f49e59b13bcb5ff5b5a022502192:f329cbd51d2571aff4673e9b8e0e6822d5cb6aaa2bf5e78d8988d0a37a91ae60763fdd2713009d3ef6d19f1ec71ee82ae95bef09a35fdd6bdd5c0d3d8fe892ff",
-      "passwordHash": "210000:4fb5f49e59b13bcb5ff5b5a022502192:f329cbd51d2571aff4673e9b8e0e6822d5cb6aaa2bf5e78d8988d0a37a91ae60763fdd2713009d3ef6d19f1ec71ee82ae95bef09a35fdd6bdd5c0d3d8fe892ff",
-      "role": "owner",
-      "account_type": "personal",
-      "accountType": "personal",
-      "is_verified": true,
-      "isVerified": true,
-      "auth_providers": [],
-      "created_at": "2026-09-19T05:59:57.274Z",
-      "updated_at": "2026-09-19T05:59:57.274Z"
-    },
-    {
       "id": "053aba3f-ed14-4df4-bacc-a2f67d98b9c5",
       "_id": "053aba3f-ed14-4df4-bacc-a2f67d98b9c5",
       "email": "demo@hisabhero.com",
