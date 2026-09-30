@@ -10,8 +10,14 @@ export const LOCAL_WEB_API_URL = 'http://localhost:5000/api';
 // Local backend URL for Android physical device on Wi-Fi
 export const LOCAL_DEVICE_API_URL = `http://${LOCAL_PC_IP}:5000/api`;
 
+// Production Cloud API URL (Live Render Production Web Service)
+export const RENDER_API_URL = 'https://hisabhero-mobile-application.onrender.com/api';
+
 // Production Cloud API URL (Live Vercel Production Deployment)
-export const PRODUCTION_API_URL = 'https://hisabhero.vercel.app/api';
+export const VERCEL_API_URL = 'https://hisabhero.vercel.app/api';
+
+// Primary Production URL
+export const PRODUCTION_API_URL = RENDER_API_URL;
 
 // Intelligent Default URL
 export function getDefaultApiUrl(): string {
@@ -19,7 +25,7 @@ export function getDefaultApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL || LOCAL_WEB_API_URL;
   }
   // Native Android / iOS Device: Default to high-speed live Production Cloud API
-  return process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;
+  return process.env.EXPO_PUBLIC_API_URL || RENDER_API_URL;
 }
 
 export const DEFAULT_API_URL = getDefaultApiUrl();
@@ -60,8 +66,8 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
       // If a native mobile app had previously cached an unreachable LAN IP or localhost,
       // reset it to the live Production Cloud API so the user never gets stuck with a timeout!
       if (Platform.OS !== 'web' && (clean.includes('localhost') || clean.includes('127.0.0.1') || clean.includes('10.0.11.116') || clean.includes('10.0.2.2'))) {
-        await AsyncStorage.setItem('apiBaseUrl', PRODUCTION_API_URL);
-        currentApiUrl = PRODUCTION_API_URL;
+        await AsyncStorage.setItem('apiBaseUrl', RENDER_API_URL);
+        currentApiUrl = RENDER_API_URL;
       } else {
         currentApiUrl = clean;
       }

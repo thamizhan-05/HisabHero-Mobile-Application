@@ -39,7 +39,7 @@ async function request(endpoint: string, options: any = {}) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 10000); // 10s default timeout
+  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 45000); // 45s default timeout to gracefully handle cold-starts
 
   const config = {
     ...options,

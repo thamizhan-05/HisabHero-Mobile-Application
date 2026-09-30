@@ -42,7 +42,7 @@ import {
 import { useTheme } from '../theme/themeSystem';
 import { useTranslation } from '../theme/i18n';
 import { OtpVerificationModal } from './OtpVerificationModal';
-import { PRODUCTION_API_URL, setApiBaseUrl } from '../lib/apiConfig';
+import { PRODUCTION_API_URL, RENDER_API_URL, VERCEL_API_URL, setApiBaseUrl } from '../lib/apiConfig';
 import { setGlobalApiUrl } from '../lib/apiClient';
 
 const logoImg = require('../../assets/logo_transparent.png');
@@ -180,20 +180,21 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     }
   };
 
-  // Pre-warm backend connection
+  // Pre-warm backend connections
   useEffect(() => {
     const prewarmServer = async () => {
       try {
-        await fetch(`${apiBaseUrl}/health`, { method: 'GET' });
-        console.log('[LoginScreen] Server pre-warm ping sent successfully.');
+        fetch('https://hisabhero-mobile-application.onrender.com/api/health', { method: 'GET' }).catch(() => {});
+        fetch('https://hisabhero.vercel.app/api/health', { method: 'GET' }).catch(() => {});
+        if (apiBaseUrl) fetch(`${apiBaseUrl}/health`, { method: 'GET' }).catch(() => {});
       } catch (e) {
-        console.warn('[LoginScreen] Pre-warm ping skipped.');
+        // Pre-warm is non-blocking
       }
     };
     prewarmServer();
   }, [apiBaseUrl]);
 
-  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 15000) => {
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 45000) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -203,7 +204,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     } catch (err: any) {
       clearTimeout(timer);
       if (err.name === 'AbortError') {
-        throw new Error('Request timed out. Please check your network connection or backend server URL.');
+        throw new Error('Request timed out. Please check your network connection.');
       }
       throw err;
     }
@@ -234,30 +235,39 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setErrorMsg(null);
     setStatusMsg('Connecting securely...');
     try {
-      let activeUrl = apiBaseUrl;
-      let res: Response;
-      try {
-        res = await fetchWithTimeout(`${activeUrl}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cleanEmail, password }),
-        });
-      } catch (firstErr: any) {
-        // If local/LAN endpoint timed out or failed, automatically fall back to live Production Cloud API
-        if (activeUrl !== PRODUCTION_API_URL) {
-          console.warn('[Login] Primary endpoint failed or timed out. Connecting to Production Cloud API...');
-          setStatusMsg('Connecting via Cloud Backend...');
-          res = await fetchWithTimeout(`${PRODUCTION_API_URL}/auth/login`, {
+      const endpointsToTry = [
+        apiBaseUrl,
+        RENDER_API_URL,
+        VERCEL_API_URL,
+      ].filter((v, i, a) => !!v && a.indexOf(v) === i);
+
+      let res: Response | null = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < endpointsToTry.length; i++) {
+        const targetUrl = endpointsToTry[i];
+        try {
+          if (i > 0) {
+            setStatusMsg(`Connecting via ${targetUrl.includes('render') ? 'Cloud Backend' : 'Cloud Mirror'}...`);
+          }
+          res = await fetchWithTimeout(`${targetUrl}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: cleanEmail, password }),
-          });
-          activeUrl = PRODUCTION_API_URL;
-          await setApiBaseUrl(PRODUCTION_API_URL);
-          setGlobalApiUrl(PRODUCTION_API_URL);
-        } else {
-          throw firstErr;
+          }, 35000);
+          if (res && res.status < 500) {
+            await setApiBaseUrl(targetUrl);
+            setGlobalApiUrl(targetUrl);
+            break;
+          }
+        } catch (err: any) {
+          console.warn(`[Login] Endpoint ${targetUrl} failed:`, err.message);
+          lastError = err;
         }
+      }
+
+      if (!res) {
+        throw lastError || new Error('Unable to connect to HisabHero backend. Please check your internet connection.');
       }
 
       const text = await res.text();
@@ -290,7 +300,6 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
 
   // ─── SIGNUP (PERSONAL ACCOUNT ONLY) ─────────────────────────────────────────
   const handleSignup = async () => {
-
     let cleanEmail = email.trim().toLowerCase();
     if (cleanEmail === 'lvathevar10042005@gmail.com') {
       cleanEmail = 'selvathevar10042005@gmail.com';
@@ -320,29 +329,39 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
         profilePhoto,
       };
 
-      let activeUrl = apiBaseUrl;
-      let res: Response;
-      try {
-        res = await fetchWithTimeout(`${activeUrl}/auth/signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch (firstErr: any) {
-        if (activeUrl !== PRODUCTION_API_URL) {
-          console.warn('[Signup] Primary endpoint failed/timed out, retrying with Production Cloud API...');
-          setStatusMsg('Connecting via Cloud Backend...');
-          res = await fetchWithTimeout(`${PRODUCTION_API_URL}/auth/signup`, {
+      const endpointsToTry = [
+        apiBaseUrl,
+        RENDER_API_URL,
+        VERCEL_API_URL,
+      ].filter((v, i, a) => !!v && a.indexOf(v) === i);
+
+      let res: Response | null = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < endpointsToTry.length; i++) {
+        const targetUrl = endpointsToTry[i];
+        try {
+          if (i > 0) {
+            setStatusMsg(`Connecting via ${targetUrl.includes('render') ? 'Cloud Backend' : 'Cloud Mirror'}...`);
+          }
+          res = await fetchWithTimeout(`${targetUrl}/auth/signup`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-          });
-          activeUrl = PRODUCTION_API_URL;
-          await setApiBaseUrl(PRODUCTION_API_URL);
-          setGlobalApiUrl(PRODUCTION_API_URL);
-        } else {
-          throw firstErr;
+          }, 35000);
+          if (res && res.status < 500) {
+            await setApiBaseUrl(targetUrl);
+            setGlobalApiUrl(targetUrl);
+            break;
+          }
+        } catch (err: any) {
+          console.warn(`[Signup] Endpoint ${targetUrl} failed:`, err.message);
+          lastError = err;
         }
+      }
+
+      if (!res) {
+        throw lastError || new Error('Unable to connect to HisabHero backend. Please check your internet connection.');
       }
 
       const text = await res.text();
