@@ -219,6 +219,28 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     return { hasMinLength, hasUpper, hasNumber, hasSymbol };
   };
 
+  // Standalone race helper: resolves with first successful Promise, guaranteed across all Hermes/RN engines
+  const firstSuccessfulPromise = <T,>(promises: Promise<T>[]): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      let rejectedCount = 0;
+      const errors: any[] = [];
+      if (!promises || promises.length === 0) {
+        return reject(new Error('No endpoints available'));
+      }
+      promises.forEach((p) => {
+        Promise.resolve(p)
+          .then((val) => resolve(val))
+          .catch((err) => {
+            errors.push(err);
+            rejectedCount++;
+            if (rejectedCount === promises.length) {
+              reject(errors[0] || new Error('All endpoints failed'));
+            }
+          });
+      });
+    });
+  };
+
   // Parallel racing across healthy cloud mirrors for sub-second mobile response
   const raceApiRequest = async (path: string, body: any, timeoutMs = 12000): Promise<Response> => {
     const rawList = [
@@ -247,7 +269,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
         });
         clearTimeout(timer);
         if (res.status >= 500) {
-          throw new Error(`Server returned ${res.status}`);
+          throw new Error(`Server ${url} returned ${res.status}`);
         }
         return { url, res };
       } catch (e: any) {
@@ -257,7 +279,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     });
 
     try {
-      const winner = await Promise.any(promises);
+      const winner = await firstSuccessfulPromise(promises);
       controllers.forEach(c => {
         try { c.abort(); } catch {}
       });
@@ -265,6 +287,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
       setGlobalApiUrl(winner.url);
       return winner.res;
     } catch (allFailed: any) {
+      console.warn('[raceApiRequest] All endpoints failed:', allFailed);
       throw new Error('Unable to connect to HisabHero cloud servers. Please check your internet connection.');
     }
   };

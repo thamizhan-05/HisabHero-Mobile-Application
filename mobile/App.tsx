@@ -1,4 +1,4 @@
-// DOMException Polyfill for Hermes React Native
+// DOMException & Promise.any Polyfills for Hermes React Native
 if (typeof globalThis.DOMException === 'undefined') {
   class DOMExceptionPolyfill extends Error {
     constructor(message = '', name = 'Error') {
@@ -14,6 +14,30 @@ if (typeof globalThis.DOMException === 'undefined') {
   if (typeof global !== 'undefined') {
     (global as any).DOMException = DOMExceptionPolyfill;
   }
+}
+
+if (typeof Promise.any !== 'function') {
+  (Promise as any).any = function <T>(promises: Iterable<T | PromiseLike<T>>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const arr = Array.from(promises);
+      if (arr.length === 0) {
+        return reject(new Error('All promises were rejected'));
+      }
+      let rejected = 0;
+      const errors: any[] = [];
+      arr.forEach((p, idx) => {
+        Promise.resolve(p)
+          .then(resolve)
+          .catch((err) => {
+            errors[idx] = err;
+            rejected++;
+            if (rejected === arr.length) {
+              reject(errors[0] || new Error('All promises were rejected'));
+            }
+          });
+      });
+    });
+  };
 }
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -225,7 +249,7 @@ export default function App() {
 
           if (verifyRes.ok) {
             const verifyData = await verifyRes.json();
-            if (verifyData.valid && verifyData.user) {
+            if ((verifyData.valid || verifyData.success) && verifyData.user) {
               const serverUser = verifyData.user;
               setAuthToken(token);
               setUser(serverUser);
