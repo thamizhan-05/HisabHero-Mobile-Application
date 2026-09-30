@@ -6,7 +6,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import * as XLSX from 'xlsx';
 import { transactionsRepo, merchantMappingsRepo } from '../db/supabaseDb.js';
-import { parsePdfBufferWithNativeRegex, bufferToPureUint8Array, filterOutSummaryRows, determineCashFlowType, parseCleanAmount } from './pdfParsers.js';
+import { parsePdfBufferWithNativeRegex, parseUniversalStatement, bufferToPureUint8Array, filterOutSummaryRows, determineCashFlowType, parseCleanAmount } from './pdfParsers.js';
 
 // Comprehensive Vernacular Indian Numerals Mapping (Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali, Devanagari)
 const INDIAN_VERNACULAR_DIGITS = {
@@ -398,9 +398,9 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
   }
 
   // ─── TIER 1: INSTANT SUB-20ms NATIVE LOCAL CODE PARSER (PRIMARY) ───
-  if (isPdf) {
+  if (isPdf || (extractedText && extractedText.trim().length >= 20)) {
     try {
-      const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer);
+      const regexResult = await parsePdfBufferWithNativeRegex(fileBuffer, extractedText);
       if (regexResult && regexResult.transactions && regexResult.transactions.length > 0) {
         console.log(`[Document Ingestion] ⚡ High-Speed Native Parser matched (${regexResult.parser}): Extracted ${regexResult.transactions.length} transactions in <20ms`);
         const mapped = await applyLearnedMerchantMappings(workspaceId, regexResult.transactions);
@@ -415,8 +415,28 @@ export async function processPDFOrImageWithAI(fileBuffer, mimeType, originalName
     }
   }
 
-  // ─── TIER 2: GEMINI 2.5 FLASH AI VISION / OCR (FALLBACK FOR SCANNED IMAGES) ───
-  if (process.env.GEMINI_API_KEY) {
+  // ─── TIER 1.5: UNIVERSAL FAST STATEMENT PARSER (IF BANK NOT IN 37 HARDCODED RULES) ───
+  const textForHeuristics = extractedText || (fileBuffer ? fileBuffer.toString('utf-8') : '');
+  if (textForHeuristics && textForHeuristics.trim().length >= 20) {
+    try {
+      const universalTxns = parseUniversalStatement(textForHeuristics);
+      if (universalTxns && universalTxns.length > 0) {
+        console.log(`[Document Ingestion] ⚡ Universal Table Parser matched: Extracted ${universalTxns.length} transactions in <10ms`);
+        const mapped = await applyLearnedMerchantMappings(workspaceId, universalTxns);
+        return {
+          documentType: 'bank_statement',
+          parserUsed: 'universal_statement_parser',
+          extracted: mapped
+        };
+      }
+    } catch (uErr) {
+      console.warn('[Document Ingestion] Universal statement parse skipped:', uErr.message);
+    }
+  }
+
+  // ─── TIER 2: GEMINI 2.5 FLASH AI VISION / OCR (ONLY IF VALID GEMINI KEY IS CONFIGURED) ───
+  const isValidGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.startsWith('AIzaSy'));
+  if (isValidGeminiKey) {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `You are a world-class Indian Financial Statement & Accounting Document Parser.
@@ -531,7 +551,6 @@ Return strictly raw JSON format without markdown fences:
   }
 
   // ─── TIER 3: LOCAL TEXT HEURISTIC PARSER FALLBACK ───
-  const textForHeuristics = extractedText || fileBuffer.toString('utf-8');
   const localExtracted = parseGenericReceiptLocally(textForHeuristics, originalName);
   const finalExtracted = await applyLearnedMerchantMappings(workspaceId, localExtracted);
 

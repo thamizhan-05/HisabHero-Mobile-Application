@@ -1688,16 +1688,17 @@ export function bufferToPureUint8Array(buf) {
 }
 
 // ─── HIGH LEVEL DISPATCHER WITH ALL 37 INSTITUTIONS ───
-export async function parsePdfBufferWithNativeRegex(fileBuffer) {
+export async function parsePdfBufferWithNativeRegex(fileBuffer, preExtractedText = null) {
   try {
-    let extractedText = '';
-    const pureUint8 = bufferToPureUint8Array(fileBuffer);
-
-    const PDFParser = await getPDFParse();
-    if (PDFParser) {
-      const parser = new PDFParser(pureUint8);
-      const textResult = await parser.getText();
-      extractedText = typeof textResult === 'string' ? textResult : (textResult?.text || '');
+    let extractedText = preExtractedText || '';
+    if (!extractedText) {
+      const pureUint8 = bufferToPureUint8Array(fileBuffer);
+      const PDFParser = await getPDFParse();
+      if (PDFParser) {
+        const parser = new PDFParser(pureUint8);
+        const textResult = await parser.getText();
+        extractedText = typeof textResult === 'string' ? textResult : (textResult?.text || '');
+      }
     }
 
     const text = normalizeDevanagari(extractedText);

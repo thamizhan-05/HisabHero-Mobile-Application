@@ -7560,13 +7560,12 @@
         }
       };
 
-      setStep(1, 25, '⚡ Streaming binary buffer & isolating pure ArrayBuffer...');
+      setStep(1, 40, '⚡ Streaming buffer & decoding statement...');
 
       const formData = new FormData();
       formData.append('file', selectedUploadFile);
 
-      const tick1 = setTimeout(() => setStep(2, 60, '🔍 Decoding 38 Indian bank structures & UPI identifiers...'), 600);
-      const tick2 = setTimeout(() => setStep(3, 85, '🧠 Gemini 2.5 Flash classifying Inflows, Outflows & Categories...'), 1400);
+      const tick1 = setTimeout(() => setStep(2, 80, '🔍 Parsing transactions & UPI identifiers...'), 150);
 
       try {
         const wsId = currentActiveWorkspaceId || 'personal';
@@ -7581,7 +7580,6 @@
         });
 
         clearTimeout(tick1);
-        clearTimeout(tick2);
 
         const data = await res.json();
 

@@ -357,9 +357,7 @@ export function UploadScreen({
     setProcessingStep('uploading');
 
     try {
-      setTimeout(() => setProcessingStep('analyzing'), 600);
-      setTimeout(() => setProcessingStep('extracting'), 1400);
-      setTimeout(() => setProcessingStep('validating'), 2400);
+      setProcessingStep('extracting');
 
       const formData = new FormData();
       const fileName = fileAsset.name || fileAsset.fileName || 'statement.pdf';
