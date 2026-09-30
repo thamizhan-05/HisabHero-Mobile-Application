@@ -385,6 +385,8 @@ export function UploadScreen({
         } as any);
       }
 
+      formData.append('workspaceId', activeWorkspaceId || 'personal');
+
       const res = await apiClient.upload('/upload/intelligence', formData);
       const data = await res.json().catch(() => ({}));
 
