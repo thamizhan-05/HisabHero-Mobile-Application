@@ -956,7 +956,7 @@ export function UploadScreen({
 
                   {categoryDropdownVisible && (
                     <View style={[styles.catDropdownList, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-                      {CATEGORIES.map((cat, idx) => (
+                      {availableCategories.map((cat: string, idx: number) => (
                         <TouchableOpacity
                           key={idx}
                           style={[styles.catOption, { borderBottomColor: theme.cardBorder }]}
