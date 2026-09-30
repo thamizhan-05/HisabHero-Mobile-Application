@@ -65,7 +65,7 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
       const clean = sanitizeApiUrl(saved);
       // If a native mobile app had previously cached an unreachable LAN IP or localhost,
       // reset it to the live Production Cloud API so the user never gets stuck with a timeout!
-      if (Platform.OS !== 'web' && (clean.includes('localhost') || clean.includes('127.0.0.1') || clean.includes('10.0.11.116') || clean.includes('10.0.2.2'))) {
+      if (Platform.OS !== 'web' && (clean.includes('localhost') || clean.includes('127.0.0.1') || clean.includes('10.') || clean.includes('192.168.') || clean.includes('172.'))) {
         await AsyncStorage.setItem('apiBaseUrl', RENDER_API_URL);
         currentApiUrl = RENDER_API_URL;
       } else {

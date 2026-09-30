@@ -219,6 +219,56 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     return { hasMinLength, hasUpper, hasNumber, hasSymbol };
   };
 
+  // Parallel racing across healthy cloud mirrors for sub-second mobile response
+  const raceApiRequest = async (path: string, body: any, timeoutMs = 12000): Promise<Response> => {
+    const rawList = [
+      apiBaseUrl,
+      RENDER_API_URL,
+      VERCEL_API_URL,
+    ].filter(Boolean) as string[];
+
+    // Exclude unreachable LAN/private IPs on mobile devices
+    const candidateUrls = Platform.OS !== 'web'
+      ? rawList.filter(u => !u.includes('localhost') && !u.includes('127.0.0.1') && !u.includes('10.') && !u.includes('192.168.') && !u.includes('172.'))
+      : rawList;
+
+    const endpoints = Array.from(new Set(candidateUrls.length > 0 ? candidateUrls : [RENDER_API_URL, VERCEL_API_URL]));
+    const controllers = endpoints.map(() => new AbortController());
+
+    const promises = endpoints.map(async (url, idx) => {
+      const controller = controllers[idx];
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(`${url}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (res.status >= 500) {
+          throw new Error(`Server returned ${res.status}`);
+        }
+        return { url, res };
+      } catch (e: any) {
+        clearTimeout(timer);
+        throw e;
+      }
+    });
+
+    try {
+      const winner = await Promise.any(promises);
+      controllers.forEach(c => {
+        try { c.abort(); } catch {}
+      });
+      await setApiBaseUrl(winner.url);
+      setGlobalApiUrl(winner.url);
+      return winner.res;
+    } catch (allFailed: any) {
+      throw new Error('Unable to connect to HisabHero cloud servers. Please check your internet connection.');
+    }
+  };
+
   // ─── LOGIN ──────────────────────────────────────────────────────────────────
   const handleLogin = async () => {
     let cleanEmail = email.trim().toLowerCase();
@@ -235,40 +285,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setErrorMsg(null);
     setStatusMsg('Connecting securely...');
     try {
-      const endpointsToTry = [
-        apiBaseUrl,
-        RENDER_API_URL,
-        VERCEL_API_URL,
-      ].filter((v, i, a) => !!v && a.indexOf(v) === i);
-
-      let res: Response | null = null;
-      let lastError: any = null;
-
-      for (let i = 0; i < endpointsToTry.length; i++) {
-        const targetUrl = endpointsToTry[i];
-        try {
-          if (i > 0) {
-            setStatusMsg(`Connecting via ${targetUrl.includes('render') ? 'Cloud Backend' : 'Cloud Mirror'}...`);
-          }
-          res = await fetchWithTimeout(`${targetUrl}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail, password }),
-          }, 35000);
-          if (res && res.status < 500) {
-            await setApiBaseUrl(targetUrl);
-            setGlobalApiUrl(targetUrl);
-            break;
-          }
-        } catch (err: any) {
-          console.warn(`[Login] Endpoint ${targetUrl} failed:`, err.message);
-          lastError = err;
-        }
-      }
-
-      if (!res) {
-        throw lastError || new Error('Unable to connect to HisabHero backend. Please check your internet connection.');
-      }
+      const res = await raceApiRequest('/auth/login', { email: cleanEmail, password });
 
       const text = await res.text();
       let data: any = {};
@@ -329,40 +346,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
         profilePhoto,
       };
 
-      const endpointsToTry = [
-        apiBaseUrl,
-        RENDER_API_URL,
-        VERCEL_API_URL,
-      ].filter((v, i, a) => !!v && a.indexOf(v) === i);
-
-      let res: Response | null = null;
-      let lastError: any = null;
-
-      for (let i = 0; i < endpointsToTry.length; i++) {
-        const targetUrl = endpointsToTry[i];
-        try {
-          if (i > 0) {
-            setStatusMsg(`Connecting via ${targetUrl.includes('render') ? 'Cloud Backend' : 'Cloud Mirror'}...`);
-          }
-          res = await fetchWithTimeout(`${targetUrl}/auth/signup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }, 35000);
-          if (res && res.status < 500) {
-            await setApiBaseUrl(targetUrl);
-            setGlobalApiUrl(targetUrl);
-            break;
-          }
-        } catch (err: any) {
-          console.warn(`[Signup] Endpoint ${targetUrl} failed:`, err.message);
-          lastError = err;
-        }
-      }
-
-      if (!res) {
-        throw lastError || new Error('Unable to connect to HisabHero backend. Please check your internet connection.');
-      }
+      const res = await raceApiRequest('/auth/signup', payload);
 
       const text = await res.text();
       let data: any = {};
@@ -397,11 +381,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setErrorMsg(null);
     setStatusMsg('Verifying OTP code...');
     try {
-      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/verify-email-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, code: verificationCode.trim() }),
-      });
+      const res = await raceApiRequest('/auth/verify-email-otp', { email: cleanEmail, code: verificationCode.trim() });
       const text = await res.text();
       let data: any = {};
       try { data = JSON.parse(text); } catch { data = { error: text || 'Server returned invalid response.' }; }
@@ -433,11 +413,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/resend-email-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
+      const res = await raceApiRequest('/auth/resend-email-otp', { email: cleanEmail });
       const data = await res.json();
       if (res.ok) {
         setResendCooldown(60);
@@ -462,11 +438,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
+      const res = await raceApiRequest('/auth/forgot-password', { email: cleanEmail });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || 'Request failed.');
       Alert.alert('Code Dispatched 📧', data.message || 'A password reset code was sent to your email.');
@@ -491,11 +463,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, code: verificationCode.trim(), newPassword }),
-      });
+      const res = await raceApiRequest('/auth/reset-password', { email: cleanEmail, code: verificationCode.trim(), newPassword });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || 'Reset failed.');
       Alert.alert('Success 🔑', data.message || 'Password has been reset! Log in with your new credentials.');

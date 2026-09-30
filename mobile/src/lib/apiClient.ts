@@ -55,7 +55,23 @@ async function request(endpoint: string, options: any = {}) {
     const fullUrl = `${baseUrl}${cleanEndpoint}`;
     console.log(`[API Client] ${config.method || 'GET'} ${fullUrl}`);
     
-    const response = await fetch(fullUrl, config);
+    let response: Response;
+    try {
+      response = await fetch(fullUrl, config);
+    } catch (netErr: any) {
+      // Primary network error: try fallback cloud mirror
+      const mirrorUrl = baseUrl === 'https://hisabhero-mobile-application.onrender.com/api' 
+        ? 'https://hisabhero.vercel.app/api' 
+        : 'https://hisabhero-mobile-application.onrender.com/api';
+      const mirrorFullUrl = `${mirrorUrl}${cleanEndpoint}`;
+      console.warn(`[API Client] Fallback to mirror: ${mirrorFullUrl}`);
+      try {
+        response = await fetch(mirrorFullUrl, config);
+        setGlobalApiUrl(mirrorUrl);
+      } catch {
+        throw netErr;
+      }
+    }
     clearTimeout(timeoutId);
 
     // Only trigger global logout on explicit 401 Unauthorized status
