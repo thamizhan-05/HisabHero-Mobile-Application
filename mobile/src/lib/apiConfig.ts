@@ -18,11 +18,8 @@ export function getDefaultApiUrl(): string {
   if (Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_API_URL || LOCAL_WEB_API_URL;
   }
-  // Native Android / iOS Device
-  if (process.env.EXPO_PUBLIC_API_URL && !process.env.EXPO_PUBLIC_API_URL.includes('localhost') && !process.env.EXPO_PUBLIC_API_URL.includes('127.0.0.1')) {
-    return sanitizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
-  }
-  return LOCAL_DEVICE_API_URL;
+  // Native Android / iOS Device: Default to high-speed live Production Cloud API
+  return process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;
 }
 
 export const DEFAULT_API_URL = getDefaultApiUrl();
@@ -60,17 +57,16 @@ export async function loadSavedApiBaseUrl(): Promise<string> {
     const saved = await AsyncStorage.getItem('apiBaseUrl');
     if (saved && saved.trim()) {
       const clean = sanitizeApiUrl(saved);
-      if (Platform.OS !== 'web' && (clean.includes('localhost') || clean.includes('127.0.0.1'))) {
-        currentApiUrl = LOCAL_DEVICE_API_URL;
+      // If a native mobile app had previously cached an unreachable LAN IP or localhost,
+      // reset it to the live Production Cloud API so the user never gets stuck with a timeout!
+      if (Platform.OS !== 'web' && (clean.includes('localhost') || clean.includes('127.0.0.1') || clean.includes('10.0.11.116') || clean.includes('10.0.2.2'))) {
+        await AsyncStorage.setItem('apiBaseUrl', PRODUCTION_API_URL);
+        currentApiUrl = PRODUCTION_API_URL;
       } else {
         currentApiUrl = clean;
       }
     } else {
-      if (Platform.OS === 'web') {
-        currentApiUrl = LOCAL_WEB_API_URL;
-      } else {
-        currentApiUrl = LOCAL_DEVICE_API_URL;
-      }
+      currentApiUrl = getDefaultApiUrl();
     }
   } catch (err) {
     console.error('Failed to load apiBaseUrl from AsyncStorage:', err);

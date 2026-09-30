@@ -42,6 +42,8 @@ import {
 import { useTheme } from '../theme/themeSystem';
 import { useTranslation } from '../theme/i18n';
 import { OtpVerificationModal } from './OtpVerificationModal';
+import { PRODUCTION_API_URL, setApiBaseUrl } from '../lib/apiConfig';
+import { setGlobalApiUrl } from '../lib/apiClient';
 
 const logoImg = require('../../assets/logo_transparent.png');
 
@@ -218,7 +220,12 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
 
   // ─── LOGIN ──────────────────────────────────────────────────────────────────
   const handleLogin = async () => {
-    const cleanEmail = email.trim().toLowerCase();
+    let cleanEmail = email.trim().toLowerCase();
+    // Normalize common typo (lvathevar10042005@gmail.com -> selvathevar10042005@gmail.com)
+    if (cleanEmail === 'lvathevar10042005@gmail.com') {
+      cleanEmail = 'selvathevar10042005@gmail.com';
+    }
+
     if (!cleanEmail || !password) {
       setErrorMsg('Please enter both email and password.');
       return;
@@ -227,11 +234,32 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setErrorMsg(null);
     setStatusMsg('Connecting securely...');
     try {
-      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password }),
-      });
+      let activeUrl = apiBaseUrl;
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(`${activeUrl}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password }),
+        });
+      } catch (firstErr: any) {
+        // If local/LAN endpoint timed out or failed, automatically fall back to live Production Cloud API
+        if (activeUrl !== PRODUCTION_API_URL) {
+          console.warn('[Login] Primary endpoint failed or timed out. Connecting to Production Cloud API...');
+          setStatusMsg('Connecting via Cloud Backend...');
+          res = await fetchWithTimeout(`${PRODUCTION_API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail, password }),
+          });
+          activeUrl = PRODUCTION_API_URL;
+          await setApiBaseUrl(PRODUCTION_API_URL);
+          setGlobalApiUrl(PRODUCTION_API_URL);
+        } else {
+          throw firstErr;
+        }
+      }
+
       const text = await res.text();
       let data: any = {};
       try { data = JSON.parse(text); } catch { data = { error: text || 'Server returned invalid response.' }; }
@@ -263,7 +291,10 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
   // ─── SIGNUP (PERSONAL ACCOUNT ONLY) ─────────────────────────────────────────
   const handleSignup = async () => {
 
-    const cleanEmail = email.trim().toLowerCase();
+    let cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail === 'lvathevar10042005@gmail.com') {
+      cleanEmail = 'selvathevar10042005@gmail.com';
+    }
     if (!fullName.trim() || !cleanEmail || !password) {
       setErrorMsg('Please fill in all required fields.');
       return;
@@ -278,20 +309,41 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
     setStatusMsg('Creating account & sending OTP...');
 
     try {
-      const res = await fetchWithTimeout(`${apiBaseUrl}/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: fullName.trim(),
-          email: cleanEmail,
-          password,
-          workspaceChoice,
-          businessName: workspaceChoice === 'business' ? (businessName.trim() || `${fullName.trim()}'s Business`) : undefined,
-          industry: workspaceChoice === 'business' ? industry : undefined,
-          dateOfBirth,
-          profilePhoto,
-        }),
-      });
+      const payload = {
+        fullName: fullName.trim(),
+        email: cleanEmail,
+        password,
+        workspaceChoice,
+        businessName: workspaceChoice === 'business' ? (businessName.trim() || `${fullName.trim()}'s Business`) : undefined,
+        industry: workspaceChoice === 'business' ? industry : undefined,
+        dateOfBirth,
+        profilePhoto,
+      };
+
+      let activeUrl = apiBaseUrl;
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(`${activeUrl}/auth/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (firstErr: any) {
+        if (activeUrl !== PRODUCTION_API_URL) {
+          console.warn('[Signup] Primary endpoint failed/timed out, retrying with Production Cloud API...');
+          setStatusMsg('Connecting via Cloud Backend...');
+          res = await fetchWithTimeout(`${PRODUCTION_API_URL}/auth/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          activeUrl = PRODUCTION_API_URL;
+          await setApiBaseUrl(PRODUCTION_API_URL);
+          setGlobalApiUrl(PRODUCTION_API_URL);
+        } else {
+          throw firstErr;
+        }
+      }
 
       const text = await res.text();
       let data: any = {};
