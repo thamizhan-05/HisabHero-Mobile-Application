@@ -347,11 +347,11 @@ export default function App() {
     setGlobalApiUrl(newUrl);
   };
 
-  if (loading) {
-    return <AnimatedSplashScreen />;
-  }
-
   const renderScreen = () => {
+    if (loading) {
+      return <AnimatedSplashScreen />;
+    }
+
     switch (activeScreen) {
       case 'welcome':
         return (
