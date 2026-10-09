@@ -1,0 +1,339 @@
+{
+  "timestamp": "2026-10-09T09:30:38.565Z",
+  "viewportsTested": [
+    {
+      "viewport": "mobile_360x800",
+      "width": 360,
+      "height": 800,
+      "hasHorizontalOverflow": false
+    },
+    {
+      "viewport": "mobile_390x844",
+      "width": 390,
+      "height": 844,
+      "hasHorizontalOverflow": false
+    },
+    {
+      "viewport": "tablet_768x1024",
+      "width": 768,
+      "height": 1024,
+      "hasHorizontalOverflow": false
+    },
+    {
+      "viewport": "laptop_1366x768",
+      "width": 1366,
+      "height": 768,
+      "hasHorizontalOverflow": false
+    },
+    {
+      "viewport": "desktop_1440x900",
+      "width": 1440,
+      "height": 900,
+      "hasHorizontalOverflow": false
+    },
+    {
+      "viewport": "wide_1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "hasHorizontalOverflow": false
+    }
+  ],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "failedRequests": [],
+  "interactionsTested": [
+    {
+      "element": "Quick Demo Authentication Flow",
+      "result": "PASS"
+    },
+    {
+      "element": "Workspace Switcher Dropdown",
+      "result": "PASS"
+    },
+    {
+      "element": "Return to Landing Page Toggle",
+      "result": "PASS"
+    }
+  ],
+  "modulesTested": [
+    {
+      "id": "overview",
+      "name": "Overview Dashboard",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_overview.png"
+    },
+    {
+      "id": "transactions",
+      "name": "Transactions & Ledger",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_transactions.png"
+    },
+    {
+      "id": "expenseAnalysis",
+      "name": "Expense Analysis & Trends",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_expenseAnalysis.png"
+    },
+    {
+      "id": "invoices",
+      "name": "Invoicing & Receivables",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_invoices.png"
+    },
+    {
+      "id": "khata",
+      "name": "Khata Book Ledger",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_khata.png"
+    },
+    {
+      "id": "cashflow",
+      "name": "Cash Flow Runway",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_cashflow.png"
+    },
+    {
+      "id": "inventory",
+      "name": "Inventory & Stock",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_inventory.png"
+    },
+    {
+      "id": "subscriptions",
+      "name": "SaaS & Subscriptions",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_subscriptions.png"
+    },
+    {
+      "id": "reports",
+      "name": "Executive P&L Statements",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_reports.png"
+    },
+    {
+      "id": "aichat",
+      "name": "AI CFO Copilot",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_aichat.png"
+    },
+    {
+      "id": "upload",
+      "name": "Document Scanner & OCR",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_upload.png"
+    },
+    {
+      "id": "merkle",
+      "name": "Merkle Audit Vault",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_merkle.png"
+    },
+    {
+      "id": "team",
+      "name": "Team & Multi-Role Permissions",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_team.png"
+    },
+    {
+      "id": "settings",
+      "name": "Workspace Settings",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_settings.png"
+    }
+  ],
+  "modalsTested": [
+    {
+      "name": "Auth Sign-In Modal",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_signin.png"
+    },
+    {
+      "name": "Command-K Spotlight Search",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_spotlightModal.png"
+    },
+    {
+      "name": "Add Transaction Modal",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_addTxModal.png"
+    },
+    {
+      "name": "Create Invoice Modal",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_createInvoiceModal.png"
+    },
+    {
+      "name": "Add Khata Party Modal",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_addPartyModal.png"
+    },
+    {
+      "name": "Financial Health Gauge Modal",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_healthReportModal.png"
+    },
+    {
+      "name": "Multilingual Voice Copilot Modal",
+      "status": "PASS",
+      "screenshot": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_bhashaVoiceModal.png"
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "audit_landing_mobile_360x800",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_landing_mobile_360x800.png",
+      "viewport": "mobile_360x800",
+      "description": "Landing page at 360x800"
+    },
+    {
+      "name": "audit_landing_mobile_390x844",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_landing_mobile_390x844.png",
+      "viewport": "mobile_390x844",
+      "description": "Landing page at 390x844"
+    },
+    {
+      "name": "audit_landing_tablet_768x1024",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_landing_tablet_768x1024.png",
+      "viewport": "tablet_768x1024",
+      "description": "Landing page at 768x1024"
+    },
+    {
+      "name": "audit_landing_laptop_1366x768",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_landing_laptop_1366x768.png",
+      "viewport": "laptop_1366x768",
+      "description": "Landing page at 1366x768"
+    },
+    {
+      "name": "audit_landing_desktop_1440x900",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_landing_desktop_1440x900.png",
+      "viewport": "desktop_1440x900",
+      "description": "Landing page at 1440x900"
+    },
+    {
+      "name": "audit_landing_wide_1920x1080",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_landing_wide_1920x1080.png",
+      "viewport": "wide_1920x1080",
+      "description": "Landing page at 1920x1080"
+    },
+    {
+      "name": "audit_modal_signin",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_signin.png",
+      "description": "Authentication Sign-In Modal"
+    },
+    {
+      "name": "audit_dashboard_overview",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_dashboard_overview.png",
+      "description": "Authenticated Executive Dashboard Overview"
+    },
+    {
+      "name": "audit_module_overview",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_overview.png",
+      "description": "Module Overview Dashboard"
+    },
+    {
+      "name": "audit_module_transactions",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_transactions.png",
+      "description": "Module Transactions & Ledger"
+    },
+    {
+      "name": "audit_module_expenseAnalysis",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_expenseAnalysis.png",
+      "description": "Module Expense Analysis & Trends"
+    },
+    {
+      "name": "audit_module_invoices",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_invoices.png",
+      "description": "Module Invoicing & Receivables"
+    },
+    {
+      "name": "audit_module_khata",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_khata.png",
+      "description": "Module Khata Book Ledger"
+    },
+    {
+      "name": "audit_module_cashflow",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_cashflow.png",
+      "description": "Module Cash Flow Runway"
+    },
+    {
+      "name": "audit_module_inventory",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_inventory.png",
+      "description": "Module Inventory & Stock"
+    },
+    {
+      "name": "audit_module_subscriptions",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_subscriptions.png",
+      "description": "Module SaaS & Subscriptions"
+    },
+    {
+      "name": "audit_module_reports",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_reports.png",
+      "description": "Module Executive P&L Statements"
+    },
+    {
+      "name": "audit_module_aichat",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_aichat.png",
+      "description": "Module AI CFO Copilot"
+    },
+    {
+      "name": "audit_module_upload",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_upload.png",
+      "description": "Module Document Scanner & OCR"
+    },
+    {
+      "name": "audit_module_merkle",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_merkle.png",
+      "description": "Module Merkle Audit Vault"
+    },
+    {
+      "name": "audit_module_team",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_team.png",
+      "description": "Module Team & Multi-Role Permissions"
+    },
+    {
+      "name": "audit_module_settings",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_module_settings.png",
+      "description": "Module Workspace Settings"
+    },
+    {
+      "name": "audit_modal_spotlightModal",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_spotlightModal.png",
+      "description": "Command-K Spotlight Search"
+    },
+    {
+      "name": "audit_modal_addTxModal",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_addTxModal.png",
+      "description": "Add Transaction Modal"
+    },
+    {
+      "name": "audit_modal_createInvoiceModal",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_createInvoiceModal.png",
+      "description": "Create Invoice Modal"
+    },
+    {
+      "name": "audit_modal_addPartyModal",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_addPartyModal.png",
+      "description": "Add Khata Party Modal"
+    },
+    {
+      "name": "audit_modal_healthReportModal",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_healthReportModal.png",
+      "description": "Financial Health Gauge Modal"
+    },
+    {
+      "name": "audit_modal_bhashaVoiceModal",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_modal_bhashaVoiceModal.png",
+      "description": "Multilingual Voice Copilot Modal"
+    },
+    {
+      "name": "audit_workspace_dropdown",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_workspace_dropdown.png",
+      "description": "Workspace Switcher Dropdown"
+    },
+    {
+      "name": "audit_return_landing",
+      "path": "C:\\Users\\selva\\.gemini\\antigravity-ide\\brain\\6c069078-1366-4057-a0f4-e786989a806f\\audit_return_landing.png",
+      "description": "Returned to Landing Page"
+    }
+  ]
+}

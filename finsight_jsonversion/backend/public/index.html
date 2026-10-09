@@ -13156,7 +13156,7 @@
 
     // ─── 8. MULTILINGUAL BHASHA VOICE COPILOT ───
     let selectedVoiceLang = 'Hinglish';
-    let isVoiceListening = false;
+    let isBhashaVoiceListening = false;
     let voiceRecognitionObj = null;
 
     function openBhashaVoiceModal() {
@@ -13200,9 +13200,9 @@
       }
 
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (isVoiceListening && voiceRecognitionObj) {
+      if (isBhashaVoiceListening && voiceRecognitionObj) {
         voiceRecognitionObj.stop();
-        isVoiceListening = false;
+        isBhashaVoiceListening = false;
         const st = document.getElementById('voiceStatusText');
         if (st) st.textContent = 'Listening stopped. Processing...';
         return;
@@ -13218,7 +13218,7 @@
       else voiceRecognitionObj.lang = 'hi-IN';
 
       voiceRecognitionObj.onstart = () => {
-        isVoiceListening = true;
+        isBhashaVoiceListening = true;
         const st = document.getElementById('voiceStatusText');
         if (st) {
           st.textContent = '🔴 Listening... Speak now in your language!';
@@ -13235,18 +13235,18 @@
           st.textContent = 'Heard: "' + transcript + '"';
           st.style.color = '#34d399';
         }
-        isVoiceListening = false;
+        isBhashaVoiceListening = false;
         submitBhashaVoicePrompt();
       };
 
       voiceRecognitionObj.onerror = (e) => {
-        isVoiceListening = false;
+        isBhashaVoiceListening = false;
         const st = document.getElementById('voiceStatusText');
         if (st) st.textContent = 'Microphone note: ' + (e.error || 'Please speak clearly or type below');
       };
 
       voiceRecognitionObj.onend = () => {
-        isVoiceListening = false;
+        isBhashaVoiceListening = false;
       };
 
       voiceRecognitionObj.start();

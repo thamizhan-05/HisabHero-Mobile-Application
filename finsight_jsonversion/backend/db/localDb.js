@@ -80,7 +80,8 @@ const defaultData = {
   merchant_mappings: [],
   inventory_items: [],
   subscriptions: [],
-  workspace_members: []
+  workspace_members: [],
+  uploaded_documents: []
 };
 
 let db = { ...defaultData };
@@ -765,6 +766,87 @@ export const localDb = {
 
   deleteStaff(id) {
     db.staff = (db.staff || []).filter(s => s.id !== id && s._id !== id);
+    saveDb();
+    return true;
+  },
+
+  // Uploaded Documents
+  createDocument(docData) {
+    db.uploaded_documents = db.uploaded_documents || [];
+    const id = docData.id || docData._id || generateUUID();
+    const newDoc = {
+      id,
+      _id: id,
+      workspace_id: docData.workspaceId || docData.workspace_id || 'personal',
+      workspaceId: docData.workspaceId || docData.workspace_id || 'personal',
+      file_name: docData.fileName || docData.file_name || 'Uploaded Document',
+      fileName: docData.fileName || docData.file_name || 'Uploaded Document',
+      file_size: docData.fileSize || 0,
+      fileSize: docData.fileSize || 0,
+      mime_type: docData.mimeType || 'application/pdf',
+      mimeType: docData.mimeType || 'application/pdf',
+      storage_path: docData.storagePath || null,
+      parser_used: docData.parserUsed || 'Statement Parser',
+      parserUsed: docData.parserUsed || 'Statement Parser',
+      summary: docData.summary || {},
+      extracted_transactions: docData.extractedTransactions || [],
+      extractedTransactions: docData.extractedTransactions || [],
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    db.uploaded_documents.unshift(newDoc);
+    saveDb();
+    return newDoc;
+  },
+
+  findDocumentsByWorkspace(workspaceId) {
+    db.uploaded_documents = db.uploaded_documents || [];
+    const filtered = db.uploaded_documents.filter(d => 
+      !workspaceId || d.workspace_id === workspaceId || d.workspaceId === workspaceId
+    );
+    return filtered.map(d => ({
+      _id: d.id,
+      id: d.id,
+      workspaceId: d.workspaceId || d.workspace_id,
+      fileName: d.fileName || d.file_name,
+      parserUsed: d.parserUsed || d.parser_used,
+      summary: d.summary,
+      extractedTransactions: d.extractedTransactions || d.extracted_transactions,
+      createdAt: d.createdAt || d.created_at
+    }));
+  },
+
+  findDocumentById(id) {
+    if (!id) return null;
+    db.uploaded_documents = db.uploaded_documents || [];
+    const d = db.uploaded_documents.find(x => x.id === id || x._id === id);
+    if (!d) return null;
+    return {
+      _id: d.id,
+      id: d.id,
+      workspaceId: d.workspaceId || d.workspace_id,
+      fileName: d.fileName || d.file_name,
+      parserUsed: d.parserUsed || d.parser_used,
+      summary: d.summary,
+      extractedTransactions: d.extractedTransactions || d.extracted_transactions,
+      createdAt: d.createdAt || d.created_at
+    };
+  },
+
+  deleteDocument(id) {
+    if (!id) return false;
+    db.uploaded_documents = db.uploaded_documents || [];
+    db.uploaded_documents = db.uploaded_documents.filter(d => d.id !== id && d._id !== id);
+    saveDb();
+    return true;
+  },
+
+  deleteDocumentsByWorkspace(workspaceId) {
+    if (!workspaceId) return false;
+    db.uploaded_documents = db.uploaded_documents || [];
+    db.uploaded_documents = db.uploaded_documents.filter(d => 
+      d.workspace_id !== workspaceId && d.workspaceId !== workspaceId
+    );
     saveDb();
     return true;
   }

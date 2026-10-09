@@ -30,6 +30,7 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "mongoose": "^9.11.1"
+    "mongoose": "^9.11.1",
+    "playwright": "^1.64.0"
   }
 }
