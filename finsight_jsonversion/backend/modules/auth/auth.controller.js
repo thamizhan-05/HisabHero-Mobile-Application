@@ -104,6 +104,33 @@ export async function login(req, res, next) {
   }
 }
 
+export async function googleLogin(req, res, next) {
+  try {
+    const { idToken, token } = req.body;
+    const finalToken = idToken || token;
+    if (!finalToken) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        code: ERROR_CODES.VALIDATION_FAILED,
+        error: 'Google ID token is required.'
+      });
+    }
+
+    const result = await authService.authenticateGoogleUser(finalToken);
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: 'Google authentication successful!',
+      ...result
+    });
+  } catch (err) {
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      success: false,
+      code: ERROR_CODES.INVALID_CREDENTIALS,
+      error: err.message
+    });
+  }
+}
+
 export async function getProfile(req, res, next) {
   try {
     const user = await usersRepo.findById(req.userId);
@@ -123,10 +150,12 @@ export async function getProfile(req, res, next) {
       id: user.id,
       _id: user.id,
       email: user.email,
-      fullName: user.fullName,
+      fullName: user.fullName || user.full_name,
       role: user.role,
       activeWorkspace: activeWs,
-      workspaces
+      workspaces,
+      personalWorkspaces: workspaces.filter(w => w.type === 'personal'),
+      businessWorkspaces: workspaces.filter(w => w.type === 'business')
     });
   } catch (err) {
     next(err);
@@ -145,3 +174,4 @@ export async function deleteAccount(req, res, next) {
     next(err);
   }
 }
+

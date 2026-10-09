@@ -215,7 +215,7 @@ export function PersonalGoalsScreen() {
           </>
         ) : (
           <>
-            <SectionHeader title="Gamification Achievements" subtitle="Calculated 100% from actual MongoDB history" />
+            <SectionHeader title="Gamification Achievements" subtitle="Calculated 100% from actual Supabase history" />
 
             {achievements.map((ach) => (
               <AppCard key={ach.achievementKey} style={[styles.achCard, !ach.unlocked && { opacity: 0.6 }]}>

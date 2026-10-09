@@ -17,10 +17,13 @@ export const config = {
   authRateLimitMaxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS, 10) || 15,
   demoOtpEnabled: process.env.ALLOW_DEMO_OTP === 'true' || process.env.NODE_ENV === 'test',
 
-  // Database
+  // Database (Supabase PostgreSQL is the Exclusive Database Engine)
   supabaseUrl: process.env.SUPABASE_URL || 'https://lsrcyhoxxbndzhntlvay.supabase.co',
-  supabaseKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-  mongoUri: process.env.MONGO_URI || '',
+  supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || '',
+  databaseUrl: process.env.DATABASE_URL || '',
+
+  // Google OAuth
+  googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || '',
 
   // AI & External APIs
   geminiApiKey: process.env.GEMINI_API_KEY || '',

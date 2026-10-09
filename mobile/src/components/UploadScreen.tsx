@@ -1477,7 +1477,7 @@ export function UploadScreen({
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>
-                      Save Approved to MongoDB ({activeDocument.extractedTransactions?.filter((t: any) => t.approved !== false).length || 0})
+                      Save Approved to Supabase ({activeDocument.extractedTransactions?.filter((t: any) => t.approved !== false).length || 0})
                     </Text>
                   )}
                 </TouchableOpacity>

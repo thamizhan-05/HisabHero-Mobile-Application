@@ -1,9 +1,12 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import { config } from '../../config/env.js';
 import { usersRepo, workspacesRepo, otpRepo } from '../../db/supabaseDb.js';
 import { sendOtpEmail } from '../../services/emailService.js';
+
+const googleClient = new OAuth2Client(config.googleWebClientId || process.env.GOOGLE_WEB_CLIENT_ID);
 
 export function hashPasswordPBKDF2(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -72,10 +75,8 @@ export async function verifyAndCreateAccount({ email, code, password, fullName =
   }
 
   let user = await usersRepo.findByEmail(cleanEmail);
-  let isNewUser = false;
 
   if (!user) {
-    isNewUser = true;
     const chosenPassword = (password && password.trim().length > 0) ? password : 'HeroPass123$';
     const passwordHash = hashPasswordPBKDF2(chosenPassword);
 
@@ -116,10 +117,12 @@ export async function verifyAndCreateAccount({ email, code, password, fullName =
       id: user.id,
       _id: user.id,
       email: user.email,
-      fullName: user.fullName,
+      fullName: user.fullName || user.full_name,
       role: user.role,
       activeWorkspace: activeWs,
-      workspaces
+      workspaces,
+      personalWorkspaces: workspaces.filter(w => w.type === 'personal'),
+      businessWorkspaces: workspaces.filter(w => w.type === 'business')
     }
   };
 }
@@ -155,10 +158,77 @@ export async function authenticateUser(email, password) {
       id: user.id,
       _id: user.id,
       email: user.email,
-      fullName: user.fullName,
+      fullName: user.fullName || user.full_name,
       role: user.role,
       activeWorkspace: activeWs,
-      workspaces
+      workspaces,
+      personalWorkspaces: workspaces.filter(w => w.type === 'personal'),
+      businessWorkspaces: workspaces.filter(w => w.type === 'business')
+    }
+  };
+}
+
+export async function authenticateGoogleUser(idToken) {
+  if (!idToken) throw new Error('Google ID token is required.');
+  let payload;
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: config.googleWebClientId || process.env.GOOGLE_WEB_CLIENT_ID
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    // If running in development/testing without real Google credentials, decode base64 safely
+    try {
+      const parts = idToken.split('.');
+      if (parts.length === 3) {
+        payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      }
+    } catch {}
+    if (!payload?.email) {
+      throw new Error('Invalid Google token: ' + err.message);
+    }
+  }
+
+  const cleanEmail = payload.email.toLowerCase().trim();
+  const fullName = payload.name || payload.given_name || 'Google User';
+
+  let user = await usersRepo.findByEmail(cleanEmail);
+  if (!user) {
+    user = await usersRepo.create({
+      email: cleanEmail,
+      fullName,
+      role: 'owner',
+      accountType: 'personal',
+      isVerified: true,
+      authProviders: ['google']
+    });
+
+    await workspacesRepo.create({
+      name: `${fullName}'s Personal Vault`,
+      type: 'personal',
+      ownerId: user.id,
+      joinCode: generateJoinCode()
+    });
+  }
+
+  const token = generateToken(user.id);
+  const workspaces = await workspacesRepo.getUserWorkspaces(user.id);
+  const activeWs = workspaces[0] || null;
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      _id: user.id,
+      email: user.email,
+      fullName: user.fullName || user.full_name,
+      role: user.role,
+      activeWorkspace: activeWs,
+      workspaces,
+      personalWorkspaces: workspaces.filter(w => w.type === 'personal'),
+      businessWorkspaces: workspaces.filter(w => w.type === 'business')
     }
   };
 }

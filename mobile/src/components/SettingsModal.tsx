@@ -1087,7 +1087,7 @@ export function SettingsModal({
                 <ServerIcon color={accentHex} size={18} />
                 <View style={styles.itemTextCol}>
                   <Text style={[styles.itemText, { color: theme.text }]}>Export Authorized Data</Text>
-                  <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>Export CSV/PDF records from real MongoDB database</Text>
+                  <Text style={[styles.itemSubText, { color: theme.textSecondary }]}>Export CSV/PDF records from real Supabase PostgreSQL ledger</Text>
                 </View>
                 <ChevronRightIcon color={accentHex} size={16} />
               </TouchableOpacity>

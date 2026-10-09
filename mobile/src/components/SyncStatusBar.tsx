@@ -29,7 +29,7 @@ export function SyncStatusBar() {
   const handleManualSync = async () => {
     if (queue.length === 0 || syncing) return;
     setSyncing(true);
-    setStatusMessage('Syncing with MongoDB...');
+    setStatusMessage('Syncing with Supabase...');
     try {
       const result = await offlineManager.processQueue();
       await checkQueueStatus();

@@ -9,6 +9,14 @@ router.use(authMiddleware);
 
 router.get('/', workspacesController.getWorkspaces);
 router.post('/', workspacesController.createWorkspace);
+router.post('/personal', (req, res, next) => {
+  req.body = { ...req.body, type: 'personal' };
+  return workspacesController.createWorkspace(req, res, next);
+});
+router.post('/business', (req, res, next) => {
+  req.body = { ...req.body, type: 'business' };
+  return workspacesController.createWorkspace(req, res, next);
+});
 router.post('/join', workspacesController.joinWorkspace);
 
 router.get('/:workspaceId', requireWorkspaceAccess, workspacesController.getWorkspaceById);

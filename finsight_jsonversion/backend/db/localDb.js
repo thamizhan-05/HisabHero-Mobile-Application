@@ -325,6 +325,10 @@ export const localDb = {
     return list;
   },
 
+  findTransactionsByWorkspace(workspaceId, filters = {}) {
+    return this.listTransactions(workspaceId, filters);
+  },
+
   createTransaction(txData) {
     const id = generateUUID();
     const newTx = {
@@ -679,5 +683,67 @@ export const localDb = {
     db.subscriptions = (db.subscriptions || []).filter(s => s.id !== subId && s._id !== subId);
     saveDb();
     return true;
+  },
+
+  // Staff (Pagar Khata)
+  listStaff(workspaceId) {
+    db.staff = db.staff || [];
+    return db.staff.filter(s => !workspaceId || s.workspace_id === workspaceId || s.workspaceId === workspaceId);
+  },
+
+  findStaffById(id) {
+    db.staff = db.staff || [];
+    return db.staff.find(s => s.id === id || s._id === id) || null;
+  },
+
+  createStaff(staffData) {
+    db.staff = db.staff || [];
+    const id = generateUUID();
+    const newStaff = {
+      id,
+      _id: id,
+      workspace_id: staffData.workspaceId || staffData.workspace_id,
+      workspaceId: staffData.workspaceId || staffData.workspace_id,
+      name: staffData.name || 'Staff Member',
+      role: staffData.role || 'Staff',
+      monthly_salary: Number(staffData.monthlySalary || staffData.baseSalary || 0),
+      monthlySalary: Number(staffData.monthlySalary || staffData.baseSalary || 0),
+      base_salary: Number(staffData.baseSalary || staffData.monthlySalary || 0),
+      baseSalary: Number(staffData.baseSalary || staffData.monthlySalary || 0),
+      daily_wage: Number(staffData.dailyWage || 0),
+      dailyWage: Number(staffData.dailyWage || 0),
+      attendance: staffData.attendance || { present: 0, absent: 0, halfDay: 0, overtimeDays: 0 },
+      advances_drawn: Number(staffData.advancesDrawn || 0),
+      advancesDrawn: Number(staffData.advancesDrawn || 0),
+      net_payable: Number(staffData.netPayable || staffData.monthlySalary || 0),
+      netPayable: Number(staffData.netPayable || staffData.monthlySalary || 0),
+      advances: staffData.advances || [],
+      phone: staffData.phone || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.staff.push(newStaff);
+    saveDb();
+    return newStaff;
+  },
+
+  updateStaff(id, updates) {
+    db.staff = db.staff || [];
+    const idx = db.staff.findIndex(s => s.id === id || s._id === id);
+    if (idx === -1) return null;
+    db.staff[idx] = {
+      ...db.staff[idx],
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+    saveDb();
+    return db.staff[idx];
+  },
+
+  deleteStaff(id) {
+    db.staff = (db.staff || []).filter(s => s.id !== id && s._id !== id);
+    saveDb();
+    return true;
   }
 };
+

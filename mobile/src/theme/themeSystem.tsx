@@ -249,6 +249,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const loadThemePreferences = async () => {
     try {
+      // One-time migration: make HisabHero Light the default on existing installs too.
+      const migrated = await AsyncStorage.getItem('themeLightDefaultV2');
+      if (!migrated) {
+        await AsyncStorage.setItem('appThemeId', 'hisabhero_light');
+        await AsyncStorage.setItem('themeLightDefaultV2', '1');
+        setThemeIdState('hisabhero_light');
+        return;
+      }
       const savedTheme = await AsyncStorage.getItem('appThemeId');
       if (savedTheme && (CURATED_THEMES[savedTheme as keyof typeof CURATED_THEMES] || THEMES[savedTheme])) {
         setThemeIdState(savedTheme);

@@ -1,74 +1,25 @@
-import mongoose from 'mongoose';
+import { supabase } from '../db/supabaseClient.js';
+import { logger } from '../utils/logger.js';
 
-export let isMongoConnected = true;
+export let isSupabaseConnected = true;
 
-const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/hisabhero';
-
-
+export const checkDatabaseConnection = async () => {
   try {
-    const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log(`📡 MongoDB Atlas Connected Successfully: ${conn.connection.host}`);
-    isMongoConnected = true;
-
-    // Backfill Migration: Generate unique unambiguous join codes for any existing businesses or workspaces without a code
-    try {
-      const db = conn.connection.db;
-      if (db) {
-        const unassignedBus = await db.collection('businesses').find({
-          $or: [{ joinCode: null }, { joinCode: { $exists: false } }, { joinCode: '' }, { joinCode: { $regex: '^HH-LEGACY' } }]
-        }).toArray();
-
-        for (const b of unassignedBus) {
-          const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-          const block = () => Array.from({ length: 4 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-          const code = `${block()}-${block()}-${block()}`;
-          await db.collection('businesses').updateOne({ _id: b._id }, { $set: { joinCode: code } });
-          console.log(`[Backfill Migration] Assigned Join Code ${code} to existing Business ${b._id}`);
-        }
-
-        const unassignedWs = await db.collection('workspaces').find({
-          type: 'business',
-          $or: [{ joinCode: null }, { joinCode: { $exists: false } }, { joinCode: '' }, { joinCode: { $regex: '^HH-LEGACY' } }]
-        }).toArray();
-
-        for (const w of unassignedWs) {
-          const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-          const block = () => Array.from({ length: 4 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-          const code = `${block()}-${block()}-${block()}`;
-          await db.collection('workspaces').updateOne({ _id: w._id }, { $set: { joinCode: code } });
-        }
-
-        // ─── Role Migration: partner/manager → admin ───────────────────────
-        // Migrate legacy roles to new 5-role system (owner/admin/accountant/employee/viewer)
-        const bmPartnerResult = await db.collection('businessmembers').updateMany(
-          { role: { $in: ['partner', 'manager'] } },
-          { $set: { role: 'admin' } }
-        );
-        if (bmPartnerResult.modifiedCount > 0) {
-          console.log(`[Role Migration] BusinessMember: Migrated ${bmPartnerResult.modifiedCount} partner/manager records → admin`);
-        }
-
-        const wmPartnerResult = await db.collection('workspacemembers').updateMany(
-          { role: { $in: ['partner', 'manager'] } },
-          { $set: { role: 'admin' } }
-        );
-        if (wmPartnerResult.modifiedCount > 0) {
-          console.log(`[Role Migration] WorkspaceMember: Migrated ${wmPartnerResult.modifiedCount} partner/manager records → admin`);
-        }
-        // ──────────────────────────────────────────────────────────────────────
-      }
-    } catch (e) {
-      console.warn('[Backfill Migration Warning]:', e.message);
+    const { error } = await supabase.from('users').select('id', { count: 'exact', head: true });
+    if (!error) {
+      logger.info('📡 Supabase PostgreSQL Connected Successfully.');
+      isSupabaseConnected = true;
+      return true;
+    } else {
+      logger.warn(`⚠️ Supabase connection status: ${error.message}`);
+      isSupabaseConnected = false;
+      return false;
     }
-  } catch (error) {
-    console.error(`❌ CRITICAL: MongoDB Atlas Connection Error: ${error.message}`);
-    isMongoConnected = false;
-    // Retry connection after 3 seconds
-    setTimeout(connectDB, 3000);
+  } catch (err) {
+    logger.warn(`⚠️ Supabase connection error: ${err.message}`);
+    isSupabaseConnected = false;
+    return false;
   }
 };
 
-export default connectDB;
+export default checkDatabaseConnection;

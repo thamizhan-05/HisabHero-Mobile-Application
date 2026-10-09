@@ -1,17 +1,24 @@
 /**
- * HISABHERO RESILIENT SUPABASE DATA ACCESS LAYER (DAL)
- * Features automatic failover to local persistent JSON database
- * when Supabase network/DNS is unreachable.
+ * ==============================================================================
+ * HISABHERO ENTERPRISE SUPABASE DATA ACCESS LAYER (DAL)
+ * ==============================================================================
+ * 
+ * Supabase PostgreSQL is the Exclusive Primary Database Engine.
+ * Features:
+ *  - Fully normalized PostgreSQL queries
+ *  - Automated UUID validation and mapping
+ *  - Multi-tenant workspace and role isolation
+ *  - Resilient local persistence failover for network/DNS outages
+ *  - ZERO MongoDB or Mongoose dependencies
  */
 
-import { supabase } from './supabaseClient.js';
+import { supabase, storageHelper } from './supabaseClient.js';
 import { localDb } from './localDb.js';
-import { mongoUsersRepo, mongoWorkspacesRepo, mongoTransactionsRepo, mongoDocumentsRepo, mongoStaffRepo, mongoOtpRepo } from './mongoDb.js';
 
-let isSupabaseOffline = true; // Supabase project DNS is paused/offline, default to fast offline mode
+let isSupabaseOffline = false;
 
-// Universal Safe Executor with instant local fallback
-async function safeDb(supabaseFn, localDbFn) {
+// Universal Safe Executor with instant local failover
+export async function safeDb(supabaseFn, localDbFn) {
   if (isSupabaseOffline) {
     return localDbFn();
   }
@@ -28,7 +35,7 @@ async function safeDb(supabaseFn, localDbFn) {
       msg.includes('ECONNREFUSED')
     ) {
       if (!isSupabaseOffline) {
-        console.warn('⚠️ Supabase network unreachable (' + msg + '). Activating resilient persistent database.');
+        console.warn('⚠️ Supabase network unreachable (' + msg + '). Activating resilient local database.');
         isSupabaseOffline = true;
       }
       return localDbFn();
@@ -49,15 +56,6 @@ export const usersRepo = {
     if (!email) return null;
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Try persistent MongoDB Atlas
-    try {
-      const mongoUser = await mongoUsersRepo.findByEmail(cleanEmail);
-      if (mongoUser) return mongoUser;
-    } catch (e) {
-      console.warn('[usersRepo.findByEmail] Mongo warning:', e.message);
-    }
-
-    // 2. Fallback to Supabase / localDb
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -74,11 +72,13 @@ export const usersRepo = {
           id: data.id,
           email: data.email,
           fullName: data.full_name,
+          password: data.password,
           passwordHash: data.password,
           role: data.role || 'owner',
           accountType: data.account_type || 'personal',
           isVerified: data.is_verified ?? true,
           authProviders: data.auth_providers || [],
+          activeWorkspace: data.active_workspace_id,
           createdAt: data.created_at,
           updatedAt: data.updated_at
         };
@@ -89,14 +89,6 @@ export const usersRepo = {
 
   async findById(id) {
     if (!id) return null;
-
-    // 1. Try persistent MongoDB Atlas
-    try {
-      const mongoUser = await mongoUsersRepo.findById(id);
-      if (mongoUser) return mongoUser;
-    } catch (e) {
-      console.warn('[usersRepo.findById] Mongo warning:', e.message);
-    }
 
     return safeDb(
       async () => {
@@ -114,11 +106,13 @@ export const usersRepo = {
           id: data.id,
           email: data.email,
           fullName: data.full_name,
+          password: data.password,
           passwordHash: data.password,
           role: data.role || 'owner',
           accountType: data.account_type || 'personal',
           isVerified: data.is_verified ?? true,
           authProviders: data.auth_providers || [],
+          activeWorkspace: data.active_workspace_id,
           createdAt: data.created_at,
           updatedAt: data.updated_at
         };
@@ -131,31 +125,11 @@ export const usersRepo = {
     const cleanEmail = email.trim().toLowerCase();
     const finalHash = passwordHash || password;
 
-    // 1. Save to persistent MongoDB Atlas
-    try {
-      const mongoUser = await mongoUsersRepo.create({
-        email: cleanEmail,
-        fullName,
-        passwordHash: finalHash,
-        role,
-        accountType,
-        isVerified,
-        authProviders
-      });
-      // Also mirror to localDb
-      try {
-        localDb.createUser({ email: cleanEmail, fullName, password: finalHash, role, accountType, isVerified, authProviders });
-      } catch (e) {}
-      if (mongoUser) return mongoUser;
-    } catch (e) {
-      console.warn('[usersRepo.create] Mongo warning:', e.message);
-    }
-
     return safeDb(
       async () => {
         const payload = {
           email: cleanEmail,
-          full_name: fullName,
+          full_name: fullName || 'User',
           password: finalHash,
           role,
           account_type: accountType,
@@ -171,12 +145,17 @@ export const usersRepo = {
           .single();
 
         if (error) throw new Error(`[usersRepo.create] ${error.message}`);
+
+        // Sync with local cache
+        try {
+          localDb.createUser({ id: data.id, email: cleanEmail, fullName, password: finalHash, role, accountType, isVerified, authProviders });
+        } catch (e) {}
+
         return {
           _id: data.id,
           id: data.id,
           email: data.email,
           fullName: data.full_name,
-          passwordHash: data.password,
           role: data.role,
           accountType: data.account_type,
           isVerified: data.is_verified,
@@ -188,28 +167,19 @@ export const usersRepo = {
   },
 
   async update(id, updates) {
-    try {
-      const mongoUpdated = await mongoUsersRepo.update(id, updates);
-      if (mongoUpdated) {
-        try { localDb.updateUser(id, updates); } catch (e) {}
-        return mongoUpdated;
-      }
-    } catch (e) {
-      console.warn('[usersRepo.update] Mongo warning:', e.message);
-    }
+    if (!id) return null;
 
     return safeDb(
       async () => {
-        const payload = { updated_at: new Date().toISOString() };
-        if (updates.fullName !== undefined) payload.full_name = updates.fullName;
-        if (updates.password !== undefined) payload.password = updates.password;
-        if (updates.passwordHash !== undefined) payload.password = updates.passwordHash;
-        if (updates.role !== undefined) payload.role = updates.role;
-        if (updates.isVerified !== undefined) {
-          payload.is_verified = updates.isVerified;
-          payload.email_verified = updates.isVerified;
-        }
-        if (updates.accountType !== undefined) payload.account_type = updates.accountType;
+        const payload = {};
+        if (updates.fullName) payload.full_name = updates.fullName;
+        if (updates.password || updates.passwordHash) payload.password = updates.passwordHash || updates.password;
+        if (updates.role) payload.role = updates.role;
+        if (updates.accountType) payload.account_type = updates.accountType;
+        if (updates.isVerified !== undefined) payload.is_verified = updates.isVerified;
+        if (updates.activeWorkspace) payload.active_workspace_id = updates.activeWorkspace;
+        if (updates.authProviders) payload.auth_providers = updates.authProviders;
+        payload.updated_at = new Date().toISOString();
 
         const { data, error } = await supabase
           .from('users')
@@ -219,35 +189,23 @@ export const usersRepo = {
           .single();
 
         if (error) throw new Error(`[usersRepo.update] ${error.message}`);
-        return {
-          _id: data.id,
-          id: data.id,
-          email: data.email,
-          fullName: data.full_name,
-          role: data.role,
-          isVerified: data.is_verified
-        };
+        localDb.updateUser(id, updates);
+        return data;
       },
       () => localDb.updateUser(id, updates)
     );
   },
 
   async delete(id) {
-    try {
-      await mongoUsersRepo.delete(id);
-    } catch (e) {}
-
+    if (!id) return false;
     return safeDb(
       async () => {
         const { error } = await supabase.from('users').delete().eq('id', id);
-        if (error) throw new Error(`[usersRepo.delete] ${error.message}`);
+        if (error) throw error;
+        localDb.deleteUser(id);
         return true;
       },
-      () => {
-        localDb.data.users = localDb.data.users.filter(u => u.id !== id && u._id !== id);
-        localDb.save();
-        return true;
-      }
+      () => localDb.deleteUser(id)
     );
   }
 };
@@ -257,16 +215,8 @@ export const workspacesRepo = {
   async findById(id) {
     if (!id) return null;
 
-    try {
-      const mongoWs = await mongoWorkspacesRepo.findById(id);
-      if (mongoWs) return mongoWs;
-    } catch (e) {
-      console.warn('[workspacesRepo.findById] Mongo warning:', e.message);
-    }
-
     return safeDb(
       async () => {
-        if (!isValidUUID(id)) return localDb.findWorkspaceById(id);
         const { data, error } = await supabase
           .from('workspaces')
           .select('*')
@@ -282,11 +232,15 @@ export const workspacesRepo = {
           name: data.name,
           type: data.type || 'personal',
           ownerId: data.owner_id,
+          owner_id: data.owner_id,
           businessName: data.business_name,
+          business_name: data.business_name,
           industry: data.industry,
           currency: data.currency || 'INR',
           joinCode: data.join_code,
+          join_code: data.join_code,
           cashBalance: Number(data.cash_balance || 0),
+          cash_balance: Number(data.cash_balance || 0),
           settings: data.settings || {},
           createdAt: data.created_at,
           updatedAt: data.updated_at
@@ -298,13 +252,6 @@ export const workspacesRepo = {
 
   async findByOwnerId(ownerId) {
     if (!ownerId) return [];
-
-    try {
-      const mongoList = await mongoWorkspacesRepo.findByOwnerId(ownerId);
-      if (mongoList && mongoList.length > 0) return mongoList;
-    } catch (e) {
-      console.warn('[workspacesRepo.findByOwnerId] Mongo warning:', e.message);
-    }
 
     return safeDb(
       async () => {
@@ -321,10 +268,13 @@ export const workspacesRepo = {
           name: w.name,
           type: w.type,
           ownerId: w.owner_id,
+          owner_id: w.owner_id,
           businessName: w.business_name,
+          business_name: w.business_name,
           industry: w.industry,
           currency: w.currency,
           joinCode: w.join_code,
+          join_code: w.join_code,
           cashBalance: Number(w.cash_balance || 0),
           settings: w.settings,
           createdAt: w.created_at
@@ -338,13 +288,6 @@ export const workspacesRepo = {
     if (!joinCode) return null;
     const cleanCode = joinCode.trim().toUpperCase();
 
-    try {
-      const mongoWs = await mongoWorkspacesRepo.findByJoinCode(cleanCode);
-      if (mongoWs) return mongoWs;
-    } catch (e) {
-      console.warn('[workspacesRepo.findByJoinCode] Mongo warning:', e.message);
-    }
-
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -354,7 +297,7 @@ export const workspacesRepo = {
           .maybeSingle();
 
         if (error) throw new Error(`[workspacesRepo.findByJoinCode] ${error.message}`);
-        if (!data) return null;
+        if (!data) return localDb.data.workspaces.find(w => w.join_code === cleanCode || w.joinCode === cleanCode) || null;
 
         return {
           _id: data.id,
@@ -362,6 +305,7 @@ export const workspacesRepo = {
           name: data.name,
           type: data.type,
           ownerId: data.owner_id,
+          businessName: data.business_name,
           joinCode: data.join_code
         };
       },
@@ -370,23 +314,15 @@ export const workspacesRepo = {
   },
 
   async create({ name, type = 'personal', ownerId, businessName, industry, currency = 'INR', joinCode, settings = {} }) {
-    try {
-      const mongoWs = await mongoWorkspacesRepo.create({ name, type, ownerId, businessName, industry, currency, joinCode, settings });
-      try {
-        localDb.createWorkspace({ name, type, ownerId, businessName, industry, currency, joinCode, settings });
-      } catch (e) {}
-      if (mongoWs) return mongoWs;
-    } catch (e) {
-      console.warn('[workspacesRepo.create] Mongo warning:', e.message);
-    }
+    const wsName = name || (type === 'business' && businessName ? businessName : 'My Workspace');
 
     return safeDb(
       async () => {
         const payload = {
-          name,
+          name: wsName,
           type,
           owner_id: ownerId,
-          business_name: businessName || (type === 'business' ? name : null),
+          business_name: businessName || (type === 'business' ? wsName : null),
           industry: industry || null,
           currency,
           join_code: joinCode,
@@ -407,6 +343,32 @@ export const workspacesRepo = {
           .single();
 
         if (error) throw new Error(`[workspacesRepo.create] ${error.message}`);
+
+        // Add creator as owner member in workspace_members
+        try {
+          await supabase.from('workspace_members').insert({
+            workspace_id: data.id,
+            user_id: ownerId,
+            role: 'owner',
+            status: 'active'
+          });
+        } catch (e) {}
+
+        // Mirror to local cache
+        try {
+          localDb.createWorkspace({
+            id: data.id,
+            name: wsName,
+            type,
+            ownerId,
+            businessName: payload.business_name,
+            industry,
+            currency,
+            joinCode,
+            settings: payload.settings
+          });
+        } catch (e) {}
+
         return {
           _id: data.id,
           id: data.id,
@@ -421,62 +383,182 @@ export const workspacesRepo = {
           createdAt: data.created_at
         };
       },
-      () => localDb.createWorkspace({ name, type, ownerId, businessName, industry, currency, joinCode, settings })
+      () => localDb.createWorkspace({ name: wsName, type, ownerId, businessName, industry, currency, joinCode, settings })
     );
   },
 
-  async update(id, updates) {
+  async getUserWorkspaces(userId) {
+    if (!userId) return [];
+
     return safeDb(
       async () => {
-        const payload = { updated_at: new Date().toISOString() };
-        if (updates.name !== undefined) payload.name = updates.name;
-        if (updates.type !== undefined) payload.type = updates.type;
-        if (updates.businessName !== undefined) payload.business_name = updates.businessName;
-        if (updates.industry !== undefined) payload.industry = updates.industry;
-        if (updates.settings !== undefined) payload.settings = updates.settings;
-        if (updates.cashBalance !== undefined) payload.cash_balance = updates.cashBalance;
+        // 1. Get owned workspaces
+        const owned = await this.findByOwnerId(userId);
+
+        // 2. Get workspaces where user is a member
+        const { data: memberRows, error: memErr } = await supabase
+          .from('workspace_members')
+          .select('workspace_id, role')
+          .eq('user_id', userId)
+          .eq('status', 'active');
+
+        let memberWorkspaces = [];
+        if (!memErr && memberRows && memberRows.length > 0) {
+          const wsIds = memberRows.map(r => r.workspace_id).filter(id => !owned.some(o => o.id === id));
+          if (wsIds.length > 0) {
+            const { data: joinedWs } = await supabase
+              .from('workspaces')
+              .select('*')
+              .in('id', wsIds);
+
+            if (joinedWs) {
+              memberWorkspaces = joinedWs.map(w => {
+                const mem = memberRows.find(m => m.workspace_id === w.id);
+                return {
+                  _id: w.id,
+                  id: w.id,
+                  name: w.name,
+                  type: w.type,
+                  ownerId: w.owner_id,
+                  businessName: w.business_name,
+                  industry: w.industry,
+                  currency: w.currency,
+                  joinCode: w.join_code,
+                  role: mem?.role || 'member',
+                  cashBalance: Number(w.cash_balance || 0),
+                  settings: w.settings,
+                  createdAt: w.created_at
+                };
+              });
+            }
+          }
+        }
+
+        const combined = [...owned, ...memberWorkspaces];
+        return combined.length > 0 ? combined : localDb.findWorkspacesByOwner(userId);
+      },
+      () => localDb.findWorkspacesByOwner(userId)
+    );
+  },
+
+  async upgradeToBusiness(workspaceId, businessDetails = {}) {
+    return safeDb(
+      async () => {
+        const payload = {
+          type: 'business',
+          updated_at: new Date().toISOString()
+        };
+        if (businessDetails.businessName) payload.business_name = businessDetails.businessName;
+        if (businessDetails.industry) payload.industry = businessDetails.industry;
 
         const { data, error } = await supabase
           .from('workspaces')
           .update(payload)
-          .eq('id', id)
+          .eq('id', workspaceId)
           .select()
           .single();
 
-        if (error) throw new Error(`[workspacesRepo.update] ${error.message}`);
-        return {
-          _id: data.id,
-          id: data.id,
-          name: data.name,
-          type: data.type,
-          settings: data.settings
-        };
+        if (error) throw new Error(`[workspacesRepo.upgradeToBusiness] ${error.message}`);
+        localDb.upgradeWorkspaceToBusiness(workspaceId);
+        return data;
       },
-      () => {
-        const ws = localDb.findWorkspaceById(id);
-        if (ws) {
-          if (updates.name !== undefined) ws.name = updates.name;
-          if (updates.type !== undefined) ws.type = updates.type;
-          if (updates.settings !== undefined) ws.settings = { ...ws.settings, ...updates.settings };
-          if (updates.cashBalance !== undefined) ws.cash_balance = updates.cashBalance;
-          localDb.save();
-        }
-        return ws;
-      }
+      () => localDb.upgradeWorkspaceToBusiness(workspaceId)
     );
   },
 
-  async delete(id) {
+  async addMember(workspaceId, memberData) {
+    const userId = memberData.userId || memberData.user_id;
+    const role = memberData.role || 'member';
+
     return safeDb(
       async () => {
-        const { error } = await supabase.from('workspaces').delete().eq('id', id);
-        if (error) throw new Error(`[workspacesRepo.delete] ${error.message}`);
-        return true;
+        const { data, error } = await supabase
+          .from('workspace_members')
+          .upsert({
+            workspace_id: workspaceId,
+            user_id: userId,
+            role,
+            status: 'active',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'workspace_id,user_id' })
+          .select()
+          .single();
+
+        if (error) throw error;
+        localDb.addWorkspaceMember({ workspaceId, ...memberData });
+        return data;
+      },
+      () => localDb.addWorkspaceMember({ workspaceId, ...memberData })
+    );
+  },
+
+  async getMembers(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('workspace_members')
+          .select(`
+            id,
+            role,
+            status,
+            joined_at,
+            user_id,
+            users (
+              id,
+              full_name,
+              email
+            )
+          `)
+          .eq('workspace_id', workspaceId);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          return data.map(m => ({
+            id: m.users?.id || m.user_id,
+            userId: m.user_id,
+            fullName: m.users?.full_name || 'Member',
+            email: m.users?.email || '',
+            role: m.role,
+            status: m.status || 'Active',
+            joinedAt: m.joined_at
+          }));
+        }
+
+        // Fallback: Check workspace owner
+        const ws = await this.findById(workspaceId);
+        if (ws && ws.ownerId) {
+          const owner = await usersRepo.findById(ws.ownerId);
+          if (owner) {
+            return [{
+              id: owner.id,
+              userId: owner.id,
+              fullName: owner.fullName,
+              email: owner.email,
+              role: 'owner',
+              status: 'Active',
+              joinedAt: new Date().toISOString().split('T')[0]
+            }];
+          }
+        }
+        return [];
       },
       () => {
-        localDb.data.workspaces = localDb.data.workspaces.filter(w => w.id !== id && w._id !== id);
-        localDb.save();
-        return true;
+        const ws = localDb.findWorkspaceById(workspaceId);
+        if (ws && (ws.owner_id || ws.ownerId)) {
+          const owner = localDb.findUserById(ws.owner_id || ws.ownerId);
+          if (owner) {
+            return [{
+              id: owner.id,
+              userId: owner.id,
+              fullName: owner.fullName || owner.full_name,
+              email: owner.email,
+              role: 'owner',
+              status: 'Active',
+              joinedAt: new Date().toISOString().split('T')[0]
+            }];
+          }
+        }
+        return [];
       }
     );
   },
@@ -486,120 +568,32 @@ export const workspacesRepo = {
       async () => {
         await supabase.from('transactions').delete().eq('workspace_id', workspaceId);
         await supabase.from('uploaded_documents').delete().eq('workspace_id', workspaceId);
+        localDb.resetWorkspaceData(workspaceId);
         return true;
       },
       () => localDb.resetWorkspaceData(workspaceId)
     );
-  },
-
-  async getUserWorkspaces(userId) {
-    try {
-      const mongoList = await mongoWorkspacesRepo.getUserWorkspaces(userId);
-      if (mongoList && mongoList.length > 0) return mongoList;
-    } catch (e) {
-      console.warn('[workspacesRepo.getUserWorkspaces] Mongo warning:', e.message);
-    }
-
-    return safeDb(
-      async () => {
-        const owned = await this.findByOwnerId(userId);
-        return owned;
-      },
-      () => localDb.findWorkspacesByOwner(userId)
-    );
-  },
-
-  async upgradeToBusiness(workspaceId) {
-    try {
-      const mongoRes = await mongoWorkspacesRepo.upgradeToBusiness(workspaceId);
-      try { localDb.upgradeWorkspaceToBusiness(workspaceId); } catch (e) {}
-      if (mongoRes) return mongoRes;
-    } catch (e) {
-      console.warn('[workspacesRepo.upgradeToBusiness] Mongo warning:', e.message);
-    }
-
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('workspaces')
-          .update({ type: 'business', updated_at: new Date().toISOString() })
-          .eq('id', workspaceId)
-          .select()
-          .single();
-
-        if (error) throw new Error(`[workspacesRepo.upgradeToBusiness] ${error.message}`);
-        return data;
-      },
-      () => localDb.upgradeWorkspaceToBusiness(workspaceId)
-    );
-  },
-
-  async addMember(workspaceId, memberData) {
-    try {
-      const mongoMem = await mongoWorkspacesRepo.addMember(workspaceId, memberData);
-      try { localDb.addWorkspaceMember({ workspaceId, ...memberData }); } catch (e) {}
-      if (mongoMem) return mongoMem;
-    } catch (e) {
-      console.warn('[workspacesRepo.addMember] Mongo warning:', e.message);
-    }
-
-    return localDb.addWorkspaceMember({ workspaceId, ...memberData });
-  },
-
-  async getMembers(workspaceId) {
-    try {
-      const members = await mongoWorkspacesRepo.getMembers(workspaceId);
-      if (members && members.length > 0) return members;
-    } catch (e) {
-      console.warn('[workspacesRepo.getMembers] Mongo warning:', e.message);
-    }
-
-    const ws = await this.findById(workspaceId);
-    if (ws && ws.ownerId) {
-      const owner = await usersRepo.findById(ws.ownerId);
-      if (owner) {
-        return [{
-          id: owner.id,
-          fullName: owner.fullName,
-          email: owner.email,
-          role: 'owner',
-          status: 'Active',
-          joinedAt: new Date().toISOString().split('T')[0]
-        }];
-      }
-    }
-    return [];
   }
 };
 
 // ─── 3. TRANSACTIONS REPOSITORY ──────────────────────────────────────────────
 export const transactionsRepo = {
   async create(tx) {
-    // 1. Write to persistent MongoDB Atlas
-    try {
-      const mongoTx = await mongoTransactionsRepo.create(tx);
-      try { localDb.createTransaction(tx); } catch (e) {}
-      if (mongoTx) return mongoTx;
-    } catch (e) {
-      console.warn('[transactionsRepo.create] Mongo error:', e.message);
-    }
-
-    // 2. Fallback to Supabase / localDb
     return safeDb(
       async () => {
         const payload = {
-          workspace_id: tx.workspaceId,
-          user_id: tx.userId || null,
-          type: tx.type || 'expense',
+          workspace_id: tx.workspaceId || tx.workspace_id,
+          user_id: tx.userId || tx.user_id || null,
+          type: (tx.type || 'expense').toLowerCase(),
           category: tx.category || 'General',
           amount: Number(tx.amount || 0),
           description: tx.description || 'Transaction',
           merchant: tx.merchant || null,
           date: tx.date || new Date().toISOString().split('T')[0],
-          payment_method: tx.paymentMethod || 'Cash',
+          payment_method: tx.paymentMethod || tx.payment_method || 'Cash',
           source: tx.source || 'Manual',
-          tax_rate: Number(tx.taxRate || 0),
-          tax_amount: Number(tx.taxAmount || 0),
+          tax_rate: Number(tx.taxRate || tx.tax_rate || 0),
+          tax_amount: Number(tx.taxAmount || tx.tax_amount || 0),
           is_verified: tx.isVerified ?? true,
           metadata: tx.metadata || {}
         };
@@ -611,6 +605,8 @@ export const transactionsRepo = {
           .single();
 
         if (error) throw new Error(`[transactionsRepo.create] ${error.message}`);
+        localDb.createTransaction({ ...tx, id: data.id, _id: data.id });
+
         return {
           _id: data.id,
           id: data.id,
@@ -634,32 +630,22 @@ export const transactionsRepo = {
   async createBatch(txList) {
     if (!Array.isArray(txList) || txList.length === 0) return [];
 
-    // 1. Write to persistent MongoDB Atlas
-    try {
-      const mongoBatch = await mongoTransactionsRepo.createBatch(txList);
-      try { localDb.createTransactionsBatch(txList); } catch (e) {}
-      if (mongoBatch && mongoBatch.length > 0) return mongoBatch;
-    } catch (e) {
-      console.warn('[transactionsRepo.createBatch] Mongo error:', e.message);
-    }
-
-    // 2. Fallback to Supabase / localDb
     return safeDb(
       async () => {
         const payloads = txList.map(tx => ({
-          workspace_id: tx.workspaceId,
-          user_id: tx.userId || null,
-          type: tx.type || 'expense',
+          workspace_id: tx.workspaceId || tx.workspace_id,
+          user_id: tx.userId || tx.user_id || null,
+          type: (tx.type || 'expense').toLowerCase(),
           category: tx.category || 'General',
           amount: Number(tx.amount || 0),
           description: tx.description || 'Transaction',
           merchant: tx.merchant || null,
           date: tx.date || new Date().toISOString().split('T')[0],
-          payment_method: tx.paymentMethod || 'Cash',
-          source: tx.source || 'Statement Parser',
-          tax_rate: Number(tx.taxRate || 0),
-          tax_amount: Number(tx.taxAmount || 0),
-          is_verified: true,
+          payment_method: tx.paymentMethod || tx.payment_method || 'Cash',
+          source: tx.source || 'Statement Ingestion',
+          tax_rate: Number(tx.taxRate || tx.tax_rate || 0),
+          tax_amount: Number(tx.taxAmount || tx.tax_amount || 0),
+          is_verified: tx.isVerified ?? true,
           metadata: tx.metadata || {}
         }));
 
@@ -669,83 +655,54 @@ export const transactionsRepo = {
           .select();
 
         if (error) throw new Error(`[transactionsRepo.createBatch] ${error.message}`);
-        return (data || []).map(d => ({
-          _id: d.id,
-          id: d.id,
-          workspaceId: d.workspace_id,
-          userId: d.user_id,
-          type: d.type,
-          category: d.category,
-          amount: Number(d.amount),
-          description: d.description,
-          date: d.date,
-          createdAt: d.created_at
-        }));
+        localDb.createTransactionsBatch(txList);
+        return data || [];
       },
       () => localDb.createTransactionsBatch(txList)
     );
   },
 
-  async listByWorkspace(workspaceId, { limit = 500, offset = 0, type, category } = {}) {
-    if (!workspaceId) return [];
-
-    // 1. Read from persistent MongoDB Atlas
-    try {
-      const mongoList = await mongoTransactionsRepo.listByWorkspace(workspaceId, { limit, offset, type, category });
-      if (mongoList && mongoList.length > 0) return mongoList;
-    } catch (e) {
-      console.warn('[transactionsRepo.listByWorkspace] Mongo error:', e.message);
-    }
-
-    // 2. Fallback to Supabase / localDb
+  async findByWorkspace(workspaceId, options = {}) {
     return safeDb(
       async () => {
         let query = supabase
           .from('transactions')
           .select('*')
           .eq('workspace_id', workspaceId)
-          .order('date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .range(offset, offset + limit - 1);
+          .order('date', { ascending: false });
 
-        if (type) query = query.eq('type', type);
-        if (category) query = query.eq('category', category);
+        if (options.startDate) query = query.gte('date', options.startDate);
+        if (options.endDate) query = query.lte('date', options.endDate);
+        if (options.category) query = query.eq('category', options.category);
+        if (options.type) query = query.eq('type', options.type.toLowerCase());
+        if (options.limit) query = query.limit(options.limit);
 
         const { data, error } = await query;
-        if (error) throw new Error(`[transactionsRepo.listByWorkspace] ${error.message}`);
+        if (error) throw new Error(`[transactionsRepo.findByWorkspace] ${error.message}`);
 
-        return (data || []).map(d => ({
-          _id: d.id,
-          id: d.id,
-          workspaceId: d.workspace_id,
-          userId: d.user_id,
-          type: d.type,
-          category: d.category,
-          amount: Number(d.amount),
-          description: d.description,
-          merchant: d.merchant,
-          date: d.date,
-          paymentMethod: d.payment_method,
-          taxAmount: Number(d.tax_amount || 0),
-          createdAt: d.created_at
+        return (data || []).map(t => ({
+          _id: t.id,
+          id: t.id,
+          workspaceId: t.workspace_id,
+          userId: t.user_id,
+          type: t.type,
+          category: t.category,
+          amount: Number(t.amount),
+          description: t.description,
+          merchant: t.merchant,
+          date: t.date,
+          paymentMethod: t.payment_method,
+          taxAmount: Number(t.tax_amount || 0),
+          isVerified: t.is_verified,
+          createdAt: t.created_at
         }));
       },
-      () => localDb.listTransactions(workspaceId, { type, category })
+      () => localDb.findTransactionsByWorkspace(workspaceId, options)
     );
-  },
-
-  async findByWorkspace(workspaceId, opts) {
-    return this.listByWorkspace(workspaceId, opts);
   },
 
   async findById(id) {
     if (!id) return null;
-    try {
-      const mongoTx = await mongoTransactionsRepo.findById(id);
-      if (mongoTx) return mongoTx;
-    } catch (e) {
-      console.warn('[transactionsRepo.findById] Mongo error:', e.message);
-    }
 
     return safeDb(
       async () => {
@@ -754,8 +711,10 @@ export const transactionsRepo = {
           .select('*')
           .eq('id', id)
           .maybeSingle();
+
         if (error) throw new Error(`[transactionsRepo.findById] ${error.message}`);
-        if (!data) return null;
+        if (!data) return localDb.findTransactionById(id);
+
         return {
           _id: data.id,
           id: data.id,
@@ -768,39 +727,27 @@ export const transactionsRepo = {
           merchant: data.merchant,
           date: data.date,
           paymentMethod: data.payment_method,
-          taxAmount: Number(data.tax_amount || 0),
           createdAt: data.created_at
         };
       },
-      () => localDb.data.transactions.find(t => t.id === id || t._id === id) || null
+      () => localDb.findTransactionById(id)
     );
   },
 
   async update(id, updates) {
     if (!id) return null;
-    try {
-      const mongoTx = await mongoTransactionsRepo.update(id, updates);
-      if (mongoTx) {
-        try {
-          const localTx = localDb.data.transactions.find(t => t.id === id || t._id === id);
-          if (localTx) { Object.assign(localTx, updates); localDb.save(); }
-        } catch (e) {}
-        return mongoTx;
-      }
-    } catch (e) {
-      console.warn('[transactionsRepo.update] Mongo error:', e.message);
-    }
 
     return safeDb(
       async () => {
         const payload = {};
-        if (updates.description !== undefined) payload.description = updates.description;
+        if (updates.type) payload.type = updates.type.toLowerCase();
+        if (updates.category) payload.category = updates.category;
         if (updates.amount !== undefined) payload.amount = Number(updates.amount);
-        if (updates.type !== undefined) payload.type = updates.type;
-        if (updates.category !== undefined) payload.category = updates.category;
-        if (updates.date !== undefined) payload.date = updates.date;
+        if (updates.description) payload.description = updates.description;
         if (updates.merchant !== undefined) payload.merchant = updates.merchant;
-        if (updates.paymentMethod !== undefined) payload.payment_method = updates.paymentMethod;
+        if (updates.date) payload.date = updates.date;
+        if (updates.paymentMethod) payload.payment_method = updates.paymentMethod;
+        payload.updated_at = new Date().toISOString();
 
         const { data, error } = await supabase
           .from('transactions')
@@ -810,75 +757,21 @@ export const transactionsRepo = {
           .single();
 
         if (error) throw new Error(`[transactionsRepo.update] ${error.message}`);
-        return {
-          _id: data.id,
-          id: data.id,
-          workspaceId: data.workspace_id,
-          userId: data.user_id,
-          type: data.type,
-          category: data.category,
-          amount: Number(data.amount),
-          description: data.description,
-          merchant: data.merchant,
-          date: data.date,
-          paymentMethod: data.payment_method,
-          createdAt: data.created_at
-        };
+        localDb.updateTransaction(id, updates);
+        return data;
       },
-      () => {
-        const localTx = localDb.data.transactions.find(t => t.id === id || t._id === id);
-        if (localTx) { Object.assign(localTx, updates); localDb.save(); }
-        return localTx;
-      }
+      () => localDb.updateTransaction(id, updates)
     );
   },
 
-  async getMetrics(workspaceId) {
-    try {
-      const metrics = await mongoTransactionsRepo.getMetrics(workspaceId);
-      if (metrics && metrics.count > 0) return metrics;
-    } catch (e) {
-      console.warn('[transactionsRepo.getMetrics] Mongo error:', e.message);
-    }
-
-    const txs = await this.listByWorkspace(workspaceId, { limit: 10000 });
-    let totalInflow = 0;
-    let totalOutflow = 0;
-    const categoryBreakdown = {};
-
-    for (const tx of txs) {
-      const amt = Number(tx.amount || 0);
-      if (tx.type === 'income') {
-        totalInflow += amt;
-      } else {
-        totalOutflow += amt;
-        const cat = tx.category || 'General';
-        categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + amt;
-      }
-    }
-
-    return {
-      totalInflow,
-      totalOutflow,
-      netBalance: totalInflow - totalOutflow,
-      count: txs.length,
-      categoryBreakdown
-    };
-  },
-
   async delete(id) {
-    try {
-      const res = await mongoTransactionsRepo.delete(id);
-      try { localDb.deleteTransaction(id); } catch (e) {}
-      if (res) return true;
-    } catch (e) {
-      console.warn('[transactionsRepo.delete] Mongo error:', e.message);
-    }
+    if (!id) return false;
 
     return safeDb(
       async () => {
         const { error } = await supabase.from('transactions').delete().eq('id', id);
-        if (error) throw new Error(`[transactionsRepo.delete] ${error.message}`);
+        if (error) throw error;
+        localDb.deleteTransaction(id);
         return true;
       },
       () => localDb.deleteTransaction(id)
@@ -886,42 +779,59 @@ export const transactionsRepo = {
   },
 
   async deleteByWorkspace(workspaceId) {
-    try {
-      await mongoTransactionsRepo.deleteByWorkspace(workspaceId);
-      try {
-        localDb.data.transactions = localDb.data.transactions.filter(t => t.workspace_id !== workspaceId && t.workspaceId !== workspaceId);
-        localDb.save();
-      } catch (e) {}
-      return true;
-    } catch (e) {
-      console.warn('[transactionsRepo.deleteByWorkspace] Mongo error:', e.message);
-    }
-
     return safeDb(
       async () => {
         const { error } = await supabase.from('transactions').delete().eq('workspace_id', workspaceId);
-        if (error) throw new Error(`[transactionsRepo.deleteByWorkspace] ${error.message}`);
+        if (error) throw error;
+        localDb.deleteTransactionsByWorkspace(workspaceId);
         return true;
       },
-      () => {
-        localDb.data.transactions = localDb.data.transactions.filter(t => t.workspace_id !== workspaceId && t.workspaceId !== workspaceId);
-        localDb.save();
-        return true;
-      }
+      () => localDb.deleteTransactionsByWorkspace(workspaceId)
     );
   }
 };
 
 // ─── 4. DOCUMENTS REPOSITORY ─────────────────────────────────────────────────
 export const documentsRepo = {
-  async listByWorkspace(workspaceId) {
-    try {
-      const mongoDocs = await mongoDocumentsRepo.listByWorkspace(workspaceId);
-      if (mongoDocs && mongoDocs.length > 0) return mongoDocs;
-    } catch (e) {
-      console.warn('[documentsRepo.listByWorkspace] Mongo warning:', e.message);
-    }
+  async create(docData) {
+    return safeDb(
+      async () => {
+        const payload = {
+          workspace_id: docData.workspaceId || docData.workspace_id,
+          file_name: docData.fileName || docData.file_name || 'Uploaded Statement',
+          file_size: docData.fileSize || 0,
+          mime_type: docData.mimeType || 'application/pdf',
+          storage_path: docData.storagePath || null,
+          parser_used: docData.parserUsed || 'Statement Parser',
+          summary: docData.summary || {},
+          extracted_transactions: docData.extractedTransactions || []
+        };
 
+        const { data, error } = await supabase
+          .from('uploaded_documents')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[documentsRepo.create] ${error.message}`);
+        localDb.createDocument({ ...docData, id: data.id, _id: data.id });
+
+        return {
+          _id: data.id,
+          id: data.id,
+          workspaceId: data.workspace_id,
+          fileName: data.file_name,
+          parserUsed: data.parser_used,
+          summary: data.summary,
+          extractedTransactions: data.extracted_transactions,
+          createdAt: data.created_at
+        };
+      },
+      () => localDb.createDocument(docData)
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -930,7 +840,7 @@ export const documentsRepo = {
           .eq('workspace_id', workspaceId)
           .order('created_at', { ascending: false });
 
-        if (error) throw new Error(`[documentsRepo.listByWorkspace] ${error.message}`);
+        if (error) throw new Error(`[documentsRepo.findByWorkspace] ${error.message}`);
         return (data || []).map(d => ({
           _id: d.id,
           id: d.id,
@@ -942,21 +852,12 @@ export const documentsRepo = {
           createdAt: d.created_at
         }));
       },
-      () => localDb.listDocuments(workspaceId)
+      () => localDb.findDocumentsByWorkspace(workspaceId)
     );
   },
 
-  async findByWorkspace(workspaceId) {
-    return this.listByWorkspace(workspaceId);
-  },
-
   async findById(id) {
-    try {
-      const mongoDoc = await mongoDocumentsRepo.findById(id);
-      if (mongoDoc) return mongoDoc;
-    } catch (e) {
-      console.warn('[documentsRepo.findById] Mongo warning:', e.message);
-    }
+    if (!id) return null;
 
     return safeDb(
       async () => {
@@ -967,7 +868,7 @@ export const documentsRepo = {
           .maybeSingle();
 
         if (error) throw new Error(`[documentsRepo.findById] ${error.message}`);
-        if (!data) return null;
+        if (!data) return localDb.findDocumentById(id);
 
         return {
           _id: data.id,
@@ -984,115 +885,13 @@ export const documentsRepo = {
     );
   },
 
-  async create({ workspaceId, fileName, parserUsed, summary, extractedTransactions }) {
-    // 1. Insert into persistent MongoDB Atlas
-    try {
-      const mongoDoc = await mongoDocumentsRepo.create({
-        workspaceId,
-        fileName,
-        parserUsed,
-        summary,
-        extractedTransactions
-      });
-      try {
-        localDb.createDocument({ workspaceId, fileName, parserUsed, summary, extractedTransactions });
-      } catch (e) {}
-      if (mongoDoc) return mongoDoc;
-    } catch (e) {
-      console.warn('[documentsRepo.create] Mongo error:', e.message);
-    }
-
-    return safeDb(
-      async () => {
-        const payload = {
-          workspace_id: workspaceId,
-          file_name: fileName,
-          parser_used: parserUsed,
-          summary: summary || {},
-          extracted_transactions: extractedTransactions || []
-        };
-
-        const { data, error } = await supabase
-          .from('uploaded_documents')
-          .insert(payload)
-          .select()
-          .single();
-
-        if (error) throw new Error(`[documentsRepo.create] ${error.message}`);
-        return {
-          _id: data.id,
-          id: data.id,
-          workspaceId: data.workspace_id,
-          fileName: data.file_name,
-          parserUsed: data.parser_used,
-          summary: data.summary,
-          extractedTransactions: data.extracted_transactions,
-          createdAt: data.created_at
-        };
-      },
-      () => localDb.createDocument({ workspaceId, fileName, parserUsed, summary, extractedTransactions })
-    );
-  },
-
   async delete(id) {
     if (!id) return false;
-    try {
-      await mongoDocumentsRepo.delete(id);
-      try { localDb.deleteDocument(id); } catch (e) {}
-    } catch (e) {
-      console.warn('[documentsRepo.delete] Mongo error:', e.message);
-    }
-
     return safeDb(
       async () => {
-        // Fetch the document to get its stored extracted transactions
-        const { data: doc } = await supabase
-          .from('uploaded_documents')
-          .select('id, workspace_id, extracted_transactions, file_name, summary')
-          .eq('id', id)
-          .maybeSingle();
-
-        if (doc) {
-          const wsId = doc.workspace_id;
-          const txList = Array.isArray(doc.extracted_transactions) ? doc.extracted_transactions : [];
-
-          if (txList.length > 0) {
-            const fingerprints = txList
-              .filter(t => t.description && t.date && t.amount)
-              .map(t => ({
-                description: String(t.description).trim().slice(0, 200),
-                date: t.date,
-                amount: Number(t.amount)
-              }));
-
-            if (fingerprints.length > 0) {
-              const orFilters = fingerprints
-                .slice(0, 50)
-                .map(f => `and(description.eq.${f.description},date.eq.${f.date},amount.eq.${f.amount})`)
-                .join(',');
-
-              try {
-                await supabase
-                  .from('transactions')
-                  .delete()
-                  .eq('workspace_id', wsId)
-                  .or(orFilters);
-              } catch (e) {
-                const dates = Array.from(new Set(txList.map(t => t.date).filter(Boolean)));
-                if (dates.length > 0) {
-                  await supabase
-                    .from('transactions')
-                    .delete()
-                    .eq('workspace_id', wsId)
-                    .in('date', dates);
-                }
-              }
-            }
-          }
-        }
-
         const { error } = await supabase.from('uploaded_documents').delete().eq('id', id);
-        if (error) throw new Error(`[documentsRepo.delete] ${error.message}`);
+        if (error) throw error;
+        localDb.deleteDocument(id);
         return true;
       },
       () => localDb.deleteDocument(id)
@@ -1100,36 +899,58 @@ export const documentsRepo = {
   },
 
   async deleteByWorkspace(workspaceId) {
-    let count = 0;
-    try {
-      count = await mongoDocumentsRepo.deleteByWorkspace(workspaceId);
-      try {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('uploaded_documents').delete().eq('workspace_id', workspaceId);
+        if (error) throw error;
         localDb.deleteDocumentsByWorkspace(workspaceId);
-      } catch (e) {}
-    } catch (e) {
-      console.warn('[documentsRepo.deleteByWorkspace] Mongo error:', e.message);
-    }
-
-    try {
-      await safeDb(
-        async () => {
-          await supabase.from('uploaded_documents').delete().eq('workspace_id', workspaceId);
-          return true;
-        },
-        () => {
-          localDb.deleteDocumentsByWorkspace(workspaceId);
-          return true;
-        }
-      );
-    } catch (e) {}
-
-    return count;
+        return true;
+      },
+      () => localDb.deleteDocumentsByWorkspace(workspaceId)
+    );
   }
 };
 
 // ─── 5. INVOICES REPOSITORY ──────────────────────────────────────────────────
 export const invoicesRepo = {
-  async listByWorkspace(workspaceId) {
+  async create(invoiceData) {
+    return safeDb(
+      async () => {
+        const payload = {
+          workspace_id: invoiceData.workspaceId || invoiceData.workspace_id,
+          invoice_number: invoiceData.invoiceNumber || invoiceData.invoice_number || `INV-${Date.now().toString().slice(-6)}`,
+          customer_name: invoiceData.customerName || invoiceData.customer_name || 'Customer',
+          customer_email: invoiceData.customerEmail || null,
+          customer_gstin: invoiceData.customerGstin || null,
+          date: invoiceData.date || new Date().toISOString().split('T')[0],
+          due_date: invoiceData.dueDate || invoiceData.due_date || null,
+          items: invoiceData.items || invoiceData.lineItems || [],
+          subtotal: Number(invoiceData.subtotal || 0),
+          cgst: Number(invoiceData.cgst || 0),
+          sgst: Number(invoiceData.sgst || 0),
+          igst: Number(invoiceData.igst || 0),
+          total_tax: Number(invoiceData.totalTax || invoiceData.total_tax || 0),
+          total_amount: Number(invoiceData.total || invoiceData.totalAmount || 0),
+          paid_amount: Number(invoiceData.paidAmount || 0),
+          status: invoiceData.status || 'unpaid',
+          notes: invoiceData.notes || null
+        };
+
+        const { data, error } = await supabase
+          .from('invoices')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[invoicesRepo.create] ${error.message}`);
+        localDb.createInvoice({ ...invoiceData, id: data.id, _id: data.id });
+        return data;
+      },
+      () => localDb.createInvoice(invoiceData)
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -1138,48 +959,367 @@ export const invoicesRepo = {
           .eq('workspace_id', workspaceId)
           .order('created_at', { ascending: false });
 
-        if (error) throw new Error(`[invoicesRepo.listByWorkspace] ${error.message}`);
+        if (error) throw new Error(`[invoicesRepo.findByWorkspace] ${error.message}`);
         return data || [];
       },
       () => localDb.listInvoices(workspaceId)
     );
   },
 
-  async findByWorkspace(workspaceId) {
-    return this.listByWorkspace(workspaceId);
-  },
-
-  async create(invData) {
+  async findById(id) {
     return safeDb(
       async () => {
         const { data, error } = await supabase
           .from('invoices')
-          .insert(invData)
-          .select()
-          .single();
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
 
-        if (error) throw new Error(`[invoicesRepo.create] ${error.message}`);
-        return data;
+        if (error) throw error;
+        return data || localDb.findInvoiceById(id);
       },
-      () => localDb.createInvoice(invData)
+      () => localDb.findInvoiceById(id)
     );
   },
 
-  async delete(invoiceId) {
+  async delete(id) {
     return safeDb(
       async () => {
-        const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
-        localDb.deleteInvoice?.(invoiceId);
-        return !error;
+        const { error } = await supabase.from('invoices').delete().eq('id', id);
+        if (error) throw error;
+        localDb.deleteInvoice(id);
+        return true;
       },
-      () => localDb.deleteInvoice?.(invoiceId) || true
+      () => localDb.deleteInvoice(id)
     );
   }
 };
 
-// ─── 7. DEVICE SESSIONS REPOSITORY ───────────────────────────────────────────
+// ─── 6. KHATA REPOSITORY ─────────────────────────────────────────────────────
+export const khataRepo = {
+  async create(khataData) {
+    return safeDb(
+      async () => {
+        const payload = {
+          workspace_id: khataData.workspaceId || khataData.workspace_id,
+          party_name: khataData.partyName || khataData.party_name || 'Party',
+          party_type: khataData.partyType || khataData.party_type || 'customer',
+          phone: khataData.phone || null,
+          email: khataData.email || null,
+          current_balance: Number(khataData.netBalance || khataData.current_balance || 0),
+          credit_limit: Number(khataData.creditLimit || 0),
+          currency: khataData.currency || 'INR',
+          entries: khataData.entries || [],
+          notes: khataData.notes || null
+        };
+
+        const { data, error } = await supabase
+          .from('khata_ledgers')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[khataRepo.create] ${error.message}`);
+        localDb.createKhataLedger({ ...khataData, id: data.id, _id: data.id });
+        return data;
+      },
+      () => localDb.createKhataLedger(khataData)
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('khata_ledgers')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw new Error(`[khataRepo.findByWorkspace] ${error.message}`);
+        return data || [];
+      },
+      () => localDb.listKhataLedgers(workspaceId)
+    );
+  },
+
+  async findById(id) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('khata_ledgers')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data || localDb.findKhataLedgerById(id);
+      },
+      () => localDb.findKhataLedgerById(id)
+    );
+  },
+
+  async delete(id) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('khata_ledgers').delete().eq('id', id);
+        if (error) throw error;
+        localDb.deleteKhataLedger(id);
+        return true;
+      },
+      () => localDb.deleteKhataLedger(id)
+    );
+  }
+};
+
+// ─── 7. INVENTORY & FIXED ASSETS REPOSITORY ──────────────────────────────────
+export const inventoryRepo = {
+  async create(itemData) {
+    return safeDb(
+      async () => {
+        const payload = {
+          workspace_id: itemData.workspaceId || itemData.workspace_id,
+          name: itemData.name || 'Stock Item',
+          type: itemData.type || 'stock',
+          sku: itemData.sku || null,
+          category: itemData.category || 'General',
+          stock_quantity: Number(itemData.stockQuantity || itemData.stock_quantity || 0),
+          unit_value: Number(itemData.unitValue || itemData.unit_value || 0),
+          reorder_level: Number(itemData.reorderLevel || itemData.reorder_level || 5),
+          useful_life: Number(itemData.usefulLife || itemData.useful_life || 5),
+          depreciation_method: itemData.depreciationMethod || 'straight_line'
+        };
+
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[inventoryRepo.create] ${error.message}`);
+        localDb.createInventoryItem({ ...itemData, id: data.id, _id: data.id });
+        return data;
+      },
+      () => localDb.createInventoryItem(itemData)
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw new Error(`[inventoryRepo.findByWorkspace] ${error.message}`);
+        return data || [];
+      },
+      () => localDb.listInventoryItems(workspaceId)
+    );
+  },
+
+  async delete(id) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('inventory_items').delete().eq('id', id);
+        if (error) throw error;
+        localDb.deleteInventoryItem(id);
+        return true;
+      },
+      () => localDb.deleteInventoryItem(id)
+    );
+  }
+};
+
+// ─── 8. SUBSCRIPTIONS REPOSITORY ─────────────────────────────────────────────
+export const subscriptionsRepo = {
+  async create(subData) {
+    return safeDb(
+      async () => {
+        const payload = {
+          workspace_id: subData.workspaceId || subData.workspace_id,
+          name: subData.name || 'Subscription',
+          amount: Number(subData.amount || 0),
+          billing_cycle: subData.billingCycle || subData.billing_cycle || 'monthly',
+          category: subData.category || 'Software',
+          next_billing_date: subData.nextBillingDate || subData.next_billing_date || null,
+          status: subData.status || 'active',
+          payment_method: subData.paymentMethod || 'Card'
+        };
+
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[subscriptionsRepo.create] ${error.message}`);
+        localDb.createSubscription({ ...subData, id: data.id, _id: data.id });
+        return data;
+      },
+      () => localDb.createSubscription(subData)
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw new Error(`[subscriptionsRepo.findByWorkspace] ${error.message}`);
+        return data || [];
+      },
+      () => localDb.listSubscriptions(workspaceId)
+    );
+  },
+
+  async delete(id) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('subscriptions').delete().eq('id', id);
+        if (error) throw error;
+        localDb.deleteSubscription(id);
+        return true;
+      },
+      () => localDb.deleteSubscription(id)
+    );
+  }
+};
+
+// ─── 9. STAFF (PAGAR KHATA & ATTENDANCE) REPOSITORY ──────────────────────────
+export const staffRepo = {
+  async create(staffData) {
+    return safeDb(
+      async () => {
+        const payload = {
+          workspace_id: staffData.workspaceId || staffData.workspace_id,
+          name: staffData.name || 'Staff Member',
+          role: staffData.role || 'Staff',
+          monthly_salary: Number(staffData.monthlySalary || staffData.baseSalary || 0),
+          base_salary: Number(staffData.baseSalary || staffData.monthlySalary || 0),
+          daily_wage: Number(staffData.dailyWage || 0),
+          attendance: staffData.attendance || { present: 0, absent: 0, halfDay: 0, overtimeDays: 0 },
+          advances_drawn: Number(staffData.advancesDrawn || 0),
+          net_payable: Number(staffData.netPayable || staffData.monthlySalary || 0),
+          advances: staffData.advances || [],
+          phone: staffData.phone || null
+        };
+
+        const { data, error } = await supabase
+          .from('staff')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`[staffRepo.create] ${error.message}`);
+        localDb.createStaff({ ...staffData, id: data.id, _id: data.id });
+        return data;
+      },
+      () => localDb.createStaff(staffData)
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw new Error(`[staffRepo.findByWorkspace] ${error.message}`);
+        return data || [];
+      },
+      () => localDb.listStaff(workspaceId)
+    );
+  },
+
+  async findById(id) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data || localDb.findStaffById(id);
+      },
+      () => localDb.findStaffById(id)
+    );
+  },
+
+  async update(id, updates) {
+    return safeDb(
+      async () => {
+        const payload = { ...updates, updated_at: new Date().toISOString() };
+        const { data, error } = await supabase
+          .from('staff')
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        localDb.updateStaff(id, updates);
+        return data;
+      },
+      () => localDb.updateStaff(id, updates)
+    );
+  },
+
+  async delete(id) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('staff').delete().eq('id', id);
+        if (error) throw error;
+        localDb.deleteStaff(id);
+        return true;
+      },
+      () => localDb.deleteStaff(id)
+    );
+  }
+};
+
+// ─── 10. DEVICE SESSIONS REPOSITORY ──────────────────────────────────────────
 export const deviceSessionsRepo = {
+  async register(userId, { deviceId, deviceName, ipAddress, userAgent }) {
+    if (!userId || !deviceId) return null;
+
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('device_sessions')
+          .upsert({
+            user_id: userId,
+            device_id: deviceId,
+            device_name: deviceName || 'Device',
+            ip_address: ipAddress || '127.0.0.1',
+            user_agent: userAgent || 'Client',
+            last_active: new Date().toISOString()
+          }, { onConflict: 'user_id,device_id' })
+          .select()
+          .single();
+
+        if (error) throw error;
+        localDb.saveDeviceSession({ userId, deviceId, deviceName, ipAddress, userAgent });
+        return data;
+      },
+      () => localDb.saveDeviceSession({ userId, deviceId, deviceName, ipAddress, userAgent })
+    );
+  },
+
   async listByUser(userId) {
+    if (!userId) return [];
+
     return safeDb(
       async () => {
         const { data, error } = await supabase
@@ -1188,293 +1328,169 @@ export const deviceSessionsRepo = {
           .eq('user_id', userId)
           .order('last_active', { ascending: false });
 
-        if (error) throw new Error(`[deviceSessionsRepo.listByUser] ${error.message}`);
+        if (error) throw error;
         return data || [];
       },
-      () => localDb.listSessions(userId)
+      () => localDb.findDeviceSessionsByUser(userId)
     );
   },
 
-  async upsert(arg1, arg2) {
-    const userId = typeof arg1 === 'object' ? (arg1.userId || arg1.user_id) : arg1;
-    const dev = typeof arg1 === 'object' ? arg1 : (arg2 || {});
-    const devId = dev.deviceId || dev.device_id || 'web_default';
-
+  async revoke(userId, deviceId) {
     return safeDb(
       async () => {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('device_sessions')
-          .upsert({
-            user_id: userId,
-            device_id: devId,
-            device_name: dev.deviceName || 'Web Client',
-            platform: dev.platform || 'Web',
-            last_active: new Date().toISOString()
-          })
-          .select()
-          .single();
+          .delete()
+          .eq('user_id', userId)
+          .eq('device_id', deviceId);
 
-        if (error) console.warn('[deviceSessionsRepo.upsert]', error.message);
-        return data;
-      },
-      () => localDb.upsertSession(userId, dev)
-    );
-  },
-
-  async revoke(sessionId) {
-    return safeDb(
-      async () => {
-        const { error } = await supabase.from('device_sessions').delete().eq('id', sessionId);
-        if (error) console.warn('[deviceSessionsRepo.revoke]', error.message);
+        if (error) throw error;
+        localDb.revokeDeviceSession(userId, deviceId);
         return true;
       },
-      () => localDb.revokeSession(sessionId)
+      () => localDb.revokeDeviceSession(userId, deviceId)
     );
   }
 };
 
-// ─── 8. OTP REPOSITORY ───────────────────────────────────────────────────────
+// ─── 11. OTP REPOSITORY ──────────────────────────────────────────────────────
 export const otpRepo = {
-  async saveOtp({ email, code, purpose = 'signup' }) {
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    return this.store(email, code, purpose, expiresAt);
+  async saveOtp({ email, code, purpose = 'signup', ttlMinutes = 10 }) {
+    const cleanEmail = email.trim().toLowerCase();
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
+
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('otp_verifications')
+          .insert({
+            email: cleanEmail,
+            code,
+            purpose,
+            expires_at: expiresAt,
+            verified: false
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        localDb.saveOtp({ email: cleanEmail, code, purpose, expiresAt });
+        return data;
+      },
+      () => localDb.saveOtp({ email: cleanEmail, code, purpose, expiresAt })
+    );
   },
 
   async verifyOtp({ email, code, purpose = 'signup' }) {
-    return this.verify(email, code, purpose);
-  },
+    const cleanEmail = email.trim().toLowerCase();
+    const otpCode = String(code).trim();
 
-  async store(email, otpCode, purpose = 'signup', expiresAt = new Date(Date.now() + 15 * 60 * 1000)) {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    try {
-      await mongoOtpRepo.store(cleanEmail, otpCode, purpose, expiresAt);
-    } catch (e) {
-      console.warn('[otpRepo.store] Mongo warning:', e.message);
-    }
-    // Also save in localDb mirror
-    try {
-      localDb.storeOtp(cleanEmail, otpCode, purpose, expiresAt);
-    } catch (e) {}
-
-    return { email: cleanEmail, otpCode: String(otpCode), purpose, expiresAt };
-  },
-
-  async verify(email, otpCode, purpose = 'signup') {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const codeStr = String(otpCode || '').trim();
-
-    // Master demo OTP bypass
-    if (codeStr === '656527') return true;
-
-    try {
-      const mongoValid = await mongoOtpRepo.verify(cleanEmail, codeStr, purpose);
-      if (mongoValid) return true;
-    } catch (e) {
-      console.warn('[otpRepo.verify] Mongo warning:', e.message);
-    }
-
-    try {
-      const localValid = localDb.verifyOtp(cleanEmail, codeStr, purpose);
-      if (localValid) return true;
-    } catch (e) {}
-
-    return false;
-  }
-};
-
-// ─── 9. MERCHANT MAPPINGS REPOSITORY ─────────────────────────────────────────
-export const merchantMappingsRepo = {
-  async getMappings(workspaceId) {
     return safeDb(
       async () => {
         const { data, error } = await supabase
-          .from('merchant_mappings')
+          .from('otp_verifications')
           .select('*')
-          .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          .eq('email', cleanEmail)
+          .eq('code', otpCode)
+          .eq('purpose', purpose)
+          .eq('verified', false)
+          .gte('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        if (error) return [];
-        return data || [];
+        if (error) throw error;
+        if (!data) return localDb.verifyOtp({ email: cleanEmail, code: otpCode, purpose });
+
+        // Mark as verified
+        await supabase
+          .from('otp_verifications')
+          .update({ verified: true })
+          .eq('id', data.id);
+
+        return true;
       },
-      () => localDb.getMerchantMappings(workspaceId)
+      () => localDb.verifyOtp({ email: cleanEmail, code: otpCode, purpose })
     );
-  },
+  }
+};
 
-  async saveMapping({ workspaceId, rawPattern, cleanMerchant, category, confidence = 0.95 }) {
+// ─── 12. MERCHANT MAPPINGS REPOSITORY ────────────────────────────────────────
+export const merchantMappingsRepo = {
+  async saveMapping({ workspaceId, rawPattern, cleanMerchant, category }) {
     return safeDb(
       async () => {
         const { data, error } = await supabase
           .from('merchant_mappings')
           .upsert({
-            workspace_id: workspaceId || null,
-            raw_pattern: rawPattern,
-            clean_merchant: cleanMerchant,
-            category,
-            confidence
-          })
+            workspace_id: workspaceId,
+            raw_pattern: rawPattern.trim(),
+            clean_merchant: cleanMerchant.trim(),
+            category: category.trim()
+          }, { onConflict: 'workspace_id,raw_pattern' })
           .select()
           .single();
 
-        if (error) console.warn('[merchantMappingsRepo.saveMapping]', error.message);
+        if (error) throw error;
+        localDb.saveMerchantMapping({ workspaceId, rawPattern, cleanMerchant, category });
         return data;
       },
-      () => localDb.saveMerchantMapping({ workspaceId, rawPattern, cleanMerchant, category, confidence })
+      () => localDb.saveMerchantMapping({ workspaceId, rawPattern, cleanMerchant, category })
+    );
+  },
+
+  async findByWorkspace(workspaceId) {
+    return safeDb(
+      async () => {
+        const { data, error } = await supabase
+          .from('merchant_mappings')
+          .select('*')
+          .eq('workspace_id', workspaceId);
+
+        if (error) throw error;
+        return data || [];
+      },
+      () => localDb.findMerchantMappingsByWorkspace(workspaceId)
     );
   }
 };
 
-// ─── 10. ACCOUNT PURGE ───────────────────────────────────────────────────────
+// ─── 13. ACCOUNT PURGE ───────────────────────────────────────────────────────
 export async function purgeUserAccountAndAllData(userId) {
-  if (!userId) return false;
-  localDb.data.users = localDb.data.users.filter(u => u.id !== userId && u._id !== userId);
-  localDb.data.workspaces = localDb.data.workspaces.filter(w => w.owner_id !== userId && w.ownerId !== userId);
-  localDb.save();
-  return true;
+  return safeDb(
+    async () => {
+      // Find workspaces owned by user
+      const owned = await workspacesRepo.findByOwnerId(userId);
+      for (const ws of owned) {
+        await transactionsRepo.deleteByWorkspace(ws.id);
+        await documentsRepo.deleteByWorkspace(ws.id);
+        await supabase.from('invoices').delete().eq('workspace_id', ws.id);
+        await supabase.from('khata_ledgers').delete().eq('workspace_id', ws.id);
+        await supabase.from('inventory_items').delete().eq('workspace_id', ws.id);
+        await supabase.from('staff').delete().eq('workspace_id', ws.id);
+        await supabase.from('workspaces').delete().eq('id', ws.id);
+      }
+      await supabase.from('device_sessions').delete().eq('user_id', userId);
+      await usersRepo.delete(userId);
+      localDb.purgeUserAccount(userId);
+      return true;
+    },
+    () => localDb.purgeUserAccount(userId)
+  );
 }
 
-// ─── 11. KHATA REPOSITORY ────────────────────────────────────────────────────
-export const khataRepo = {
-  async listByWorkspace(workspaceId) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('khata_ledgers')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('created_at', { ascending: false });
-        if (error) return localDb.listKhata(workspaceId);
-        return data || [];
-      },
-      () => localDb.listKhata(workspaceId)
-    );
-  },
-
-  async findByWorkspace(workspaceId) {
-    return this.listByWorkspace(workspaceId);
-  },
-
-  async create(partyData) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('khata_ledgers')
-          .insert(partyData)
-          .select()
-          .single();
-        if (error) return localDb.createKhataParty(partyData);
-        return data;
-      },
-      () => localDb.createKhataParty(partyData)
-    );
-  },
-
-  async delete(partyId) {
-    return safeDb(
-      async () => {
-        const { error } = await supabase.from('khata_ledgers').delete().eq('id', partyId);
-        localDb.deleteKhataParty(partyId);
-        return !error;
-      },
-      () => localDb.deleteKhataParty(partyId)
-    );
-  }
+export default {
+  usersRepo,
+  workspacesRepo,
+  transactionsRepo,
+  documentsRepo,
+  invoicesRepo,
+  khataRepo,
+  inventoryRepo,
+  subscriptionsRepo,
+  staffRepo,
+  deviceSessionsRepo,
+  otpRepo,
+  merchantMappingsRepo,
+  purgeUserAccountAndAllData
 };
-
-// ─── 12. INVENTORY & ASSETS REPOSITORY ──────────────────────────────────────
-export const inventoryRepo = {
-  async listByWorkspace(workspaceId) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('inventory_items')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('created_at', { ascending: false });
-        if (error) return localDb.listInventory(workspaceId);
-        return data || [];
-      },
-      () => localDb.listInventory(workspaceId)
-    );
-  },
-
-  async findByWorkspace(workspaceId) {
-    return this.listByWorkspace(workspaceId);
-  },
-
-  async create(itemData) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('inventory_items')
-          .insert(itemData)
-          .select()
-          .single();
-        if (error) return localDb.createInventoryItem(itemData);
-        return data;
-      },
-      () => localDb.createInventoryItem(itemData)
-    );
-  },
-
-  async delete(itemId) {
-    return safeDb(
-      async () => {
-        const { error } = await supabase.from('inventory_items').delete().eq('id', itemId);
-        localDb.deleteInventoryItem(itemId);
-        return !error;
-      },
-      () => localDb.deleteInventoryItem(itemId)
-    );
-  }
-};
-
-// ─── 13. SUBSCRIPTIONS REPOSITORY ───────────────────────────────────────────
-export const subscriptionsRepo = {
-  async listByWorkspace(workspaceId) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('created_at', { ascending: false });
-        if (error) return localDb.listSubscriptions(workspaceId);
-        return data || [];
-      },
-      () => localDb.listSubscriptions(workspaceId)
-    );
-  },
-
-  async findByWorkspace(workspaceId) {
-    return this.listByWorkspace(workspaceId);
-  },
-
-  async create(subData) {
-    return safeDb(
-      async () => {
-        const { data, error } = await supabase
-          .from('subscriptions')
-          .insert(subData)
-          .select()
-          .single();
-        if (error) return localDb.createSubscription(subData);
-        return data;
-      },
-      () => localDb.createSubscription(subData)
-    );
-  },
-
-  async delete(subId) {
-    return safeDb(
-      async () => {
-        const { error } = await supabase.from('subscriptions').delete().eq('id', subId);
-        localDb.deleteSubscription(subId);
-        return !error;
-      },
-      () => localDb.deleteSubscription(subId)
-    );
-  }
-};
-
-// ─── 14. STAFF & PAGAR KHATA REPOSITORY ─────────────────────────────────────
-export const staffRepo = mongoStaffRepo;
-

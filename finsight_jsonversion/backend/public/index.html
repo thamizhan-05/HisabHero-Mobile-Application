@@ -4116,7 +4116,7 @@
           <div class="glass-panel glow-card-interactive scroll-pop sd-1" style="padding: 1.75rem;">
             <div style="font-size: 1.6rem; margin-bottom: 10px;">✉️</div>
             <h4 style="color: #ffffff; font-size: 1.15rem; margin-bottom: 6px;" data-i18n="sec_otp_title">6-Digit Email OTP Gate</h4>
-            <p style="color: #94a3b8; font-size: 0.875rem; line-height: 1.6;" data-i18n="sec_otp_desc">Unverified accounts are never persisted to MongoDB until verified via strict 6-digit cryptographic SHA-256 tokens.</p>
+            <p style="color: #94a3b8; font-size: 0.875rem; line-height: 1.6;" data-i18n="sec_otp_desc">Unverified accounts are never persisted to Supabase PostgreSQL until verified via strict 6-digit cryptographic SHA-256 tokens.</p>
           </div>
           <div class="glass-panel glow-card-interactive scroll-pop sd-2" style="padding: 1.75rem;">
             <div style="font-size: 1.6rem; margin-bottom: 10px;">⛓️</div>
@@ -4150,7 +4150,7 @@
             <div style="display: flex; flex-direction: column; gap: 1.25rem; font-size: 0.95rem; color: #cbd5e1;">
               <div class="flex items-center gap-3"><span style="font-size: 1.35rem;">📧</span><span><strong data-i18n="contact_email_label">Support Email:</strong> hisabhero27@gmail.com</span></div>
               <div class="flex items-center gap-3"><span style="font-size: 1.35rem;">📱</span><span><strong data-i18n="contact_app_label">Android Client:</strong> Native Production APK Available</span></div>
-              <div class="flex items-center gap-3"><span style="font-size: 1.35rem;">🌐</span><span><strong data-i18n="contact_api_label">Enterprise API:</strong> Express Node.js & MongoDB Atlas</span></div>
+              <div class="flex items-center gap-3"><span style="font-size: 1.35rem;">🌐</span><span><strong data-i18n="contact_api_label">Enterprise API:</strong> Express Node.js & Supabase PostgreSQL</span></div>
             </div>
           </div>
 
@@ -4224,7 +4224,7 @@
         </div>
         <div style="border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 2rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8125rem;">
           <div>© 2026 HisabHero Technologies. All rights reserved.</div>
-          <div class="flex gap-4"><span>v5.5.0 Enterprise Release</span><span>•</span><span>MongoDB Atlas Connected</span></div>
+          <div class="flex gap-4"><span>v5.5.0 Enterprise Release</span><span>•</span><span>Supabase PostgreSQL Connected</span></div>
         </div>
       </div>
     </footer>
@@ -6139,7 +6139,7 @@
     <div class="modal-box">
       <button class="modal-close" onclick="closeModals()">✕</button>
       <h3 style="font-size: 1.4rem; margin-bottom: 0.35rem;">Add Financial Transaction</h3>
-      <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;">Records immediately to the active MongoDB workspace.</p>
+      <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;">Records immediately to the active Supabase workspace.</p>
 
       <form onsubmit="handleAddTxSubmit(event)">
         <!-- NLP Quick Log Box -->
@@ -11083,7 +11083,7 @@
         security_title_accent: "Security Vault.",
         security_desc: "Only features technically implemented and verified in our production codebase.",
         sec_otp_title: "6-Digit Email OTP Gate",
-        sec_otp_desc: "Unverified accounts are never persisted to MongoDB until verified via strict 6-digit cryptographic SHA-256 tokens.",
+        sec_otp_desc: "Unverified accounts are never persisted to Supabase PostgreSQL until verified via strict 6-digit cryptographic SHA-256 tokens.",
         sec_merkle_title: "Merkle Audit Vault",
         sec_merkle_desc: "Cryptographic transaction block chaining using SHA-256 hashes ensuring complete tamper-proof ledger auditability.",
         sec_backup_title: "1-Click Sovereign .hisab",

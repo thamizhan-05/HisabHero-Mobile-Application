@@ -13,6 +13,7 @@ router.post('/signup', authLimiter, authController.signup);
 router.post(['/verify-code', '/verify-otp', '/verify-email-otp', '/verify-email'], authController.verifyCode);
 router.post(['/resend-code', '/resend-otp', '/resend-email-otp'], otpLimiter, authController.resendCode);
 router.post('/login', authLimiter, authController.login);
+router.post(['/google', '/google-login'], authLimiter, authController.googleLogin);
 
 router.get('/me', authMiddleware, authController.getProfile);
 router.delete('/account', authMiddleware, authController.deleteAccount);
