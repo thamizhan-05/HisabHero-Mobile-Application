@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node backend/server.js",
-    "dev": "node backend/server.js"
+    "dev": "node backend/server.js",
+    "test": "node --test backend/tests/*.test.js"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",

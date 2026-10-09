@@ -1836,12 +1836,13 @@ export function SettingsModal({
 
       <View style={{ gap: 12, marginBottom: 24 }}>
         {[
-          { id: 'hisabhero_dark', title: 'Mercury Obsidian 🌌 (Default)', desc: 'Fintech Obsidian Navy • Emerald & Sapphire accents' },
+          { id: 'hisabhero_light', title: 'HisabHero Light 🌿 (Default)', desc: 'Pure Arctic White • Deep Spruce • Accessible Mint' },
+          { id: 'swiss_light', title: 'Swiss Light 🕊️', desc: 'Pure Arctic White • Crisp Indigo • Executive clarity' },
+          { id: 'hisabhero_dark', title: 'Mercury Obsidian 🌌', desc: 'Fintech Obsidian Navy • Emerald & Sapphire accents' },
           { id: 'linear_zinc', title: 'Linear Zinc ⚡', desc: 'Pitch Carbon • Slate Zinc • Indigo accents' },
           { id: 'ramp_emerald', title: 'Ramp Emerald 🌿', desc: 'Deep Forest • Emerald accents • Wealth velocity' },
-          { id: 'swiss_light', title: 'Swiss Light 🕊️', desc: 'Pure Arctic White • Crisp Indigo • Executive clarity' },
         ].map((item) => {
-          const isSel = themeId === item.id || (item.id === 'hisabhero_dark' && (themeId === 'mercury' || themeId === 'mercury_obsidian'));
+          const isSel = themeId === item.id || (item.id === 'hisabhero_light' && (themeId === 'light' || themeId === 'default')) || (item.id === 'hisabhero_dark' && (themeId === 'mercury' || themeId === 'mercury_obsidian' || themeId === 'dark'));
           return (
             <TouchableOpacity
               key={item.id}

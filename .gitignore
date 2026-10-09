@@ -25,3 +25,10 @@ Thumbs.db
 
 # Gemini / Antigravity Agent logs
 .system_generated/
+
+# Python cache & temporary scratch
+__pycache__/
+*.pyc
+scratch/
+*/scratch/
+*/*/scratch/

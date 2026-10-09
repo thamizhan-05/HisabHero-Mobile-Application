@@ -402,7 +402,7 @@ export default function App() {
       case 'main':
         if (isBiometricLocked) {
           return (
-            <View style={[styles.loadingContainer, { backgroundColor: '#06111f' }]}>
+            <View style={[styles.loadingContainer, { backgroundColor: '#F8FAFC' }]}>
               <View style={styles.splashAmbientOrb} />
               <View style={styles.biometricLockCard}>
                 <View style={styles.biometricIconCircle}>
@@ -431,8 +431,8 @@ export default function App() {
         if (!authToken || !user) {
           return (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#10b981" />
-              <Text style={{ color: '#ffffff', marginTop: 16, fontSize: 14, fontWeight: '700' }}>
+              <ActivityIndicator size="large" color="#173F35" />
+              <Text style={{ color: '#17212B', marginTop: 16, fontSize: 14, fontWeight: '700' }}>
                 Setting up your Personal Workspace...
               </Text>
             </View>
@@ -479,7 +479,7 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#06111f',
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -491,14 +491,14 @@ const styles = StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: 'rgba(16, 185, 129, 0.18)',
+    backgroundColor: 'rgba(23, 63, 53, 0.08)',
     top: '30%',
     left: '50%',
     marginLeft: -160,
     marginTop: -160,
-    shadowColor: '#10b981',
-    shadowOpacity: 0.6,
-    shadowRadius: 60,
+    shadowColor: '#173F35',
+    shadowOpacity: 0.2,
+    shadowRadius: 40,
     shadowOffset: { width: 0, height: 0 },
     elevation: 0,
   },
@@ -511,16 +511,16 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 28,
-    backgroundColor: '#0a192f',
+    backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#10b981',
+    borderColor: '#173F35',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10b981',
-    shadowOpacity: 0.6,
-    shadowRadius: 25,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
+    shadowColor: '#173F35',
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
     marginBottom: 22,
     overflow: 'hidden',
   },
@@ -529,13 +529,13 @@ const styles = StyleSheet.create({
     height: 76,
   },
   splashTitle: {
-    color: '#ffffff',
+    color: '#17212B',
     fontSize: 32,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
   splashSubtitle: {
-    color: '#94a3b8',
+    color: '#64748B',
     fontSize: 13,
     fontWeight: '500',
     marginTop: 6,
@@ -544,9 +544,9 @@ const styles = StyleSheet.create({
   splashBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    backgroundColor: '#DCEFE5',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderColor: 'rgba(23, 63, 53, 0.25)',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -556,11 +556,11 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#10b981',
+    backgroundColor: '#173F35',
     marginRight: 8,
   },
   splashBadgeText: {
-    color: '#10b981',
+    color: '#173F35',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
@@ -568,37 +568,37 @@ const styles = StyleSheet.create({
   biometricLockCard: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: '#0a192f',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#15345f',
+    borderColor: '#E2E8F0',
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOpacity: 0.2,
+    shadowColor: '#17212B',
+    shadowOpacity: 0.1,
     shadowRadius: 20,
-    elevation: 8,
+    elevation: 6,
   },
   biometricIconCircle: {
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    backgroundColor: '#DCEFE5',
     borderWidth: 1.5,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderColor: 'rgba(23, 63, 53, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   biometricTitle: {
-    color: '#ffffff',
+    color: '#17212B',
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: -0.3,
     marginBottom: 8,
   },
   biometricSubtitle: {
-    color: '#94a3b8',
+    color: '#64748B',
     fontSize: 13,
     fontWeight: '500',
     textAlign: 'center',
@@ -609,16 +609,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#10b981',
+    backgroundColor: '#173F35',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10b981',
-    shadowOpacity: 0.4,
+    shadowColor: '#173F35',
+    shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4,
   },
   biometricUnlockBtnText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.2,

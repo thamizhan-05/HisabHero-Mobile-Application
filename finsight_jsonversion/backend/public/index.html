@@ -22,8 +22,48 @@
        🎨 4 ELITE FINTECH THEMES (MERCURY, LINEAR, RAMP, SWISS)
        ══════════════════════════════════════════════════════════ */
     
-    /* 1. Mercury Obsidian & Cyber Sapphire (Default) */
-    :root, body.theme-mercury {
+    /* 1. HisabHero Light — Professional Direction (Default for all users) */
+    :root, body, body.theme-light {
+      --primary: #173F35;
+      --primary-light: #245e50;
+      --secondary: #173F35;
+      --secondary-light: #245e50;
+      --secondary-soft: #DCEFE5;
+      --accent: #173F35;
+      --accent-light: #245e50;
+      --accent-soft: #DCEFE5;
+      --background: #F8FAFC;
+      --surface: #FFFFFF;
+      --surface-elevated: #FFFFFF;
+      --text: #17212B;
+      --text-muted: #64748B;
+      --text-light: #94A3B8;
+      --border: #E2E8F0;
+      --border-focus: #173F35;
+      --success: #15803D;
+      --warning: #B45309;
+      --danger: #B91C1C;
+      --focus-ring: rgba(23, 63, 53, 0.22);
+      --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+      --shadow-lg: 0 12px 24px -4px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+      --shadow-xl: 0 20px 32px -6px rgba(15, 23, 42, 0.10), 0 8px 16px -4px rgba(15, 23, 42, 0.04);
+      --transition-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-normal: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-slow: 350ms cubic-bezier(0.16, 1, 0.3, 1);
+      --transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* 2. Mercury Obsidian & Cyber Sapphire (Optional Dark Theme) */
+    body.theme-mercury {
       --primary: #ffffff;
       --primary-light: #94a3b8;
       --secondary: #38bdf8;
@@ -38,23 +78,16 @@
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --text-light: #64748b;
-      --border: rgba(255, 255, 255, 0.08);
+      --border: rgba(255, 255, 255, 0.1);
       --border-focus: #38bdf8;
       --success: #10b981;
       --warning: #f59e0b;
       --danger: #f43f5e;
-      --font-display: 'Plus Jakarta Sans', -apple-system, sans-serif;
-      --font-body: 'Inter', -apple-system, sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --radius-sm: 8px;
-      --radius-md: 14px;
-      --radius-lg: 20px;
-      --radius-xl: 28px;
+      --focus-ring: rgba(56, 189, 248, 0.35);
       --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
       --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
       --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
       --shadow-xl: 0 20px 48px -8px rgba(0, 0, 0, 0.7);
-      --transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     /* 2. Linear Zinc & Titanium Stealth */
@@ -140,14 +173,20 @@
       font-size: 16px;
     }
 
+    /* Accessibility: Respect Reduced Motion Preference */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
     body {
       font-family: var(--font-body);
       background-color: var(--background);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.07) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.07) 0px, transparent 50%),
-        radial-gradient(at 50% 100%, rgba(99, 102, 241, 0.04) 0px, transparent 50%);
-      background-attachment: fixed;
+      background-image: none;
       color: var(--text);
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
@@ -252,28 +291,32 @@
       color: var(--text);
     }
 
-    /* Spotlight command palette — always dark */
+    /* Spotlight command palette — theme aligned */
     .spotlight-box {
-      background: #12172a !important;
-      border: 1px solid rgba(255, 255, 255, 0.12) !important;
-      color: #f8fafc !important;
+      background: var(--surface) !important;
+      border: 1px solid var(--border) !important;
+      color: var(--text) !important;
+      box-shadow: var(--shadow-xl) !important;
     }
     .spotlight-box input {
       background: transparent !important;
-      color: #f8fafc !important;
+      color: var(--text) !important;
       border: none !important;
     }
     .spotlight-box input::placeholder {
-      color: #94a3b8 !important;
+      color: var(--text-muted) !important;
     }
     .spotlight-item {
-      color: #e2e8f0 !important;
+      color: var(--text) !important;
     }
     .spotlight-item span, .spotlight-item div {
-      color: #e2e8f0 !important;
+      color: var(--text) !important;
     }
     .spotlight-item small, .spotlight-item .cmd-label {
-      color: #94a3b8 !important;
+      color: var(--text-muted) !important;
+    }
+    .spotlight-item:hover, .spotlight-item.selected {
+      background: var(--secondary-soft) !important;
     }
 
     /* Join code card — use surface instead of white */
@@ -349,29 +392,29 @@
       width: 100%;
       display: block;
       box-sizing: border-box;
-      background: rgba(13, 20, 36, 0.75);
-      color: #f8fafc;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
       padding: 0.8rem 1.1rem;
       font-size: 0.95rem;
       font-weight: 500;
       font-family: inherit;
       line-height: 1.5;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: var(--transition-fast);
+      box-shadow: var(--shadow-xs);
     }
 
     .form-input::placeholder, .form-textarea::placeholder {
-      color: #64748b;
+      color: var(--text-muted);
       opacity: 1;
     }
 
     .form-input:focus, .form-textarea:focus, .form-select:focus {
       outline: none;
-      border-color: #10b981;
-      background: rgba(15, 23, 42, 0.95);
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22), inset 0 2px 4px rgba(0, 0, 0, 0.2);
+      border-color: var(--border-focus);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px var(--focus-ring);
     }
 
     .form-textarea {
@@ -529,8 +572,8 @@
 
     /* ─── NEXT-GEN OBSIDIAN & AURORA GLOW LANDING SYSTEM ─── */
     .landing-wrapper {
-      background-color: #070b14;
-      color: #f8fafc;
+      background-color: var(--background);
+      color: var(--text);
       overflow-x: hidden;
       position: relative;
     }
@@ -601,36 +644,33 @@
       display: inline-block;
     }
 
-    /* ─── GLASSMORPHIC CARDS (DARK LUXURY) ─── */
+    /* ─── CARDS & SURFACES ─── */
     .glass-panel {
-      background: rgba(15, 23, 42, 0.72);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--radius-xl);
       transition: var(--transition);
-      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--shadow-sm);
     }
     .glass-panel:hover {
-      border-color: rgba(56, 189, 248, 0.35);
-      transform: translateY(-3px);
-      box-shadow: 0 25px 50px -12px rgba(16, 185, 129, 0.12), 0 0 0 1px rgba(56, 189, 248, 0.2);
+      border-color: var(--secondary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
     }
 
-    /* ─── GLASS NAVBAR ─── */
+    /* ─── MAIN NAVBAR ─── */
     .navbar-glass {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(7, 11, 20, 0.92);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
       min-height: 72px;
       display: flex;
       align-items: center;
       width: 100%;
       box-sizing: border-box;
+      box-shadow: var(--shadow-xs);
     }
     .navbar-container {
       display: flex !important;
@@ -1327,13 +1367,14 @@
   display: flex !important;
 }
 .modal-content {
-  background: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   width: 100%;
   position: relative;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  box-shadow: var(--shadow-xl);
   animation: hhModalSlide 0.25s ease-out;
 }
 @keyframes hhModalSlide {
@@ -1378,9 +1419,9 @@
       width: 100%;
       max-width: 840px;
       height: 530px;
-      background: #080b11;
-      border: 2px solid #10b981;
-      box-shadow: 0 0 35px rgba(16, 185, 129, 0.45), inset 0 0 20px rgba(16, 185, 129, 0.1);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-xl);
       border-radius: 24px;
       overflow: hidden;
       z-index: 10;
@@ -1486,7 +1527,7 @@
     .credentials-panel h2 {
       font-size: 30px;
       font-weight: 800;
-      color: #ffffff;
+      color: var(--primary);
       text-align: center;
       margin-bottom: 5px;
     }
@@ -1918,14 +1959,15 @@
       display: flex;
       flex-wrap: wrap;
       gap: 1.5rem;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: #ffffff;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
       padding: 1.75rem 2rem;
       border-radius: var(--radius-xl);
       align-items: center;
       justify-content: space-between;
       margin-bottom: 2rem;
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-sm);
     }
 
     .charts-grid {
@@ -2021,27 +2063,27 @@
       bottom: 24px;
       right: 90px;
       z-index: 998;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      border: 1px solid rgba(16, 185, 129, 0.45);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(16, 185, 129, 0.25);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
       border-radius: 9999px;
       padding: 8px 16px 8px 12px;
       display: flex;
       align-items: center;
       gap: 8px;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: var(--transition-normal);
       user-select: none;
     }
     .floating-hero-bot:hover {
-      transform: translateY(-3px) scale(1.04);
-      border-color: #10b981;
-      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(16, 185, 129, 0.45);
+      transform: translateY(-2px);
+      border-color: var(--primary);
+      box-shadow: var(--shadow-lg);
     }
     .floating-hero-bot .bot-label {
       font-size: 0.825rem;
       font-weight: 800;
-      color: #f8fafc;
+      color: var(--primary);
       letter-spacing: 0.2px;
     }
     .hero-bot-drawer {
@@ -4190,17 +4232,17 @@
 
   <!-- ─── FEEDBACK MODAL ─── -->
   <div id="feedbackModal" class="modal-backdrop" onclick="closeFeedbackModalOnBackdrop(event)">
-    <div class="modal-box" style="max-width: 480px; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #ffffff;" onclick="event.stopPropagation()">
+    <div class="modal-box" style="max-width: 480px; background: var(--surface); border: 1px solid var(--border); color: var(--text);" onclick="event.stopPropagation()">
       <button class="modal-close" style="color: #94a3b8;" onclick="closeFeedbackModal()">×</button>
       <div style="text-align: center; margin-bottom: 1.25rem;">
         <span style="font-size: 2.2rem;">💬</span>
-        <h3 style="color: #ffffff; font-size: 1.4rem; margin-top: 6px;" data-i18n="feedback_title">Share Your Feedback</h3>
+        <h3 style="color: var(--primary); font-size: 1.4rem; margin-top: 6px;" data-i18n="feedback_title">Share Your Feedback</h3>
         <p style="color: #94a3b8; font-size: 0.875rem;" data-i18n="feedback_subtitle">Help us make HisabHero even better for you.</p>
       </div>
 
       <form id="feedbackForm" onsubmit="handleFeedbackSubmit(event)">
         <div class="form-group" style="margin-bottom: 1rem; text-align: center;">
-          <label class="form-label" style="color: #cbd5e1; display: block; margin-bottom: 6px;" data-i18n="feedback_rating_label">Rate your experience</label>
+          <label class="form-label" style="display: block; margin-bottom: 6px;" data-i18n="feedback_rating_label">Rate your experience</label>
           <div style="display: flex; justify-content: center; gap: 10px; font-size: 1.8rem; cursor: pointer; user-select: none;" id="starRatingGroup">
             <span onclick="setFeedbackRating(1)" id="star1">⭐</span>
             <span onclick="setFeedbackRating(2)" id="star2">⭐</span>
@@ -4212,7 +4254,7 @@
 
         <div class="form-group" style="margin-bottom: 1rem;">
           <label class="form-label" style="color: #cbd5e1;" data-i18n="feedback_type_label">Feedback Category</label>
-          <select id="feedbackCategory" class="form-select" style="background: rgba(0,0,0,0.4); color: #ffffff; border-color: rgba(255,255,255,0.15);">
+          <select id="feedbackCategory" class="form-select">
             <option value="feature">💡 Feature Request</option>
             <option value="uiux">🎨 UI / UX Design & Transitions</option>
             <option value="bug">🐛 Bug Report</option>
@@ -4222,12 +4264,12 @@
 
         <div class="form-group" style="margin-bottom: 1rem;">
           <label class="form-label" style="color: #cbd5e1;" data-i18n="feedback_msg_label">Your Thoughts *</label>
-          <textarea id="feedbackMessage" class="form-textarea" rows="3" required placeholder="What did you love or what should we improve?" style="background: rgba(0,0,0,0.4); color: #ffffff; border-color: rgba(255,255,255,0.15);"></textarea>
+          <textarea id="feedbackMessage" class="form-textarea" rows="3" required placeholder="What did you love or what should we improve?"></textarea>
         </div>
 
         <div class="form-group" style="margin-bottom: 1.25rem;">
           <label class="form-label" style="color: #cbd5e1;" data-i18n="feedback_email_label">Email (Optional)</label>
-          <input type="email" id="feedbackEmail" class="form-input" placeholder="selva@example.com" style="background: rgba(0,0,0,0.4); color: #ffffff; border-color: rgba(255,255,255,0.15);" />
+          <input type="email" id="feedbackEmail" class="form-input" placeholder="selva@example.com" />
         </div>
 
         <button type="submit" class="btn btn-glow-emerald" style="width: 100%; padding: 0.85rem;" data-i18n="feedback_submit_btn">Submit Feedback ✓</button>
@@ -5694,7 +5736,7 @@
                 <h4 style="font-size: 1.15rem; color: var(--primary); display: flex; align-items: center; gap: 8px;">
                   <span>🎨</span> <span id="settingsThemeTitle" data-i18n="settings_theme_title">Interface Theme &amp; Mood Studio</span>
                 </h4>
-                <span id="activeThemeBadge" class="pill-badge emerald" style="font-size: 0.7rem; padding: 2px 8px;">MERCURY OBSIDIAN (ACTIVE)</span>
+                <span id="activeThemeBadge" class="pill-badge emerald" style="font-size: 0.7rem; padding: 2px 8px;">HISABHERO LIGHT (ACTIVE)</span>
               </div>
               <p id="settingsThemeDesc" data-i18n="settings_theme_desc" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
                 Switch your visual workspace and typography system instantly based on your mood or lighting environment.
@@ -5702,13 +5744,43 @@
 
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                 
-                <!-- Option 1: Mercury Obsidian -->
-                <div class="theme-card-option" id="themeCardMercury" onclick="changeTheme('mercury')" style="background: #080b11; border: 2px solid #10b981; border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                <!-- Option 1: HisabHero Light (Default) -->
+                <div class="theme-card-option" id="themeCardLight" onclick="changeTheme('light')" style="background: #ffffff; border: 2px solid #173F35; border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 0.85rem; font-weight: 800; color: #ffffff;">Mercury Obsidian</span>
-                    <span style="color: #10b981; font-size: 0.8rem;" id="checkMercury">✓</span>
+                    <span style="font-size: 0.85rem; font-weight: 800; color: #17212B;">HisabHero Light 🌿</span>
+                    <span style="color: #173F35; font-size: 0.8rem;" id="checkLight">✓</span>
                   </div>
-                  <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 10px;">Plus Jakarta Sans + JetBrains Mono</div>
+                  <div style="font-size: 0.72rem; color: #64748B; margin-bottom: 10px;">Spruce Forest + Pure Arctic White (Default)</div>
+                  <div style="display: flex; gap: 4px;">
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #F8FAFC; border: 1px solid #E2E8F0;"></div>
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #ffffff; border: 1px solid #E2E8F0;"></div>
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #173F35;"></div>
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #DCEFE5;"></div>
+                  </div>
+                </div>
+
+                <!-- Option 2: Swiss Minimalist Light -->
+                <div class="theme-card-option" id="themeCardSwiss" onclick="changeTheme('swiss')" style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.85rem; font-weight: 800; color: #0f172a;">Swiss Light 🕊️</span>
+                    <span style="color: #2563eb; font-size: 0.8rem; display: none;" id="checkSwiss">✓</span>
+                  </div>
+                  <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 10px;">Plus Jakarta Sans + Crisp Indigo</div>
+                  <div style="display: flex; gap: 4px;">
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #f8fafc; border: 1px solid #cbd5e1;"></div>
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #ffffff; border: 1px solid #cbd5e1;"></div>
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #0f172a;"></div>
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #2563eb;"></div>
+                  </div>
+                </div>
+
+                <!-- Option 3: Mercury Obsidian (Optional Dark) -->
+                <div class="theme-card-option" id="themeCardMercury" onclick="changeTheme('mercury')" style="background: #080b11; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.85rem; font-weight: 800; color: #ffffff;">Mercury Obsidian 🌌</span>
+                    <span style="color: #10b981; font-size: 0.8rem; display: none;" id="checkMercury">✓</span>
+                  </div>
+                  <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 10px;">Obsidian Navy + Cyber Sapphire</div>
                   <div style="display: flex; gap: 4px;">
                     <div style="width: 14px; height: 14px; border-radius: 3px; background: #080b11; border: 1px solid rgba(255,255,255,0.2);"></div>
                     <div style="width: 14px; height: 14px; border-radius: 3px; background: #0f172a;"></div>
@@ -5717,10 +5789,10 @@
                   </div>
                 </div>
 
-                <!-- Option 2: Linear Zinc -->
+                <!-- Option 4: Linear Zinc -->
                 <div class="theme-card-option" id="themeCardLinear" onclick="changeTheme('linear')" style="background: #0d0e12; border: 1px solid #282c37; border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 0.85rem; font-weight: 800; color: #f8fafc;">Linear Zinc</span>
+                    <span style="font-size: 0.85rem; font-weight: 800; color: #f8fafc;">Linear Zinc ⚡</span>
                     <span style="color: #5e6ad2; font-size: 0.8rem; display: none;" id="checkLinear">✓</span>
                   </div>
                   <div style="font-size: 0.72rem; color: #71717a; margin-bottom: 10px;">Inter UI + Geist Mono Numerics</div>
@@ -5732,10 +5804,10 @@
                   </div>
                 </div>
 
-                <!-- Option 3: Ramp Champagne Gold -->
+                <!-- Option 5: Ramp Champagne Gold -->
                 <div class="theme-card-option" id="themeCardRamp" onclick="changeTheme('ramp')" style="background: #060913; border: 1px solid rgba(245,158,11,0.2); border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 0.85rem; font-weight: 800; color: #fbbf24;">Ramp Gold</span>
+                    <span style="font-size: 0.85rem; font-weight: 800; color: #fbbf24;">Ramp Gold 🌿</span>
                     <span style="color: #f59e0b; font-size: 0.8rem; display: none;" id="checkRamp">✓</span>
                   </div>
                   <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 10px;">Outfit + IBM Plex Mono</div>
@@ -5744,21 +5816,6 @@
                     <div style="width: 14px; height: 14px; border-radius: 3px; background: #0d1322;"></div>
                     <div style="width: 14px; height: 14px; border-radius: 3px; background: #f59e0b;"></div>
                     <div style="width: 14px; height: 14px; border-radius: 3px; background: #fbbf24;"></div>
-                  </div>
-                </div>
-
-                <!-- Option 4: Swiss Minimalist Editorial Light -->
-                <div class="theme-card-option" id="themeCardSwiss" onclick="changeTheme('swiss')" style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 0.85rem; font-weight: 800; color: #0f172a;">Swiss Light</span>
-                    <span style="color: #2563eb; font-size: 0.8rem; display: none;" id="checkSwiss">✓</span>
-                  </div>
-                  <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 10px;">Plus Jakarta Sans + Inter Light</div>
-                  <div style="display: flex; gap: 4px;">
-                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #fafafa; border: 1px solid #cbd5e1;"></div>
-                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #ffffff; border: 1px solid #cbd5e1;"></div>
-                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #0f172a;"></div>
-                    <div style="width: 14px; height: 14px; border-radius: 3px; background: #2563eb;"></div>
                   </div>
                 </div>
 
@@ -6061,12 +6118,12 @@
 
       <form onsubmit="handleAddTxSubmit(event)">
         <!-- NLP Quick Log Box -->
-        <div style="background: #0f172a; border: 1px solid #0284c7; border-radius: 12px; padding: 12px; margin-bottom: 1.25rem;">
+        <div style="background: var(--background); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 1.25rem;">
           <div style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 6px;">
             <span>⚡</span> NLP Quick Log (Natural Language)
           </div>
           <div style="display: flex; gap: 6px;">
-            <input type="text" id="txNlpInput" class="form-input" placeholder='e.g. "Paid 450 for Swiggy food yesterday"' style="background: #1e293b; color: #fff; border-color: #334155; font-size: 0.8125rem;" />
+            <input type="text" id="txNlpInput" class="form-input" placeholder='e.g. "Paid 450 for Swiggy food yesterday"' style="font-size: 0.8125rem;" />
             <button type="button" class="btn btn-primary" onclick="handleNlpWebParse()" style="background: #0284c7; font-size: 0.75rem; padding: 0.4rem 0.8rem;">Auto-Fill</button>
           </div>
         </div>
@@ -11687,19 +11744,20 @@
       showToast('✓ OCR Bill matched & auto-reconciled with bank ledger!');
     }
 
-    // ─── 4 ELITE FINTECH THEMES ENGINE (MERCURY, LINEAR, RAMP, SWISS) ───
+    // ─── 5 ELITE FINTECH THEMES ENGINE (LIGHT FIRST DEFAULT) ───
     const THEME_NAMES = {
+      light: 'HISABHERO LIGHT (ACTIVE)',
+      swiss: 'SWISS LIGHT (ACTIVE)',
       mercury: 'MERCURY OBSIDIAN (ACTIVE)',
       linear: 'LINEAR ZINC (ACTIVE)',
-      ramp: 'RAMP GOLD (ACTIVE)',
-      swiss: 'SWISS LIGHT (ACTIVE)'
+      ramp: 'RAMP GOLD (ACTIVE)'
     };
 
     function changeTheme(themeKey, notify = true) {
-      if (!THEME_NAMES[themeKey]) themeKey = 'mercury';
+      if (!THEME_NAMES[themeKey]) themeKey = 'light';
 
       // Remove previous theme classes and apply new one
-      document.body.classList.remove('theme-mercury', 'theme-linear', 'theme-ramp', 'theme-swiss');
+      document.body.classList.remove('theme-light', 'theme-mercury', 'theme-linear', 'theme-ramp', 'theme-swiss');
       document.body.classList.add('theme-' + themeKey);
 
       // Sync topbar dropdown
@@ -11713,15 +11771,15 @@
       }
 
       // Sync Settings Card Borders & Checks
-      ['mercury', 'linear', 'ramp', 'swiss'].forEach(k => {
+      ['light', 'swiss', 'mercury', 'linear', 'ramp'].forEach(k => {
         const card = document.getElementById('themeCard' + k.charAt(0).toUpperCase() + k.slice(1));
         const check = document.getElementById('check' + k.charAt(0).toUpperCase() + k.slice(1));
         if (card) {
           if (k === themeKey) {
-            card.style.borderColor = (k === 'linear' ? '#5e6ad2' : (k === 'ramp' ? '#f59e0b' : (k === 'swiss' ? '#2563eb' : '#10b981')));
+            card.style.borderColor = (k === 'light' ? '#173F35' : (k === 'linear' ? '#5e6ad2' : (k === 'ramp' ? '#f59e0b' : (k === 'swiss' ? '#2563eb' : '#10b981'))));
             card.style.borderWidth = '2px';
           } else {
-            card.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+            card.style.borderColor = 'var(--border)';
             card.style.borderWidth = '1px';
           }
         }
@@ -12262,7 +12320,7 @@
       updateLiveRunwaySandbox();
       const savedLang = localStorage.getItem('hisabhero_lang') || 'en';
       changeLanguage(savedLang);
-      const savedTheme = localStorage.getItem('hisabhero_active_theme') || 'mercury';
+      const savedTheme = localStorage.getItem('hisabhero_active_theme') || 'light';
       changeTheme(savedTheme, false);
       initDynamicInteractions();
       refreshChecklistUI();
