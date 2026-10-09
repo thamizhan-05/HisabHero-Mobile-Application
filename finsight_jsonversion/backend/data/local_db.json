@@ -254,6 +254,57 @@
       "auth_providers": [],
       "created_at": "2026-10-09T08:18:26.962Z",
       "updated_at": "2026-10-09T08:18:26.962Z"
+    },
+    {
+      "id": "c20d4a09-9583-4a9c-b1ef-0f747ecaefe7",
+      "_id": "c20d4a09-9583-4a9c-b1ef-0f747ecaefe7",
+      "email": "test_migration_1791534402065@hisabhero.io",
+      "full_name": "Supabase User",
+      "fullName": "Supabase User",
+      "password": "SamplePassword123!",
+      "passwordHash": "SamplePassword123!",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-10-09T08:26:42.186Z",
+      "updated_at": "2026-10-09T08:26:42.186Z"
+    },
+    {
+      "id": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "_id": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "email": "sync_test_1791534402191@hisabhero.io",
+      "full_name": "Sync Tester",
+      "fullName": "Sync Tester",
+      "password": "PassWord123!",
+      "passwordHash": "PassWord123!",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-10-09T08:26:42.191Z",
+      "updated_at": "2026-10-09T08:26:42.191Z"
+    },
+    {
+      "id": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "_id": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "email": "api_sync_1791534402216@hisabhero.io",
+      "full_name": "API Sync User",
+      "fullName": "API Sync User",
+      "password": "Password123!",
+      "passwordHash": "Password123!",
+      "role": "owner",
+      "account_type": "personal",
+      "accountType": "personal",
+      "is_verified": true,
+      "isVerified": true,
+      "auth_providers": [],
+      "created_at": "2026-10-09T08:26:42.216Z",
+      "updated_at": "2026-10-09T08:26:42.216Z"
     }
   ],
   "workspaces": [
@@ -936,6 +987,185 @@
       },
       "created_at": "2026-10-09T08:18:27.018Z",
       "updated_at": "2026-10-09T08:18:27.018Z"
+    },
+    {
+      "id": "a2e03776-476c-4298-9f92-e6299e94abd3",
+      "_id": "a2e03776-476c-4298-9f92-e6299e94abd3",
+      "name": "Supabase User's Personal Workspace",
+      "type": "personal",
+      "owner_id": "c20d4a09-9583-4a9c-b1ef-0f747ecaefe7",
+      "ownerId": "c20d4a09-9583-4a9c-b1ef-0f747ecaefe7",
+      "currency": "INR",
+      "join_code": "HERO-4HF8M",
+      "joinCode": "HERO-BYGIJ",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.186Z",
+      "updated_at": "2026-10-09T08:26:42.186Z"
+    },
+    {
+      "id": "3f3987e8-3f78-484b-8bd2-63a679589538",
+      "_id": "3f3987e8-3f78-484b-8bd2-63a679589538",
+      "name": "Sync Tester's Personal Workspace",
+      "type": "personal",
+      "owner_id": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "ownerId": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "currency": "INR",
+      "join_code": "HERO-L90OM",
+      "joinCode": "HERO-RGXC5",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.191Z",
+      "updated_at": "2026-10-09T08:26:42.191Z"
+    },
+    {
+      "id": "89a77f27-6864-4225-9b45-4d39106c6294",
+      "_id": "89a77f27-6864-4225-9b45-4d39106c6294",
+      "name": "Tester Personal Vault",
+      "type": "personal",
+      "owner_id": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "ownerId": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-Y11OE",
+      "joinCode": "HERO-3WDR8",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.197Z",
+      "updated_at": "2026-10-09T08:26:42.197Z"
+    },
+    {
+      "id": "efbbd53f-3608-43fb-9dbf-e35e8f25ce23",
+      "_id": "efbbd53f-3608-43fb-9dbf-e35e8f25ce23",
+      "name": "Tester Supermarket LLC",
+      "type": "business",
+      "owner_id": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "ownerId": "46d6b484-1a44-453f-af52-ab8172ae80cb",
+      "business_name": "Tester Supermarket LLC",
+      "industry": "Retail & Grocery",
+      "currency": "INR",
+      "join_code": "HERO-E8LIL",
+      "joinCode": "HERO-46UMZ",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.199Z",
+      "updated_at": "2026-10-09T08:26:42.199Z"
+    },
+    {
+      "id": "6ca614c9-cbcc-408b-80de-80c72fc0f049",
+      "_id": "6ca614c9-cbcc-408b-80de-80c72fc0f049",
+      "name": "TX Test Vault",
+      "type": "personal",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-YA7JL",
+      "joinCode": "HERO-EPTN5",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.202Z",
+      "updated_at": "2026-10-09T08:26:42.202Z"
+    },
+    {
+      "id": "9c3617db-7424-4285-834e-3f6532bccddd",
+      "_id": "9c3617db-7424-4285-834e-3f6532bccddd",
+      "name": "Staff Test Vault",
+      "type": "business",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-16M57",
+      "joinCode": "HERO-NZVXB",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.207Z",
+      "updated_at": "2026-10-09T08:26:42.207Z"
+    },
+    {
+      "id": "5bfa53b4-67a2-467c-8949-28dc416713d3",
+      "_id": "5bfa53b4-67a2-467c-8949-28dc416713d3",
+      "name": "API Sync User's Personal Workspace",
+      "type": "personal",
+      "owner_id": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "ownerId": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "currency": "INR",
+      "join_code": "HERO-1JAL5",
+      "joinCode": "HERO-KAT3V",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.216Z",
+      "updated_at": "2026-10-09T08:26:42.216Z"
+    },
+    {
+      "id": "44699c9e-023a-4c7c-b2d9-fda37904715f",
+      "_id": "44699c9e-023a-4c7c-b2d9-fda37904715f",
+      "name": "Metro Electronics",
+      "type": "business",
+      "owner_id": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "ownerId": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "business_name": "Metro Electronics",
+      "industry": "Retail",
+      "currency": "INR",
+      "join_code": "HERO-WS-R33W98",
+      "joinCode": "HERO-WS-R33W98",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.231Z",
+      "updated_at": "2026-10-09T08:26:42.231Z"
+    },
+    {
+      "id": "1ab78748-7664-447e-99f9-b01609448c11",
+      "_id": "1ab78748-7664-447e-99f9-b01609448c11",
+      "name": "Personal Savings",
+      "type": "personal",
+      "owner_id": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "ownerId": "f72d38b9-fc2a-4257-a5af-7434dbd7a115",
+      "business_name": null,
+      "industry": null,
+      "currency": "INR",
+      "join_code": "HERO-WS-DLTDSA",
+      "joinCode": "HERO-WS-DLTDSA",
+      "cash_balance": 0,
+      "cashBalance": 0,
+      "settings": {
+        "currency": "INR",
+        "currencySymbol": "₹"
+      },
+      "created_at": "2026-10-09T08:26:42.236Z",
+      "updated_at": "2026-10-09T08:26:42.236Z"
     }
   ],
   "transactions": [
@@ -1971,6 +2201,38 @@
       "payment_method": "UPI",
       "source": "Voice Bookkeeper",
       "created_at": "2026-10-09T08:21:00.635Z"
+    },
+    {
+      "id": "f81c1fd6-f617-4772-a1e7-b964a05df0af",
+      "_id": "f81c1fd6-f617-4772-a1e7-b964a05df0af",
+      "workspace_id": "personal",
+      "workspaceId": "personal",
+      "user_id": "test_user_fix_1",
+      "userId": "test_user_fix_1",
+      "description": "Voice Bookkeeper: Walk-in Customer - Fuel & Transport",
+      "amount": 2400,
+      "type": "expense",
+      "category": "General Expense",
+      "date": "2026-10-09",
+      "merchant": null,
+      "payment_method": "UPI",
+      "source": "Voice Bookkeeper",
+      "created_at": "2026-10-09T08:26:41.019Z"
+    },
+    {
+      "id": "64f10890-50f8-4a33-89a6-b40f4e67882f",
+      "_id": "64f10890-50f8-4a33-89a6-b40f4e67882f",
+      "workspace_id": "6ca614c9-cbcc-408b-80de-80c72fc0f049",
+      "workspaceId": "6ca614c9-cbcc-408b-80de-80c72fc0f049",
+      "description": "Electricity bill",
+      "amount": 1500,
+      "type": "expense",
+      "category": "Utilities",
+      "date": "2026-10-09",
+      "merchant": "State Electricity Board",
+      "payment_method": "UPI",
+      "source": "Manual",
+      "created_at": "2026-10-09T08:26:42.204Z"
     }
   ],
   "uploaded_documents": [
@@ -3335,6 +3597,23 @@
       "total": 11800,
       "status": "unpaid",
       "created_at": "2026-10-09T08:21:00.056Z"
+    },
+    {
+      "id": "7f3c5d85-c03b-4031-a4fa-2af8fcb448b8",
+      "_id": "7f3c5d85-c03b-4031-a4fa-2af8fcb448b8",
+      "workspaceId": "personal",
+      "invoiceNumber": "INV-2026-999",
+      "customerName": "Bharat Electronics Ltd",
+      "customerGstin": "29ABCDE1234F1Z5",
+      "subtotal": 10000,
+      "cgst": 900,
+      "sgst": 900,
+      "igst": 0,
+      "taxRate": 18,
+      "totalTax": 1800,
+      "total": 11800,
+      "status": "unpaid",
+      "created_at": "2026-10-09T08:26:40.859Z"
     }
   ],
   "khata_ledgers": [
@@ -3565,6 +3844,25 @@
       "entries": [],
       "created_at": "2026-10-09T08:21:00.174Z",
       "updated_at": "2026-10-09T08:21:00.174Z"
+    },
+    {
+      "id": "cd7d20e8-c2c3-4370-ab5a-8d6f65c0c547",
+      "_id": "cd7d20e8-c2c3-4370-ab5a-8d6f65c0c547",
+      "workspace_id": "personal",
+      "workspaceId": "personal",
+      "party_name": "Rajesh Hardware",
+      "partyName": "Rajesh Hardware",
+      "party_type": "customer",
+      "partyType": "customer",
+      "phone": "9876543210",
+      "email": "",
+      "net_balance": 0,
+      "netBalance": 0,
+      "currency": "INR",
+      "notes": "",
+      "entries": [],
+      "created_at": "2026-10-09T08:26:40.936Z",
+      "updated_at": "2026-10-09T08:26:40.936Z"
     }
   ],
   "device_sessions": [
@@ -3907,6 +4205,26 @@
       "depreciation_method": "straight_line",
       "created_at": "2026-10-09T08:21:00.288Z",
       "updated_at": "2026-10-09T08:21:00.288Z"
+    },
+    {
+      "id": "d3c34dfa-ba3c-4d26-ac8d-ece8d5953ab0",
+      "_id": "d3c34dfa-ba3c-4d26-ac8d-ece8d5953ab0",
+      "workspace_id": "personal",
+      "workspaceId": "personal",
+      "name": "UltraTech Cement 50kg",
+      "type": "stock",
+      "sku": "SKU-0986",
+      "category": "Raw Materials",
+      "stock_quantity": 150,
+      "stockQuantity": 150,
+      "unit_value": 380,
+      "unitValue": 380,
+      "reorder_level": 5,
+      "useful_life": 5,
+      "usefulLife": 5,
+      "depreciation_method": "straight_line",
+      "created_at": "2026-10-09T08:26:40.986Z",
+      "updated_at": "2026-10-09T08:26:40.986Z"
     }
   ],
   "subscriptions": [],
@@ -3990,6 +4308,34 @@
       "phone": "9876543210",
       "created_at": "2026-10-09T08:18:26.950Z",
       "updated_at": "2026-10-09T08:18:26.950Z"
+    },
+    {
+      "id": "7683e2a8-a4b1-4591-bc5b-a56355f961b8",
+      "_id": "7683e2a8-a4b1-4591-bc5b-a56355f961b8",
+      "workspace_id": "9c3617db-7424-4285-834e-3f6532bccddd",
+      "workspaceId": "9c3617db-7424-4285-834e-3f6532bccddd",
+      "name": "Aakash Sharma",
+      "role": "Store Manager",
+      "monthly_salary": 35000,
+      "monthlySalary": 35000,
+      "base_salary": 35000,
+      "baseSalary": 35000,
+      "daily_wage": 0,
+      "dailyWage": 0,
+      "attendance": {
+        "present": 0,
+        "absent": 0,
+        "halfDay": 0,
+        "overtimeDays": 0
+      },
+      "advances_drawn": 0,
+      "advancesDrawn": 0,
+      "net_payable": 35000,
+      "netPayable": 35000,
+      "advances": [],
+      "phone": "9876543210",
+      "created_at": "2026-10-09T08:26:42.212Z",
+      "updated_at": "2026-10-09T08:26:42.212Z"
     }
   ]
 }
