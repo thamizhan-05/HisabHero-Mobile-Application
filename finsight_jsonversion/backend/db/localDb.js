@@ -462,6 +462,22 @@ export const localDb = {
     return newK;
   },
 
+  createKhataParty(khataData) {
+    return this.createKhata(khataData);
+  },
+
+  deleteKhataParty(id) {
+    db.khata_ledgers = (db.khata_ledgers || []).filter(k => k.id !== id && k._id !== id);
+    saveDb();
+    return true;
+  },
+
+  deleteInvoice(id) {
+    db.invoices = (db.invoices || []).filter(i => i.id !== id && i._id !== id);
+    saveDb();
+    return true;
+  },
+
   // Sessions
   listSessions(userId) {
     return db.device_sessions.filter(s => s.user_id === userId || s.userId === userId);

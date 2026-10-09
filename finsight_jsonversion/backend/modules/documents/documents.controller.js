@@ -23,6 +23,8 @@ export async function uploadPreview(req, res, next) {
       success: true,
       fileName: req.file.originalname,
       fileSize: req.file.size,
+      transactions: result.extracted || [],
+      extracted: result.extracted || [],
       ...result
     });
   } catch (err) {

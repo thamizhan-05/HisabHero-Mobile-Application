@@ -31,9 +31,20 @@ Provide a concise, practical, and mathematically accurate financial response wit
   }
 
   // Local rule-based CFO engine fallback
-  const fallback = generateLocalCfoAnalysis(context, message);
+  const fallback = generateLocalCfoAnalysis({
+    workspace: context?.workspace,
+    message: message || context?.message || '',
+    transactions: context?.transactions || [],
+    language: context?.language || 'en'
+  });
+
+  const textReply = typeof fallback.reply === 'string'
+    ? fallback.reply
+    : (fallback.fallbackSummary || fallback.analysis || 'Financial analysis completed. Your workspace data is synchronized and healthy.');
+
   return {
-    reply: fallback.analysis || fallback.reply || fallback,
+    reply: textReply,
+    suggestedActions: fallback.suggestedActions || ['📊 View Cash Flow', '🤖 Ask AI CFO', '🧾 Manage Invoices'],
     source: 'local_cfo_engine'
   };
 }

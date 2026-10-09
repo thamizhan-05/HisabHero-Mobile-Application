@@ -6089,21 +6089,46 @@
 
   <!-- ─── MODAL: VOICE BOOKKEEPER ─── -->
   <div id="voiceModal" class="modal-backdrop">
-    <div class="modal-box" style="text-align: center;">
+    <div class="modal-box" style="text-align: center; max-width: 480px;">
       <button class="modal-close" onclick="closeModals()">✕</button>
-      <h3 style="font-size: 1.4rem; margin-bottom: 0.35rem;">🎙️ AI Voice Bookkeeper</h3>
-      <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">
-        Speak naturally in English, Tamil, Hindi, or Marathi:<br /><em>"Spent ₹2,400 on fuel today"</em>
+      <h3 style="font-size: 1.4rem; margin-bottom: 0.35rem; font-weight: 800;">🎙️ AI Voice Bookkeeper</h3>
+      <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;">
+        Speak naturally in English, Tamil, Hindi, or Marathi to book expenses & credit entries.
       </p>
 
-      <div style="margin: 1.5rem 0; display: flex; justify-content: center;">
-        <div style="width: 80px; height: 80px; border-radius: 40px; background: rgba(5, 150, 105, 0.15); border: 2px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 32px; cursor: pointer;" onclick="handleVoiceSim()">
+      <div style="margin: 1rem 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div id="voiceMicPulseCircle" style="width: 84px; height: 84px; border-radius: 50%; background: rgba(5, 150, 105, 0.15); border: 2px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 34px; cursor: pointer; transition: all 0.25s ease;" onclick="toggleVoiceRecognition()" title="Click to listen">
           🎙️
+        </div>
+        <div id="voiceListeningStatus" style="font-size: 0.8125rem; font-weight: 700; color: var(--accent); margin-top: 10px;">
+          Click mic to speak, or pick sample below
         </div>
       </div>
 
-      <input type="text" id="voiceCommandInput" class="form-input" placeholder="Type or speak expense command..." style="text-align: center; margin-bottom: 1rem;" value="Spent ₹2,400 on petrol today" />
-      <button onclick="handleVoiceSubmit()" class="btn btn-accent" style="width: 100%;">
+      <div style="display: flex; gap: 6px; justify-content: center; margin-bottom: 1rem;">
+        <select id="voiceLangSelect" class="form-select" style="font-size: 0.8125rem; width: auto; padding: 4px 10px;">
+          <option value="en-IN">🇮🇳 English (India)</option>
+          <option value="hi-IN">🇮🇳 Hindi (हिन्दी)</option>
+          <option value="ta-IN">🇮🇳 Tamil (தமிழ்)</option>
+          <option value="te-IN">🇮🇳 Telugu (తెలుగు)</option>
+          <option value="mr-IN">🇮🇳 Marathi (मराठी)</option>
+        </select>
+        <button type="button" class="btn btn-outline" style="font-size: 0.75rem; padding: 4px 10px;" onclick="handleVoiceSim()">🎲 Sample Phrase</button>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <input type="text" id="voiceCommandInput" class="form-input" placeholder="Type or speak expense command..." style="text-align: center;" value="Spent ₹2,400 on petrol today" />
+      </div>
+
+      <!-- Quick sample chips -->
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 1.25rem;">
+        <span class="pill-badge" style="cursor: pointer; font-size: 0.72rem;" onclick="setVoiceInput('Spent ₹1,850 on grocery supplies today')">Grocery ₹1.85k</span>
+        <span class="pill-badge" style="cursor: pointer; font-size: 0.72rem;" onclick="setVoiceInput('Received ₹45,000 from client retainer')">Client ₹45k</span>
+        <span class="pill-badge" style="cursor: pointer; font-size: 0.72rem;" onclick="setVoiceInput('Ramesh ko ₹8,500 udhari diya')">Ramesh Udhari ₹8.5k</span>
+        <span class="pill-badge" style="cursor: pointer; font-size: 0.72rem;" onclick="setVoiceInput('Paid ₹3,200 for cloud server hosting')">Hosting ₹3.2k</span>
+      </div>
+
+      <button id="voiceSubmitBtn" onclick="handleVoiceSubmit()" class="btn btn-accent" style="width: 100%; font-weight: 800;">
         Parse & Auto-Log Expense ✓
       </button>
     </div>
@@ -6257,6 +6282,117 @@
         <div class="flex justify-end gap-2">
           <button type="button" class="btn btn-outline" onclick="closeModals()">Cancel</button>
           <button type="submit" id="addInventorySubmitBtn" class="btn btn-primary" style="font-weight: 800;">+ Save Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: CREATE TAX INVOICE & GST COMPLIANCE ─── -->
+  <div id="createInvoiceModal" class="modal-backdrop">
+    <div class="modal-box" style="max-width: 620px;">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;">
+        <span style="font-size: 1.75rem;">🧾</span>
+        <div>
+          <h3 style="font-size: 1.3rem; font-weight: 800; margin: 0;">Generate GST Tax Invoice</h3>
+          <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 2px 0 0 0;">Create GST-compliant invoice with automatic CGST, SGST, IGST tax computation.</p>
+        </div>
+      </div>
+      <form id="createInvoiceForm" onsubmit="handleCreateInvoiceSubmit(event)">
+        <div class="flex gap-3" style="margin-bottom: 1rem;">
+          <div style="flex: 1;">
+            <label class="form-label">Invoice # *</label>
+            <input type="text" id="invNumber" class="form-input" required />
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Invoice Date *</label>
+            <input type="date" id="invDate" class="form-input" required />
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Due Date *</label>
+            <input type="date" id="invDueDate" class="form-input" required />
+          </div>
+        </div>
+
+        <div class="flex gap-3" style="margin-bottom: 1rem;">
+          <div style="flex: 1.2;">
+            <label class="form-label">Customer / Client Name *</label>
+            <input type="text" id="invCustomerName" class="form-input" placeholder="e.g. Acme Tech Solutions Pvt Ltd" required />
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">GSTIN (Optional)</label>
+            <input type="text" id="invCustomerGstin" class="form-input" placeholder="29ABCDE1234F1Z5" maxlength="15" />
+          </div>
+        </div>
+
+        <div style="background: var(--background); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 1rem;">
+          <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Item / Service Details</div>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label class="form-label">Item / Service Description *</label>
+            <input type="text" id="invItemDesc" class="form-input" placeholder="Software Engineering Consulting / Supply of Goods" required oninput="calculateInvoiceTaxSummary()" />
+          </div>
+          <div class="flex gap-3">
+            <div style="flex: 1;">
+              <label class="form-label">HSN/SAC Code</label>
+              <input type="text" id="invHsn" class="form-input" placeholder="998313" />
+            </div>
+            <div style="flex: 1;">
+              <label class="form-label">Quantity *</label>
+              <input type="number" id="invQuantity" class="form-input" min="1" value="1" required oninput="calculateInvoiceTaxSummary()" />
+            </div>
+            <div style="flex: 1.2;">
+              <label class="form-label">Unit Rate (₹) *</label>
+              <input type="number" id="invRate" class="form-input" min="0" step="any" placeholder="10000" required oninput="calculateInvoiceTaxSummary()" />
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3" style="margin-bottom: 1rem;">
+          <div style="flex: 1;">
+            <label class="form-label">GST Tax Type</label>
+            <select id="invGstType" class="form-select" onchange="calculateInvoiceTaxSummary()">
+              <option value="intra">Intra-State (CGST + SGST)</option>
+              <option value="inter">Inter-State (IGST)</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">GST Rate %</label>
+            <select id="invGstRate" class="form-select" onchange="calculateInvoiceTaxSummary()">
+              <option value="18">18% Standard (9% CGST + 9% SGST)</option>
+              <option value="12">12% Standard (6% CGST + 6% SGST)</option>
+              <option value="5">5% Concessional (2.5% + 2.5%)</option>
+              <option value="28">28% Luxury / Sin</option>
+              <option value="0">0% Exempt</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Status</label>
+            <select id="invStatus" class="form-select">
+              <option value="unpaid">⏳ Unpaid / Pending</option>
+              <option value="paid">✓ Paid in Full</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Live Computed Tax Breakdown Summary Box -->
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 4px;">
+            <span>Subtotal (Taxable Value):</span>
+            <strong id="invSummarySubtotal" style="color: var(--text-main);">₹0.00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 6px;">
+            <span id="invSummaryTaxLabel">Applicable GST:</span>
+            <strong id="invSummaryTaxAmt" style="color: var(--accent);">₹0.00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 900; color: var(--primary); border-top: 1px dashed var(--border); padding-top: 6px;">
+            <span>Grand Total (INR):</span>
+            <span id="invSummaryGrandTotal" style="color: var(--primary);">₹0.00</span>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-outline" onclick="closeModals()">Cancel</button>
+          <button type="submit" id="createInvoiceSubmitBtn" class="btn btn-primary" style="font-weight: 800;">+ Generate Tax Invoice ✓</button>
         </div>
       </form>
     </div>
@@ -7096,10 +7232,11 @@
         // Preload Uploaded Documents & Statements list
         loadUploadedDocuments();
 
-        // Preload Khata, Inventory, and Subscriptions data
+        // Preload Khata, Inventory, Subscriptions, and Invoices data
         if (typeof loadKhataData === 'function') loadKhataData();
         if (typeof loadInventoryData === 'function') loadInventoryData();
         if (typeof loadSubscriptionsData === 'function') loadSubscriptionsData();
+        if (typeof loadInvoicesData === 'function') loadInvoicesData();
       } catch (err) {
         console.error('Failed to load workspace data:', err);
       }
@@ -7353,23 +7490,148 @@
       document.getElementById('voiceModal').classList.add('active');
     }
 
+    function setVoiceInput(phrase) {
+      const input = document.getElementById('voiceCommandInput');
+      if (input) input.value = phrase;
+      const statusEl = document.getElementById('voiceListeningStatus');
+      if (statusEl) statusEl.textContent = 'Phrase selected. Click "Parse & Auto-Log Expense" below.';
+    }
+
     function handleVoiceSim() {
       const phrases = [
         'Spent ₹1,850 on grocery supplies today',
         'Received ₹45,000 from client retainer',
+        'Ramesh ko ₹8,500 udhari diya',
         'Paid ₹3,200 for cloud server hosting',
-        'Spent ₹800 on taxi travel'
+        'Spent ₹2,400 on petrol today',
+        'Sharma ji se ₹12,000 jama mila'
       ];
       const random = phrases[Math.floor(Math.random() * phrases.length)];
-      document.getElementById('voiceCommandInput').value = random;
+      setVoiceInput(random);
+    }
+
+    let voiceRecognitionInstance = null;
+    let isVoiceListening = false;
+
+    function toggleVoiceRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const statusEl = document.getElementById('voiceListeningStatus');
+      const micCircle = document.getElementById('voiceMicPulseCircle');
+      const inputEl = document.getElementById('voiceCommandInput');
+
+      if (!SpeechRecognition) {
+        if (statusEl) statusEl.textContent = 'Voice recognition not natively supported in this browser. Please type or pick a sample.';
+        handleVoiceSim();
+        return;
+      }
+
+      if (isVoiceListening && voiceRecognitionInstance) {
+        voiceRecognitionInstance.stop();
+        isVoiceListening = false;
+        if (micCircle) {
+          micCircle.style.background = 'rgba(5, 150, 105, 0.15)';
+          micCircle.style.transform = 'scale(1)';
+        }
+        if (statusEl) statusEl.textContent = 'Voice capture paused. Click mic to speak again.';
+        return;
+      }
+
+      try {
+        voiceRecognitionInstance = new SpeechRecognition();
+        voiceRecognitionInstance.continuous = false;
+        voiceRecognitionInstance.interimResults = true;
+        const langCode = document.getElementById('voiceLangSelect')?.value || 'en-IN';
+        voiceRecognitionInstance.lang = langCode;
+
+        voiceRecognitionInstance.onstart = () => {
+          isVoiceListening = true;
+          if (micCircle) {
+            micCircle.style.background = 'rgba(239, 68, 68, 0.2)';
+            micCircle.style.borderColor = '#ef4444';
+            micCircle.style.transform = 'scale(1.08)';
+          }
+          if (statusEl) statusEl.textContent = '🔴 Listening... Speak clearly (e.g. "Spent 1500 for diesel")';
+        };
+
+        voiceRecognitionInstance.onresult = (event) => {
+          let transcript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+          }
+          if (inputEl && transcript) inputEl.value = transcript;
+        };
+
+        voiceRecognitionInstance.onerror = (e) => {
+          isVoiceListening = false;
+          if (micCircle) {
+            micCircle.style.background = 'rgba(5, 150, 105, 0.15)';
+            micCircle.style.borderColor = 'var(--accent)';
+            micCircle.style.transform = 'scale(1)';
+          }
+          if (statusEl) statusEl.textContent = `Mic notice: ${e.error || 'Check microphone permission'}. Sample phrase loaded.`;
+        };
+
+        voiceRecognitionInstance.onend = () => {
+          isVoiceListening = false;
+          if (micCircle) {
+            micCircle.style.background = 'rgba(5, 150, 105, 0.15)';
+            micCircle.style.borderColor = 'var(--accent)';
+            micCircle.style.transform = 'scale(1)';
+          }
+          if (statusEl) statusEl.textContent = 'Voice captured! Click "Parse & Auto-Log Expense" below.';
+        };
+
+        voiceRecognitionInstance.start();
+      } catch (err) {
+        console.warn('Speech recognition start failed:', err);
+        handleVoiceSim();
+      }
     }
 
     async function handleVoiceSubmit() {
-      const text = document.getElementById('voiceCommandInput').value;
-      if (!text) return;
-      alert(`🎙️ AI Voice Command Parsed: "${text}"\nAuto-recording into active workspace...`);
-      closeModals();
-      loadWorkspaceData();
+      const text = document.getElementById('voiceCommandInput')?.value.trim();
+      if (!text) {
+        alert('Please speak or enter an expense phrase first.');
+        return;
+      }
+
+      const btn = document.getElementById('voiceSubmitBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '🎙️ Parsing & Logging Entry...';
+      }
+
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch('/api/business/voice-copilot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`,
+            'X-Workspace-Id': wsId
+          },
+          body: JSON.stringify({ transcript: text, autoCommit: true })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          const p = data.parsed || data;
+          const amtStr = Number(p.amount || 0).toLocaleString('en-IN');
+          showToast(`🎙️ Auto-Logged ₹${amtStr} for "${p.partyName || p.itemDescription || 'Ledger'}" (${p.category || 'Expense'})!`, 'success');
+          closeModals();
+          if (typeof loadWorkspaceData === 'function') await loadWorkspaceData();
+          if (typeof loadKhataData === 'function') await loadKhataData();
+        } else {
+          alert('Could not parse voice intent: ' + (data.error || 'Try phrase like "Spent ₹1200 on fuel"'));
+        }
+      } catch (err) {
+        alert('Voice server connection error: ' + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Parse & Auto-Log Expense ✓';
+        }
+      }
     }
 
     function sendWhatsAppReminder(partyName, amount) {
@@ -7671,7 +7933,8 @@
     }
 
     function openStatementReviewStudio(data) {
-      currentExtractedTransactions = (data.transactions || []).map((t, idx) => ({
+      const rawList = Array.isArray(data.transactions) ? data.transactions : (Array.isArray(data.extracted) ? data.extracted : (Array.isArray(data) ? data : []));
+      currentExtractedTransactions = rawList.map((t, idx) => ({
         ...t,
         tempId: t.tempId || `tmp_${Date.now()}_${idx}`,
         selected: true
@@ -8591,7 +8854,7 @@
           }
         });
         const data = await res.json();
-        const parties = (data && data.ledgers) ? data.ledgers : [];
+        const parties = Array.isArray(data) ? data : (data?.ledgers || data?.data || []);
 
         let totalRecv = 0;
         let totalPay = 0;
@@ -8603,8 +8866,8 @@
           tbody.innerHTML = '';
           if (parties.length > 0) {
             parties.forEach(p => {
-              const isCust = (p.party_type === 'customer' || p.partyType === 'customer');
-              const bal = Math.abs(Number(p.net_balance || p.netBalance || 0));
+              const isCust = (p.party_type === 'customer' || p.partyType === 'customer' || p.type === 'customer');
+              const bal = Math.abs(Number(p.net_balance || p.netBalance || p.balance || p.amount || 0));
               if (isCust) {
                 totalRecv += bal;
                 custCount++;
@@ -8613,16 +8876,16 @@
                 vendCount++;
               }
 
-              const safePhone = (p.phone || '').replace(/[^0-9]/g, '');
-              const pName = p.party_name || p.partyName || 'Party';
+              const safePhone = (p.phone || p.partyPhone || '').replace(/[^0-9]/g, '');
+              const pName = p.party_name || p.partyName || p.name || 'Party';
               const waText = encodeURIComponent(`Hi ${pName}, friendly reminder from HisabHero regarding pending balance of ₹${bal.toLocaleString('en-IN')}. Please settle via UPI. Thank you!`);
               const waLink = safePhone ? `https://wa.me/${safePhone}?text=${waText}` : '#';
 
               tbody.innerHTML += `
                 <tr>
                   <td>
-                    <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${escapeHtml(pName)}</div>
-                    ${p.notes ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(p.notes)}</div>` : ''}
+                    <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main);">${escapeHtml(pName)}</div>
+                    ${(p.notes || p.note) ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(p.notes || p.note)}</div>` : ''}
                   </td>
                   <td><span class="pill-badge ${isCust ? 'emerald' : 'rose'}" style="font-size: 0.72rem; padding: 2px 8px;">${isCust ? '👤 Customer' : '🏢 Vendor'}</span></td>
                   <td>
@@ -8764,7 +9027,7 @@
           }
         });
         const data = await res.json();
-        const items = (data && data.items) ? data.items : [];
+        const items = Array.isArray(data) ? data : (data?.items || data?.data || []);
 
         const tbody = document.getElementById('inventoryTableBody');
         if (tbody) {
@@ -8780,17 +9043,17 @@
               tbody.innerHTML += `
                 <tr>
                   <td>
-                    <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${isStock ? '📦' : '🏛️'} ${escapeHtml(item.name)}</div>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main);">${isStock ? '📦' : '🏛️'} ${escapeHtml(item.name)}</div>
                     <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(item.sku || 'SKU-GEN')}</div>
                   </td>
                   <td><span class="pill-badge" style="font-size: 0.72rem; padding: 2px 7px;">${escapeHtml(item.category || 'General')}</span></td>
                   <td>
                     ${isStock ? `
-                      <span style="font-weight: 800; ${isLowStock ? 'color: #f87171;' : 'color: #fff;'}">${qty} units</span>
+                      <span style="font-weight: 800; ${isLowStock ? 'color: #f87171;' : 'color: var(--text-main);'}">${qty} units</span>
                       ${isLowStock ? `<span class="pill-badge rose" style="font-size: 0.65rem; margin-left: 6px;">⚠️ LOW STOCK</span>` : ''}
                     ` : '<span style="color: #94a3b8;">1 Unit (Asset)</span>'}
                   </td>
-                  <td style="font-weight: 800; color: #fff;">₹${val.toLocaleString('en-IN')}</td>
+                  <td style="font-weight: 800; color: var(--text-main);">₹${val.toLocaleString('en-IN')}</td>
                   <td>
                     ${isStock ? `
                       <span class="pill-badge emerald" style="font-size: 0.72rem;">✓ Ready for Sale</span>
@@ -9041,7 +9304,229 @@
     }
 
     function openCreateInvoiceModal() {
-      alert('Create Tax Invoice modal ready!');
+      closeModals();
+      const form = document.getElementById('createInvoiceForm');
+      if (form) form.reset();
+      const today = new Date().toISOString().split('T')[0];
+      const dueDate = new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0];
+      const invNum = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const numEl = document.getElementById('invNumber');
+      if (numEl) numEl.value = invNum;
+      const dateEl = document.getElementById('invDate');
+      if (dateEl) dateEl.value = today;
+      const dueEl = document.getElementById('invDueDate');
+      if (dueEl) dueEl.value = dueDate;
+      const qtyEl = document.getElementById('invQuantity');
+      if (qtyEl) qtyEl.value = 1;
+      const rateEl = document.getElementById('invRate');
+      if (rateEl) rateEl.value = 5000;
+      const descEl = document.getElementById('invItemDesc');
+      if (descEl) descEl.value = 'Professional Services';
+
+      calculateInvoiceTaxSummary();
+      const modal = document.getElementById('createInvoiceModal');
+      if (modal) modal.classList.add('active');
+    }
+
+    function calculateInvoiceTaxSummary() {
+      const qty = parseFloat(document.getElementById('invQuantity')?.value || 1) || 1;
+      const rate = parseFloat(document.getElementById('invRate')?.value || 0) || 0;
+      const gstRate = parseFloat(document.getElementById('invGstRate')?.value || 18) || 0;
+      const gstType = document.getElementById('invGstType')?.value || 'intra';
+
+      const subtotal = Math.round((qty * rate) * 100) / 100;
+      const totalTax = Math.round((subtotal * (gstRate / 100)) * 100) / 100;
+      const grandTotal = Math.round((subtotal + totalTax) * 100) / 100;
+
+      const subEl = document.getElementById('invSummarySubtotal');
+      if (subEl) subEl.textContent = '₹' + subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+      const labelEl = document.getElementById('invSummaryTaxLabel');
+      if (labelEl) {
+        labelEl.textContent = gstType === 'intra'
+          ? `Applicable GST (${gstRate}% = ${(gstRate/2)}% CGST + ${(gstRate/2)}% SGST):`
+          : `Applicable GST (${gstRate}% IGST):`;
+      }
+
+      const taxEl = document.getElementById('invSummaryTaxAmt');
+      if (taxEl) taxEl.textContent = '₹' + totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+      const grandEl = document.getElementById('invSummaryGrandTotal');
+      if (grandEl) grandEl.textContent = '₹' + grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+      return { subtotal, totalTax, grandTotal, gstRate, gstType };
+    }
+
+    async function handleCreateInvoiceSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('createInvoiceSubmitBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating Invoice...'; }
+
+      try {
+        const { subtotal, totalTax, grandTotal, gstRate, gstType } = calculateInvoiceTaxSummary();
+        const invoiceNumber = document.getElementById('invNumber')?.value.trim();
+        const date = document.getElementById('invDate')?.value;
+        const dueDate = document.getElementById('invDueDate')?.value;
+        const customerName = document.getElementById('invCustomerName')?.value.trim();
+        const customerGstin = document.getElementById('invCustomerGstin')?.value.trim();
+        const itemDesc = document.getElementById('invItemDesc')?.value.trim();
+        const hsn = document.getElementById('invHsn')?.value.trim();
+        const quantity = parseFloat(document.getElementById('invQuantity')?.value || 1);
+        const rate = parseFloat(document.getElementById('invRate')?.value || 0);
+        const status = document.getElementById('invStatus')?.value || 'unpaid';
+
+        const cgst = gstType === 'intra' ? totalTax / 2 : 0;
+        const sgst = gstType === 'intra' ? totalTax / 2 : 0;
+        const igst = gstType === 'inter' ? totalTax : 0;
+
+        const payload = {
+          invoiceNumber,
+          date,
+          dueDate,
+          customerName,
+          customerGstin,
+          items: [{ description: itemDesc, hsn, quantity, rate, amount: subtotal }],
+          subtotal,
+          cgst,
+          sgst,
+          igst,
+          taxRate: gstRate,
+          totalTax,
+          total: grandTotal,
+          amount: grandTotal,
+          status
+        };
+
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch('/api/invoices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`,
+            'X-Workspace-Id': wsId
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          showToast(`🧾 Invoice #${invoiceNumber} generated successfully!`, 'success');
+          closeModals();
+          await loadInvoicesData();
+        } else {
+          alert('Failed to generate invoice: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('Network error generating invoice: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Generate Tax Invoice ✓'; }
+      }
+    }
+
+    async function loadInvoicesData() {
+      try {
+        const wsId = currentActiveWorkspaceId || 'personal';
+        const res = await fetch(`/api/invoices?workspaceId=${wsId}`, {
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'X-Workspace-Id': wsId
+          }
+        });
+        const data = await res.json();
+        const invoices = Array.isArray(data) ? data : (data?.invoices || data?.items || data?.data || []);
+
+        let totalInvoiced = 0;
+        let totalCollected = 0;
+        let totalPending = 0;
+
+        const tbody = document.getElementById('invoicesTableBody');
+        if (tbody) {
+          tbody.innerHTML = '';
+          if (invoices.length > 0) {
+            invoices.forEach(inv => {
+              const total = Number(inv.total || inv.amount || 0);
+              const isPaid = (inv.status === 'paid');
+              totalInvoiced += total;
+              if (isPaid) totalCollected += total;
+              else totalPending += total;
+
+              const invNum = inv.invoiceNumber || inv.invoice_number || 'INV-GEN';
+              const cust = inv.customerName || inv.customer_name || 'Customer';
+              const gstin = inv.customerGstin || inv.customer_gstin || '';
+              const date = inv.date ? inv.date.split('T')[0] : '';
+              const rate = inv.taxRate || inv.tax_rate || 18;
+              const waText = encodeURIComponent(`Hi ${cust}, please find your Tax Invoice #${invNum} for ₹${total.toLocaleString('en-IN')}. Due date: ${inv.dueDate || 'Immediate'}. Please settle via UPI. Thank you!`);
+              const waLink = `https://wa.me/?text=${waText}`;
+
+              tbody.innerHTML += `
+                <tr>
+                  <td>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main);">#${escapeHtml(invNum)}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(date)}</div>
+                  </td>
+                  <td>
+                    <div style="font-weight: 700; color: var(--text-main);">${escapeHtml(cust)}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">${gstin ? `GSTIN: ${escapeHtml(gstin)}` : 'Unregistered Consumer'}</div>
+                  </td>
+                  <td>
+                    <span class="pill-badge" style="font-size: 0.72rem; padding: 2px 7px;">${rate}% GST (${(inv.igst > 0) ? 'IGST' : 'CGST+SGST'})</span>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Tax: ₹${Number(inv.totalTax || (inv.cgst || 0) + (inv.sgst || 0) + (inv.igst || 0)).toLocaleString('en-IN')}</div>
+                  </td>
+                  <td style="font-weight: 800; color: var(--text-main); font-size: 1rem;">
+                    ₹${total.toLocaleString('en-IN')}
+                  </td>
+                  <td>
+                    <span class="pill-badge ${isPaid ? 'emerald' : 'rose'}" style="font-size: 0.75rem;">
+                      ${isPaid ? '✓ Paid' : '⏳ Pending'}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="flex gap-2 items-center">
+                      <a href="${waLink}" target="_blank" class="btn btn-accent" style="padding: 3px 8px; font-size: 0.72rem; font-weight: 800; text-decoration: none;" title="Share Invoice on WhatsApp">
+                        💬 Share
+                      </a>
+                      <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="deleteInvoice('${inv.id || inv._id}', '${escapeHtml(invNum)}')">
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            });
+          } else {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No invoices created yet. Click "+ Create Invoice" above to generate your first GST invoice.</td></tr>';
+          }
+        }
+
+        const totalEl = document.getElementById('invoicesTotalAmt');
+        if (totalEl) totalEl.textContent = '₹' + totalInvoiced.toLocaleString('en-IN');
+        const collectedEl = document.getElementById('invoicesCollectedAmt');
+        if (collectedEl) collectedEl.textContent = '₹' + totalCollected.toLocaleString('en-IN');
+        const pendingEl = document.getElementById('invoicesPendingAmt');
+        if (pendingEl) pendingEl.textContent = '₹' + totalPending.toLocaleString('en-IN');
+      } catch (err) {
+        console.error('Failed to load invoices data:', err);
+      }
+    }
+
+    async function deleteInvoice(invId, invNum) {
+      if (!confirm(`Are you sure you want to delete Invoice #${invNum}?`)) return;
+      try {
+        const res = await fetch(`/api/invoices/${invId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`🗑️ Invoice #${invNum} deleted.`, 'success');
+          await loadInvoicesData();
+        } else {
+          alert('Failed to delete invoice: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        alert('Network error deleting invoice: ' + err.message);
+      }
     }
 
     async function handleCreateWsSubmit(e) {
@@ -9164,6 +9649,9 @@
             renderDedicatedTransactionsTable();
           }
         }, 100);
+      }
+      if (secName === 'invoices' && typeof loadInvoicesData === 'function') {
+        loadInvoicesData();
       }
       if (secName === 'khata' && typeof loadKhataData === 'function') {
         loadKhataData();
@@ -11936,6 +12424,94 @@
       }
     });
 
+    function repositionTourOverlay() {
+      if (!tourActive || currentTourStep < 0 || currentTourStep >= TOUR_STEPS.length) return;
+      const step = TOUR_STEPS[currentTourStep];
+      let el = document.querySelector(step.targetSelector) || document.querySelector('.dash-hero-banner') || document.body;
+      const box = document.getElementById('hhTourHighlightBox');
+      const card = document.getElementById('hhTourCard');
+      const hole = document.getElementById('hhTourCutoutHole');
+      if (!el || !box || !card) return;
+
+      const freshRect = el.getBoundingClientRect();
+
+      // Punch 100% transparent cutout hole into the dark SVG mask
+      if (hole) {
+        hole.setAttribute('x', Math.max(0, freshRect.left - 6));
+        hole.setAttribute('y', Math.max(0, freshRect.top - 6));
+        hole.setAttribute('width', freshRect.width + 12);
+        hole.setAttribute('height', freshRect.height + 12);
+      }
+
+      box.style.top = `${Math.max(10, freshRect.top - 6)}px`;
+      box.style.left = `${Math.max(10, freshRect.left - 6)}px`;
+      box.style.width = `${freshRect.width + 12}px`;
+      box.style.height = `${freshRect.height + 12}px`;
+
+      const cardWidth = Math.min(380, window.innerWidth - 32);
+      const cardHeight = card.offsetHeight || 310;
+      const margin = 20;
+      let cardTop = 0;
+      let cardLeft = 0;
+
+      if (step.preferredPosition === 'left' || freshRect.left > window.innerWidth / 2) {
+        if (freshRect.left - cardWidth - margin >= 16) {
+          cardLeft = freshRect.left - cardWidth - margin;
+          cardTop = Math.max(70, Math.min(freshRect.top + 30, window.innerHeight - cardHeight - 20));
+        } else {
+          cardLeft = Math.max(16, (window.innerWidth - cardWidth) / 2);
+          cardTop = Math.max(70, freshRect.top - cardHeight - margin);
+        }
+      } else if (step.preferredPosition === 'bottom') {
+        cardLeft = Math.max(20, Math.min(freshRect.left + (freshRect.width / 2) - (cardWidth / 2), window.innerWidth - cardWidth - 20));
+        cardTop = freshRect.bottom + margin;
+        if (cardTop + cardHeight > window.innerHeight - 10) {
+          const topPlacement = freshRect.top - cardHeight - margin;
+          if (topPlacement >= 60) {
+            cardTop = topPlacement;
+          } else if (freshRect.right + cardWidth + margin <= window.innerWidth - 16) {
+            cardLeft = freshRect.right + margin;
+            cardTop = Math.max(70, freshRect.top);
+          } else if (freshRect.left - cardWidth - margin >= 16) {
+            cardLeft = freshRect.left - cardWidth - margin;
+            cardTop = Math.max(70, freshRect.top);
+          }
+        }
+      } else {
+        cardLeft = Math.max(20, Math.min(freshRect.left + (freshRect.width / 2) - (cardWidth / 2), window.innerWidth - cardWidth - 20));
+        cardTop = freshRect.bottom + margin;
+        if (cardTop + cardHeight > window.innerHeight - 10) {
+          cardTop = Math.max(70, freshRect.top - cardHeight - margin);
+        }
+      }
+
+      // Collision avoidance
+      const isOverlapping = !(
+        (cardLeft + cardWidth) <= freshRect.left ||
+        cardLeft >= freshRect.right ||
+        (cardTop + cardHeight) <= freshRect.top ||
+        cardTop >= freshRect.bottom
+      );
+
+      if (isOverlapping) {
+        if (freshRect.left - cardWidth - margin >= 16) {
+          cardLeft = freshRect.left - cardWidth - margin;
+        } else if (freshRect.right + cardWidth + margin <= window.innerWidth - 16) {
+          cardLeft = freshRect.right + margin;
+        } else if (freshRect.bottom + margin + cardHeight <= window.innerHeight - 10) {
+          cardTop = freshRect.bottom + margin;
+        } else if (freshRect.top - cardHeight - margin >= 60) {
+          cardTop = freshRect.top - cardHeight - margin;
+        }
+      }
+
+      card.style.top = `${Math.round(cardTop)}px`;
+      card.style.left = `${Math.round(cardLeft)}px`;
+    }
+
+    window.addEventListener('scroll', repositionTourOverlay, { passive: true });
+    window.addEventListener('resize', repositionTourOverlay, { passive: true });
+
     function startInteractiveTour(fromStep = 0) {
       tourActive = true;
       currentTourStep = fromStep;
@@ -11979,8 +12555,6 @@
         }
 
         setTimeout(() => {
-          const freshRect = el.getBoundingClientRect();
-
           // Clear previous target styling and elevate current target
           if (window.__activeTourTargetEl) {
             window.__activeTourTargetEl.classList.remove('hh-tour-active-target');
@@ -11991,90 +12565,7 @@
             el.classList.add('hh-tour-active-target');
           }
 
-          // Punch 100% transparent cutout hole into the dark SVG mask
-          const hole = document.getElementById('hhTourCutoutHole');
-          if (hole) {
-            hole.setAttribute('x', Math.max(0, freshRect.left - 6));
-            hole.setAttribute('y', Math.max(0, freshRect.top - 6));
-            hole.setAttribute('width', freshRect.width + 12);
-            hole.setAttribute('height', freshRect.height + 12);
-          }
-
-          if (box) {
-            box.style.top = `${Math.max(10, freshRect.top - 6)}px`;
-            box.style.left = `${Math.max(10, freshRect.left - 6)}px`;
-            box.style.width = `${freshRect.width + 12}px`;
-            box.style.height = `${freshRect.height + 12}px`;
-          }
-
-          // Position Card intelligently so it NEVER overlaps or hides the active feature
-          if (card) {
-            const cardWidth = 380;
-            const cardHeight = card.offsetHeight || 310;
-            const margin = 20;
-            let cardTop = 0;
-            let cardLeft = 0;
-
-            if (step.preferredPosition === 'left' || freshRect.left > window.innerWidth / 2) {
-              // Place to the LEFT of the target (ideal for AI Drawer on the right)
-              if (freshRect.left - cardWidth - margin >= 16) {
-                cardLeft = freshRect.left - cardWidth - margin;
-                cardTop = Math.max(70, Math.min(freshRect.top + 30, window.innerHeight - cardHeight - 20));
-              } else {
-                cardLeft = Math.max(16, (window.innerWidth - cardWidth) / 2);
-                cardTop = Math.max(70, freshRect.top - cardHeight - margin);
-              }
-            } else if (step.preferredPosition === 'bottom') {
-              cardLeft = Math.max(20, Math.min(freshRect.left + (freshRect.width / 2) - (cardWidth / 2), window.innerWidth - cardWidth - 20));
-              cardTop = freshRect.bottom + margin;
-
-              // If overflowing bottom edge, try placing ABOVE target
-              if (cardTop + cardHeight > window.innerHeight - 10) {
-                const topPlacement = freshRect.top - cardHeight - margin;
-                if (topPlacement >= 60) {
-                  cardTop = topPlacement;
-                } else {
-                  // Fallback to right or left side
-                  if (freshRect.right + cardWidth + margin <= window.innerWidth - 16) {
-                    cardLeft = freshRect.right + margin;
-                    cardTop = Math.max(70, freshRect.top);
-                  } else if (freshRect.left - cardWidth - margin >= 16) {
-                    cardLeft = freshRect.left - cardWidth - margin;
-                    cardTop = Math.max(70, freshRect.top);
-                  }
-                }
-              }
-            } else {
-              cardLeft = Math.max(20, Math.min(freshRect.left + (freshRect.width / 2) - (cardWidth / 2), window.innerWidth - cardWidth - 20));
-              cardTop = freshRect.bottom + margin;
-              if (cardTop + cardHeight > window.innerHeight - 10) {
-                cardTop = Math.max(70, freshRect.top - cardHeight - margin);
-              }
-            }
-
-            // Absolute collision guarantee: if card still overlaps freshRect, move card away
-            const isOverlapping = !(
-              (cardLeft + cardWidth) <= freshRect.left ||
-              cardLeft >= freshRect.right ||
-              (cardTop + cardHeight) <= freshRect.top ||
-              cardTop >= freshRect.bottom
-            );
-
-            if (isOverlapping) {
-              if (freshRect.left - cardWidth - margin >= 16) {
-                cardLeft = freshRect.left - cardWidth - margin;
-              } else if (freshRect.right + cardWidth + margin <= window.innerWidth - 16) {
-                cardLeft = freshRect.right + margin;
-              } else if (freshRect.bottom + margin + cardHeight <= window.innerHeight - 10) {
-                cardTop = freshRect.bottom + margin;
-              } else if (freshRect.top - cardHeight - margin >= 60) {
-                cardTop = freshRect.top - cardHeight - margin;
-              }
-            }
-
-            card.style.top = `${Math.round(cardTop)}px`;
-            card.style.left = `${Math.round(cardLeft)}px`;
-          }
+          repositionTourOverlay();
         }, 180);
 
         // Update card contents

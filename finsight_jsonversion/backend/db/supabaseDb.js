@@ -734,6 +734,10 @@ export const transactionsRepo = {
     );
   },
 
+  async findByWorkspace(workspaceId, opts) {
+    return this.listByWorkspace(workspaceId, opts);
+  },
+
   async findById(id) {
     if (!id) return null;
     try {
@@ -942,6 +946,10 @@ export const documentsRepo = {
     );
   },
 
+  async findByWorkspace(workspaceId) {
+    return this.listByWorkspace(workspaceId);
+  },
+
   async findById(id) {
     try {
       const mongoDoc = await mongoDocumentsRepo.findById(id);
@@ -1137,6 +1145,10 @@ export const invoicesRepo = {
     );
   },
 
+  async findByWorkspace(workspaceId) {
+    return this.listByWorkspace(workspaceId);
+  },
+
   async create(invData) {
     return safeDb(
       async () => {
@@ -1150,6 +1162,17 @@ export const invoicesRepo = {
         return data;
       },
       () => localDb.createInvoice(invData)
+    );
+  },
+
+  async delete(invoiceId) {
+    return safeDb(
+      async () => {
+        const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
+        localDb.deleteInvoice?.(invoiceId);
+        return !error;
+      },
+      () => localDb.deleteInvoice?.(invoiceId) || true
     );
   }
 };
@@ -1325,6 +1348,10 @@ export const khataRepo = {
     );
   },
 
+  async findByWorkspace(workspaceId) {
+    return this.listByWorkspace(workspaceId);
+  },
+
   async create(partyData) {
     return safeDb(
       async () => {
@@ -1369,6 +1396,10 @@ export const inventoryRepo = {
     );
   },
 
+  async findByWorkspace(workspaceId) {
+    return this.listByWorkspace(workspaceId);
+  },
+
   async create(itemData) {
     return safeDb(
       async () => {
@@ -1411,6 +1442,10 @@ export const subscriptionsRepo = {
       },
       () => localDb.listSubscriptions(workspaceId)
     );
+  },
+
+  async findByWorkspace(workspaceId) {
+    return this.listByWorkspace(workspaceId);
   },
 
   async create(subData) {

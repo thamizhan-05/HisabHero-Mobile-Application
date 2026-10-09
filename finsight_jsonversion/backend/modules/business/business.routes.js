@@ -1,5 +1,6 @@
 import express from 'express';
 import * as businessController from './business.controller.js';
+import { voiceCopilot } from '../ai/ai.controller.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { requireWorkspaceAccess } from '../../middleware/workspaceAuth.js';
 
@@ -8,6 +9,11 @@ const auth = [authMiddleware, requireWorkspaceAccess];
 
 // Invoices
 router.get('/invoices', auth, businessController.getInvoices);
+router.post('/invoices', auth, businessController.createInvoice);
+router.delete('/invoices/:id', auth, businessController.deleteInvoice);
+
+// Voice Copilot (Bhasha AI)
+router.post(['/business/voice-copilot', '/voice-copilot'], auth, voiceCopilot);
 
 // Khata
 router.get('/khata', auth, businessController.getKhata);

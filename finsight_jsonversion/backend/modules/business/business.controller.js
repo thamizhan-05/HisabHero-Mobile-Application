@@ -6,7 +6,37 @@ export async function getInvoices(req, res, next) {
   try {
     const wsId = req.headers['x-workspace-id'] || 'personal';
     const list = await businessService.getInvoices(wsId);
-    return res.status(HTTP_STATUS.OK).json(list);
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      invoices: list,
+      items: list,
+      data: list
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createInvoice(req, res, next) {
+  try {
+    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const invoice = await businessService.createInvoice(wsId, req.body);
+    return res.status(HTTP_STATUS.CREATED).json({
+      success: true,
+      message: 'Tax Invoice generated successfully!',
+      invoice
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteInvoice(req, res, next) {
+  try {
+    const { id } = req.params;
+    const wsId = req.headers['x-workspace-id'] || 'personal';
+    await businessService.deleteInvoice(id, wsId);
+    return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Invoice removed.' });
   } catch (err) {
     next(err);
   }
@@ -17,7 +47,11 @@ export async function getKhata(req, res, next) {
   try {
     const wsId = req.headers['x-workspace-id'] || 'personal';
     const list = await businessService.getKhataLedgers(wsId);
-    return res.status(HTTP_STATUS.OK).json(list);
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      ledgers: list,
+      data: list
+    });
   } catch (err) {
     next(err);
   }
@@ -53,7 +87,11 @@ export async function getInventory(req, res, next) {
   try {
     const wsId = req.headers['x-workspace-id'] || 'personal';
     const list = await businessService.getInventory(wsId);
-    return res.status(HTTP_STATUS.OK).json(list);
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      items: list,
+      data: list
+    });
   } catch (err) {
     next(err);
   }
@@ -89,7 +127,11 @@ export async function getSubscriptions(req, res, next) {
   try {
     const wsId = req.headers['x-workspace-id'] || 'personal';
     const list = await businessService.getSubscriptions(wsId);
-    return res.status(HTTP_STATUS.OK).json(list);
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      subscriptions: list,
+      data: list
+    });
   } catch (err) {
     next(err);
   }
