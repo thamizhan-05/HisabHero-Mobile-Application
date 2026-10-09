@@ -2233,6 +2233,23 @@
       "payment_method": "UPI",
       "source": "Manual",
       "created_at": "2026-10-09T08:26:42.204Z"
+    },
+    {
+      "id": "ff975858-5445-4c45-afc3-a827dbd76aa1",
+      "_id": "ff975858-5445-4c45-afc3-a827dbd76aa1",
+      "workspace_id": "personal",
+      "workspaceId": "personal",
+      "user_id": "test_user_fix_1",
+      "userId": "test_user_fix_1",
+      "description": "Voice Bookkeeper: Walk-in Customer - Fuel & Transport",
+      "amount": 2400,
+      "type": "expense",
+      "category": "General Expense",
+      "date": "2026-10-09",
+      "merchant": null,
+      "payment_method": "UPI",
+      "source": "Voice Bookkeeper",
+      "created_at": "2026-10-09T09:10:42.404Z"
     }
   ],
   "uploaded_documents": [
@@ -3614,6 +3631,23 @@
       "total": 11800,
       "status": "unpaid",
       "created_at": "2026-10-09T08:26:40.859Z"
+    },
+    {
+      "id": "17d7f8fe-44e0-411c-92eb-ff5571cc14e9",
+      "_id": "17d7f8fe-44e0-411c-92eb-ff5571cc14e9",
+      "workspaceId": "personal",
+      "invoiceNumber": "INV-2026-999",
+      "customerName": "Bharat Electronics Ltd",
+      "customerGstin": "29ABCDE1234F1Z5",
+      "subtotal": 10000,
+      "cgst": 900,
+      "sgst": 900,
+      "igst": 0,
+      "taxRate": 18,
+      "totalTax": 1800,
+      "total": 11800,
+      "status": "unpaid",
+      "created_at": "2026-10-09T09:10:42.239Z"
     }
   ],
   "khata_ledgers": [
@@ -3863,6 +3897,25 @@
       "entries": [],
       "created_at": "2026-10-09T08:26:40.936Z",
       "updated_at": "2026-10-09T08:26:40.936Z"
+    },
+    {
+      "id": "02222dc7-6023-4d04-9b0c-0b2009f4d08a",
+      "_id": "02222dc7-6023-4d04-9b0c-0b2009f4d08a",
+      "workspace_id": "personal",
+      "workspaceId": "personal",
+      "party_name": "Rajesh Hardware",
+      "partyName": "Rajesh Hardware",
+      "party_type": "customer",
+      "partyType": "customer",
+      "phone": "9876543210",
+      "email": "",
+      "net_balance": 0,
+      "netBalance": 0,
+      "currency": "INR",
+      "notes": "",
+      "entries": [],
+      "created_at": "2026-10-09T09:10:42.298Z",
+      "updated_at": "2026-10-09T09:10:42.298Z"
     }
   ],
   "device_sessions": [
@@ -4225,6 +4278,26 @@
       "depreciation_method": "straight_line",
       "created_at": "2026-10-09T08:26:40.986Z",
       "updated_at": "2026-10-09T08:26:40.986Z"
+    },
+    {
+      "id": "427cd0b6-839f-4d24-974d-6d2490ee5b75",
+      "_id": "427cd0b6-839f-4d24-974d-6d2490ee5b75",
+      "workspace_id": "personal",
+      "workspaceId": "personal",
+      "name": "UltraTech Cement 50kg",
+      "type": "stock",
+      "sku": "SKU-2327",
+      "category": "Raw Materials",
+      "stock_quantity": 150,
+      "stockQuantity": 150,
+      "unit_value": 380,
+      "unitValue": 380,
+      "reorder_level": 5,
+      "useful_life": 5,
+      "usefulLife": 5,
+      "depreciation_method": "straight_line",
+      "created_at": "2026-10-09T09:10:42.327Z",
+      "updated_at": "2026-10-09T09:10:42.327Z"
     }
   ],
   "subscriptions": [],

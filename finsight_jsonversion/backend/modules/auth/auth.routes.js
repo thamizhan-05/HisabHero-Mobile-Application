@@ -19,7 +19,7 @@ router.post('/logout', authMiddleware, authController.logout);
 router.post('/forgot-password', otpLimiter, authController.forgotPassword);
 router.post('/reset-password', verifyLimiter, authController.resetPassword);
 
-router.get('/me', authMiddleware, authController.getProfile);
+router.get(['/me', '/verify'], authMiddleware, authController.getProfile);
 router.delete('/account', authMiddleware, authController.deleteAccount);
 
 export default router;

@@ -219,7 +219,7 @@ export async function getProfile(req, res, next) {
     const activeWsId = req.headers['x-workspace-id'];
     let activeWs = workspaces.find(w => w.id === activeWsId || w._id === activeWsId) || workspaces[0] || null;
 
-    return res.status(HTTP_STATUS.OK).json({
+    const profile = {
       id: user.id,
       _id: user.id,
       email: user.email,
@@ -229,6 +229,12 @@ export async function getProfile(req, res, next) {
       workspaces,
       personalWorkspaces: workspaces.filter(w => w.type === 'personal'),
       businessWorkspaces: workspaces.filter(w => w.type === 'business')
+    };
+
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      user: profile,
+      ...profile
     });
   } catch (err) {
     next(err);

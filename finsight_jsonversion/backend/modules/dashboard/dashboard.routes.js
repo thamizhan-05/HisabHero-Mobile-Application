@@ -1,5 +1,6 @@
 import express from 'express';
 import * as dashboardController from './dashboard.controller.js';
+import * as transactionsController from '../transactions/transactions.controller.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { requireWorkspaceAccess } from '../../middleware/workspaceAuth.js';
 
@@ -10,6 +11,7 @@ router.use(requireWorkspaceAccess);
 
 router.get('/stats', dashboardController.getStats);
 router.get('/health', dashboardController.getHealth);
+router.get('/transactions', transactionsController.getTransactions);
 router.get('/high-value-pending', dashboardController.getHighValuePending);
 
 export default router;
