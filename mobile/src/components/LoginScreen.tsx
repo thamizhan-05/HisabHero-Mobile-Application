@@ -271,7 +271,7 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
         if (res.status >= 500) {
           throw new Error(`Server ${url} returned ${res.status}`);
         }
-        return { url, res };
+        return { url, res, idx };
       } catch (e: any) {
         clearTimeout(timer);
         throw e;
@@ -280,8 +280,10 @@ export function LoginScreen({ apiBaseUrl, onLoginSuccess, onOpenSettings, initia
 
     try {
       const winner = await firstSuccessfulPromise(promises);
-      controllers.forEach(c => {
-        try { c.abort(); } catch {}
+      controllers.forEach((c, i) => {
+        if (i !== winner.idx) {
+          try { c.abort(); } catch {}
+        }
       });
       await setApiBaseUrl(winner.url);
       setGlobalApiUrl(winner.url);
