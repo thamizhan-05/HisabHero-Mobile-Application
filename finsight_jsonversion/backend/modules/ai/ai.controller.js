@@ -12,7 +12,7 @@ export async function chat(req, res, next) {
       });
     }
 
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     let financialContext = context;
     if (!financialContext || !financialContext.transactions) {
       try {
@@ -44,7 +44,7 @@ export async function voiceCopilot(req, res, next) {
 
     let committed = null;
     if (req.body.autoCommit && result.amount > 0) {
-      const wsId = req.headers['x-workspace-id'] || 'personal';
+      const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
       try {
         const isExp = result.type === 'expense' || result.type === 'khata_credit';
         const tx = await transactionsRepo.create({

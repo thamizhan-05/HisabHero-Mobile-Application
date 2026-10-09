@@ -37,7 +37,7 @@ export async function createTransaction(req, res, next) {
 export async function updateTransaction(req, res, next) {
   try {
     const { id } = req.params;
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     const tx = await transactionsService.updateTransaction(id, wsId, req.body);
     return res.status(HTTP_STATUS.OK).json({
       success: true,
@@ -52,7 +52,7 @@ export async function updateTransaction(req, res, next) {
 export async function deleteTransaction(req, res, next) {
   try {
     const { id } = req.params;
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     await transactionsService.deleteTransaction(id, wsId);
     return res.status(HTTP_STATUS.OK).json({
       success: true,

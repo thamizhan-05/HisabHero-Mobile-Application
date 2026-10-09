@@ -59,6 +59,10 @@ export async function createTransaction(userId, workspaceId, data) {
 }
 
 export async function updateTransaction(id, workspaceId, updates) {
+  const existing = await transactionsRepo.findById(id);
+  if (!existing || (workspaceId && workspaceId !== 'personal' && existing.workspaceId !== workspaceId)) {
+    throw new Error('Transaction not found or unauthorized.');
+  }
   if (updates.amount !== undefined) {
     updates.amount = safeRound(updates.amount);
   }
@@ -69,5 +73,9 @@ export async function updateTransaction(id, workspaceId, updates) {
 }
 
 export async function deleteTransaction(id, workspaceId) {
+  const existing = await transactionsRepo.findById(id);
+  if (!existing || (workspaceId && workspaceId !== 'personal' && existing.workspaceId !== workspaceId)) {
+    throw new Error('Transaction not found or unauthorized.');
+  }
   return await transactionsRepo.delete(id);
 }

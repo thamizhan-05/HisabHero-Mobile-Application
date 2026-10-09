@@ -5,6 +5,18 @@ import { logger } from './utils/logger.js';
 
 const PORT = config.port;
 
+// ─── PROCESS ERROR HANDLERS ───
+process.on('unhandledRejection', (reason) => {
+  logger.error('💥 Unhandled Promise Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('💥 Uncaught Exception:', error);
+  if (config.nodeEnv === 'production') {
+    process.exit(1);
+  }
+});
+
 // ─── START SERVER ───
 const server = app.listen(PORT, '0.0.0.0', async () => {
   logger.info(`🚀 HisabHero Platform running on http://localhost:${PORT}`);

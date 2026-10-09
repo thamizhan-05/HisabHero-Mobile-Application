@@ -43,7 +43,8 @@ export async function cleanSupabase() {
     ];
 
     console.log('🧹 Truncating all Supabase PostgreSQL tables...');
-    await client.query(`TRUNCATE TABLE ${tables.join(', ')} CASCADE;`);
+    const safeTables = tables.map(t => `"${t}"`).join(', ');
+    await client.query(`TRUNCATE TABLE ${safeTables} CASCADE;`);
     console.log('✨ Supabase PostgreSQL is completely clean and empty (fresh schema intact)!');
   } catch (err) {
     console.error('❌ Supabase clean error:', err.message);

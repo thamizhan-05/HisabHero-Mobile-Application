@@ -34,7 +34,7 @@ export async function createInvoice(req, res, next) {
 export async function deleteInvoice(req, res, next) {
   try {
     const { id } = req.params;
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     await businessService.deleteInvoice(id, wsId);
     return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Invoice removed.' });
   } catch (err) {
@@ -74,7 +74,7 @@ export async function createKhata(req, res, next) {
 export async function deleteKhata(req, res, next) {
   try {
     const { id } = req.params;
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     await businessService.deleteKhataEntry(id, wsId);
     return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Khata entry removed.' });
   } catch (err) {
@@ -114,7 +114,7 @@ export async function createInventory(req, res, next) {
 export async function deleteInventory(req, res, next) {
   try {
     const { id } = req.params;
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     await businessService.deleteInventoryItem(id, wsId);
     return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Item deleted.' });
   } catch (err) {
@@ -154,7 +154,7 @@ export async function createSubscription(req, res, next) {
 export async function deleteSubscription(req, res, next) {
   try {
     const { id } = req.params;
-    const wsId = req.headers['x-workspace-id'] || 'personal';
+    const wsId = req.workspaceId || req.headers['x-workspace-id'] || 'personal';
     await businessService.deleteSubscription(id, wsId);
     return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Subscription removed.' });
   } catch (err) {

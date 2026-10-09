@@ -34,7 +34,10 @@ export async function getWorkspaceMembers(workspaceId) {
   return await workspacesRepo.getMembers(workspaceId);
 }
 
-export async function addWorkspaceMember(workspaceId, memberData) {
+export async function addWorkspaceMember(workspaceId, memberData, callerRole) {
+  if (callerRole && callerRole !== 'owner' && callerRole !== 'admin') {
+    throw new Error('Access denied. Only workspace owners and admins can add members.');
+  }
   return await staffRepo.create({
     workspaceId,
     ...memberData
@@ -42,9 +45,18 @@ export async function addWorkspaceMember(workspaceId, memberData) {
 }
 
 export async function resetWorkspaceData(workspaceId, userId) {
-  // Enforce data reset only by owner
-  const members = await workspacesRepo.getMembers(workspaceId);
-  const isOwner = members.some(m => (m.userId === userId || m.user_id === userId) && m.role === 'owner');
+  // Enforce data reset strictly by workspace owner
+  const [ws, members] = await Promise.all([
+    workspacesRepo.findById(workspaceId),
+    workspacesRepo.getMembers(workspaceId)
+  ]);
+
+  const isOwner = (ws && (ws.ownerId === userId || ws.owner_id === userId)) ||
+                  members.some(m => (m.userId === userId || m.user_id === userId) && m.role === 'owner');
+
+  if (!isOwner) {
+    throw new Error('Access denied. Only the workspace owner can reset workspace data.');
+  }
   
   // Wipe transactions and documents scoped to this workspace
   await transactionsRepo.deleteByWorkspace(workspaceId);

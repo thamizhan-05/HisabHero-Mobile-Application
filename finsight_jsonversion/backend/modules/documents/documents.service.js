@@ -66,5 +66,9 @@ export async function getDocuments(workspaceId) {
 }
 
 export async function deleteDocument(id, workspaceId) {
+  const existing = await documentsRepo.findById(id);
+  if (!existing || (workspaceId && workspaceId !== 'personal' && existing.workspaceId !== workspaceId)) {
+    throw new Error('Document not found or unauthorized.');
+  }
   return await documentsRepo.delete(id);
 }

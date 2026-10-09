@@ -77,7 +77,7 @@ export async function getMembers(req, res, next) {
 export async function addMember(req, res, next) {
   try {
     const wsId = req.params.workspaceId || req.params.businessId;
-    const member = await workspacesService.addWorkspaceMember(wsId, req.body);
+    const member = await workspacesService.addWorkspaceMember(wsId, req.body, req.userRole);
     return res.status(HTTP_STATUS.CREATED).json({
       success: true,
       message: 'Member added successfully!',

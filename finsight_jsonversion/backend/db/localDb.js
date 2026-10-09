@@ -608,10 +608,33 @@ export const localDb = {
     return true;
   },
 
+  // Aliases for Khata Repository compatibility
+  createKhataLedger(data) {
+    return this.createKhataParty(data);
+  },
+  listKhataLedgers(workspaceId) {
+    return this.listKhata(workspaceId);
+  },
+  findKhataLedgerById(id) {
+    db.khata_ledgers = db.khata_ledgers || [];
+    return db.khata_ledgers.find(k => k.id === id || k._id === id) || null;
+  },
+  deleteKhataLedger(id) {
+    return this.deleteKhataParty(id);
+  },
+
   // Inventory & Fixed Assets
   listInventory(workspaceId) {
     db.inventory_items = db.inventory_items || [];
     return db.inventory_items.filter(i => !workspaceId || i.workspace_id === workspaceId || i.workspaceId === workspaceId);
+  },
+
+  listInventoryItems(workspaceId) {
+    return this.listInventory(workspaceId);
+  },
+  findInventoryItemById(id) {
+    db.inventory_items = db.inventory_items || [];
+    return db.inventory_items.find(i => i.id === id || i._id === id) || null;
   },
 
   createInventoryItem(itemData) {

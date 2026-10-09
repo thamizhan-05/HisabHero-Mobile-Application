@@ -1,7 +1,16 @@
-import { registerUser, verifyAndCreateAccount, resendVerificationCode, authenticateUser } from './auth.service.js';
+import { 
+  registerUser, 
+  verifyAndCreateAccount, 
+  resendVerificationCode, 
+  authenticateUser,
+  authenticateGoogleUser,
+  requestPasswordReset,
+  resetPasswordWithOtp
+} from './auth.service.js';
 import { usersRepo, workspacesRepo, purgeUserAccountAndAllData } from '../../db/supabaseDb.js';
 import { validate, isValidEmail } from '../../utils/validation.js';
 import { HTTP_STATUS, ERROR_CODES } from '../../config/constants.js';
+import { revokeToken } from '../../middleware/auth.js';
 
 export async function signup(req, res, next) {
   try {
@@ -80,14 +89,21 @@ export async function resendCode(req, res, next) {
 
 export async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const valResult = validate(req.body, {
+      email: { required: true, type: 'email' },
+      password: { required: true, type: 'string', minLength: 1 }
+    });
+
+    if (!valResult.isValid) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         code: ERROR_CODES.VALIDATION_FAILED,
-        error: 'Email and password are required.'
+        error: valResult.errors.join(' ')
       });
     }
+
+    const email = String(req.body.email).trim().toLowerCase();
+    const password = String(req.body.password);
 
     const result = await authenticateUser(email, password);
     return res.status(HTTP_STATUS.OK).json({
@@ -99,7 +115,64 @@ export async function login(req, res, next) {
     return res.status(HTTP_STATUS.UNAUTHORIZED).json({
       success: false,
       code: ERROR_CODES.INVALID_CREDENTIALS,
-      error: err.message
+      error: 'Invalid email or password.'
+    });
+  }
+}
+
+export async function logout(req, res) {
+  if (req.token) {
+    revokeToken(req.token);
+  }
+  return res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Signed out successfully. Session revoked.'
+  });
+}
+
+export async function forgotPassword(req, res, next) {
+  try {
+    const { email } = req.body;
+    if (!email || !isValidEmail(email)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        code: ERROR_CODES.VALIDATION_FAILED,
+        error: 'Valid email is required.'
+      });
+    }
+
+    const result = await requestPasswordReset(email);
+    return res.status(HTTP_STATUS.OK).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetPassword(req, res, next) {
+  try {
+    const { email, newPassword } = req.body;
+    const code = req.body.code || req.body.otp;
+
+    const valResult = validate(req.body, {
+      email: { required: true, type: 'email' },
+      newPassword: { required: true, type: 'string', minLength: 6 }
+    });
+
+    if (!valResult.isValid || !code) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        code: ERROR_CODES.VALIDATION_FAILED,
+        error: !code ? 'Verification code is required.' : valResult.errors.join(' ')
+      });
+    }
+
+    const result = await resetPasswordWithOtp({ email, code, newPassword });
+    return res.status(HTTP_STATUS.OK).json(result);
+  } catch (err) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      code: ERROR_CODES.VALIDATION_FAILED,
+      error: err.message || 'Password reset failed.'
     });
   }
 }

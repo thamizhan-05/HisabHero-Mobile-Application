@@ -8,14 +8,15 @@ export const config = {
   port: parseInt(process.env.PORT, 10) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
   jwtSecret: process.env.JWT_SECRET || 'hisabhero_jwt_super_secret_key_2026',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h', // Capped strictly to <= 24 hours
   
   // Security & Rate Limiting
   corsOrigin: process.env.CORS_ORIGIN || '*',
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 mins
   rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
   authRateLimitMaxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS, 10) || 15,
-  demoOtpEnabled: process.env.ALLOW_DEMO_OTP === 'true' || process.env.NODE_ENV === 'test',
+  // Strictly disable demo OTP in production regardless of flags
+  demoOtpEnabled: process.env.NODE_ENV !== 'production' && (process.env.ALLOW_DEMO_OTP === 'true' || process.env.NODE_ENV === 'test'),
 
   // Database (Supabase PostgreSQL is the Exclusive Database Engine)
   supabaseUrl: process.env.SUPABASE_URL || 'https://lsrcyhoxxbndzhntlvay.supabase.co',

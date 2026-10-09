@@ -18,7 +18,11 @@ export async function requireWorkspaceAccess(req, res, next) {
 
     // 'personal' is the user's default workspace scope
     if (workspaceId === 'personal' || workspaceId === '') {
-      req.userRole = 'owner';
+      const userWorkspaces = await workspacesRepo.getUserWorkspaces(req.userId);
+      const personalWs = userWorkspaces.find(ws => ws.type === 'personal') || userWorkspaces[0];
+      req.workspaceId = personalWs ? personalWs.id : 'personal';
+      req.userRole = personalWs ? (personalWs.role || 'owner') : 'owner';
+      req.activeWorkspace = personalWs || null;
       return next();
     }
 
@@ -45,7 +49,7 @@ export async function requireWorkspaceAccess(req, res, next) {
     return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       success: false,
       code: ERROR_CODES.INTERNAL_ERROR,
-      error: 'Failed to verify workspace permissions: ' + err.message
+      error: 'Failed to verify workspace permissions. Please try again.'
     });
   }
 }
